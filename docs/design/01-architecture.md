@@ -80,10 +80,28 @@ which lets pathfinding test passability with one array read and no branch into d
 
 ## Rendering
 
+**The projection is 2:1 dimetric isometric**, defined in exactly one place: `render/iso.ts`. Tiles are
+64×32 world pixels; `+x` runs down-right, `+y` runs down-left, so screen depth is `x + y`. Everything
+that converts between tile space and screen space goes through those pure functions, which is why they
+can be unit-tested without a renderer (`tests/iso.test.ts`). See ADR
+[0002](../decisions/0002-isometric-projection.md).
+
+**Draw order is load-bearing.** Solid terrain has vertical extent, so sprites overlap and need a
+painter's algorithm. Row-major iteration (y outer, x inner) is already a valid back-to-front order:
+the only tiles whose sprites can cover `(x, y)` are `(x+1, y)` and `(x, y+1)`, and both come later in
+that walk. Pixi draws children in index order and the pool fills from index 0 in iteration order, so
+correctness is free — but iterating `TerrainLayer` differently would make tall terrain render through
+whatever stands in front of it.
+
 **Terrain uses a viewport-sized sprite pool**, not one sprite per cell and not pre-baked chunk render
-textures. A 128×128 map baked at 32px/tile is ~67MB of VRAM and grows quadratically with map size; a
+textures. A fully baked map is tens of megabytes of VRAM and grows quadratically with map size; a
 viewport pool is bounded by screen area, so it costs the same at 500×500. Sprites are reassigned only
 when the visible rect actually changes.
+
+**Culling is two-stage.** The viewport is a diamond in tile space, so its bounding box holds roughly
+twice the tiles actually on screen. `Camera.visibleTiles()` returns that box as a *search* space and
+`TerrainLayer` rejects the corners per-tile against `Camera.visibleWorld()` — arithmetic instead of
+draw calls.
 
 **Art is generated, not loaded.** `ArtProvider` hands out textures by key and caches them; today they
 are drawn procedurally from `palette.ts`. The indirection exists so a real artist's atlas can replace
@@ -99,6 +117,12 @@ reads as light rather than as tinted tiles.
 It sits outside the world container so it doesn't pan or scale. M1 replaces the flat wash with a
 per-cell light grid so lamps and fires can cut into the dark; the interface stays the same.
 
+**Two settings exist purely to stop isometric seams**, and both were found by looking at the running
+game rather than by reasoning about it. Tile textures generate with `antialias: false`, because
+half-transparent diamond edges let the background show through as an outline around every tile. And
+`Camera.applyTo` rounds the world container's position to whole pixels, because nearest-neighbour
+sampling turns any sub-pixel offset back into a faint seam grid.
+
 ## Testing
 
 `sim/` being pure is what makes the interesting parts testable at all.
@@ -108,6 +132,7 @@ per-cell light grid so lamps and fires can cut into the dark; the interface stay
 | `architecture.test.ts` | Enforcement rules 1 and 2, by scanning source |
 | `determinism.test.ts` | Same seed → same world, batched or stepped; RNG save/restore |
 | `world.test.ts` | Terrain def/table alignment, grid indexing, worldgen sanity, time maths |
+| `iso.test.ts` | Projection round-trip, tessellation, and the draw-order invariant |
 
 The highest-value test in the project doesn't exist yet: the M5 headless harness that fast-forwards
 seven in-game days and asserts *nobody starved, nobody slept on the floor, the stockpile is non-empty*.

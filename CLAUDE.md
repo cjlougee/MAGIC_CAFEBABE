@@ -75,6 +75,7 @@ src/
     defs/       content as typed TS objects
     save/       serialize / deserialize / migrate / hash
   render/       PixiJS. Reads sim state; NEVER mutates it.
+    iso.ts      THE isometric projection — tile space <-> world pixels. One definition.
     art/        palette, shape language, procedural sprite generation
     layers/     terrain, buildings, items, pawns, lighting, overlays
     camera/     pan, zoom, culling
@@ -100,6 +101,12 @@ queue the sim drains at the start of each tick. The sim publishes a read-only `S
 - **Colours come from `src/render/art/palette.ts`.** Never hardcode a hex value in a layer or
   component. The palette is the art direction; keeping it in one file is what makes the game look
   coherent.
+- **The view is 2:1 isometric, and `src/render/iso.ts` is its only definition.** Never write
+  `(x - y) * 32` inline in a layer. Two things follow from the projection and are easy to break
+  accidentally: solid tiles overlap, so `TerrainLayer` must iterate row-major (y outer, x inner) to
+  stay a valid painter's order; and tile art is nearest-neighbour sampled, so textures generate with
+  `antialias: false` and the world container's position is rounded to whole pixels. Undo either and
+  a seam grid appears over the whole map. See `docs/decisions/0002-isometric-projection.md`.
 - Prefer small, focused files with one clear purpose. When a file grows past ~300 lines, that is
   usually a signal it is doing too much.
 - Tests live in `tests/` and mirror the `src/sim/` structure.

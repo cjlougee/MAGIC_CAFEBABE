@@ -23,7 +23,16 @@ export class ArtProvider {
     if (cached) return cached;
 
     const graphics = buildTerrainGraphics(id, variant);
-    const texture = this.renderer.generateTexture({ target: graphics, resolution: 1 });
+    const texture = this.renderer.generateTexture({
+      target: graphics,
+      resolution: 1,
+      // Antialiasing is what causes the seams between isometric tiles: a diamond's
+      // sloped edge renders as half-transparent pixels, and where two tiles abut, both
+      // contribute partial alpha, so the dark background shows through as an outline
+      // around every tile. Hard edges make the diamonds interlock exactly — and match
+      // the chunky pixel look the rest of the art is going for.
+      antialias: false,
+    });
     // Nearest keeps tile edges crisp when zoomed in; bilinear would smear the
     // deliberately chunky pixel detail into mush.
     texture.source.scaleMode = 'nearest';

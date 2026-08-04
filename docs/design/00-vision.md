@@ -27,7 +27,9 @@ This is a load-bearing choice, not flavour. It makes every pillar feed the other
 - **Factions** write themselves: scavenger clans, a remnant order hoarding what's left, natives who
   want the ruins undisturbed.
 - **Art direction** earns itself: clean, saturated, colourful machinery sitting in rusted alien
-  wilderness. The relic cyan in the palette is the visual signature of the tier you can't make.
+  wilderness. The relic cyan in the palette is the visual signature of the tier you can't make, and
+  in isometric it sits on the *vertical* faces of standing structures — so intact relic-tech reads
+  as lit panels from across the map.
 
 ## Pillars
 
@@ -41,7 +43,8 @@ This is a load-bearing choice, not flavour. It makes every pillar feed the other
 
 Naming the negative space is what keeps scope honest.
 
-- **Not 3D.** Top-down 2D tile grid, permanently.
+- **Not 3D.** A 2D isometric tile grid (2:1 dimetric), permanently. Depth comes from
+  drawing raised faces on a flat grid, not from a camera that can orbit.
 - **Not Dwarf Fortress scale.** Target ~250×250 tiles and ~20 pawns, not thousands.
 - **Not multiplayer.** The deterministic core would permit it; we are not building it.
 - **Not a survival roguelite.** Colonies are meant to persist and be invested in, not restarted hourly.

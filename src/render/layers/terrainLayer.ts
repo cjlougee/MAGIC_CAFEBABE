@@ -1,13 +1,18 @@
 /**
- * Draws the tile grid.
+ * Draws the isometric tile grid.
  *
  * Uses a recycled sprite pool sized to the viewport rather than one sprite per map
- * cell or a pre-baked render texture per chunk. A 128x128 map fully baked at 32px is
- * ~67MB of VRAM and grows quadratically with map size; a viewport pool is bounded by
- * screen area instead, so it costs the same at 128x128 as at 500x500.
+ * cell or a pre-baked render texture per chunk. A 128x128 map fully baked is tens of
+ * megabytes of VRAM and grows quadratically with map size; a viewport pool is bounded
+ * by screen area instead, so it costs the same at 128x128 as at 500x500.
  *
- * Reassignment only happens when the visible rect actually changes, so holding still
- * costs nothing and the whole layer is a single batched draw.
+ * **Draw order is load-bearing.** Tiles with height overlap their neighbours, so this
+ * is a painter's algorithm: row-major iteration (y outer, x inner) is a valid
+ * back-to-front order, because the only tiles whose sprites can cover tile (x, y) are
+ * (x+1, y) and (x, y+1) — both later in that walk. Pixi draws children in index order
+ * and the pool is always filled from index 0 in iteration order, so the ordering holds
+ * for free. If you ever iterate this loop differently, tall terrain will render through
+ * whatever stands in front of it.
  */
 
 import { Container, Sprite } from 'pixi.js';
@@ -15,9 +20,10 @@ import { TERRAIN_DEFS } from '../../sim/defs/terrain';
 import { makeNoise2D } from '../../sim/world/noise';
 import type { TileMap } from '../../sim/world/tilemap';
 import type { ArtProvider } from '../art/artProvider';
-import { variantForCell } from '../art/terrainArt';
-import type { TileRect } from '../camera/camera';
-import { TILE_SIZE } from '../constants';
+import { terrainHeight, variantForCell } from '../art/terrainArt';
+import type { TileRect, WorldRect } from '../camera/camera';
+import { HALF_TILE_H, HALF_TILE_W } from '../constants';
+import { tileToWorld } from '../iso';
 
 /**
  * Darkest the tint field may push a tile, as a fraction of full brightness. Tint can
@@ -45,10 +51,12 @@ export class TerrainLayer {
     this.container.interactiveChildren = false;
   }
 
-  update(map: TileMap, seed: number, view: TileRect): void {
+  update(map: TileMap, seed: number, view: TileRect, visible: WorldRect): void {
     this.ensureTintField(map, seed);
 
-    // Seed is part of the key so regenerating the world invalidates the cache.
+    // Seed is part of the key so regenerating the world invalidates the cache. World
+    // pixel positions don't depend on zoom (the container scales), but the visible
+    // rect does, so zooming changes the key too.
     const key = `${seed}:${view.x0},${view.y0},${view.x1},${view.y1}`;
     if (key === this.lastKey) return;
     this.lastKey = key;
@@ -60,11 +68,18 @@ export class TerrainLayer {
       for (let x = view.x0; x <= view.x1; x++) {
         const index = map.idx(x, y);
         const terrain = map.terrainAt(index);
-        const variant = variantForCell(x, y, seed, TERRAIN_DEFS[terrain].variants);
+        const height = terrainHeight(terrain);
+        const pos = tileToWorld(x, y);
+
+        // Reject the bounding box's corners, which the diamond viewport never covers.
+        if (pos.x + HALF_TILE_W < visible.x0 || pos.x - HALF_TILE_W > visible.x1) continue;
+        if (pos.y + HALF_TILE_H < visible.y0 || pos.y - HALF_TILE_H - height > visible.y1) continue;
 
         const sprite = this.spriteAt(used++);
-        sprite.texture = this.art.terrain(terrain, variant);
-        sprite.position.set(x * TILE_SIZE, y * TILE_SIZE);
+        sprite.texture = this.art.terrain(terrain, variantForCell(x, y, seed, TERRAIN_DEFS[terrain].variants));
+        // The texture's base diamond sits `height` pixels down from its top edge, so
+        // offsetting by height puts the tile's footprint on the ground plane.
+        sprite.position.set(pos.x - HALF_TILE_W, pos.y - HALF_TILE_H - height);
 
         const level = tint[index];
         sprite.tint = (level << 16) | (level << 8) | level;
@@ -98,8 +113,7 @@ export class TerrainLayer {
 
     for (let y = 0; y < map.height; y++) {
       for (let x = 0; x < map.width; x++) {
-        const value = noise(x * TINT_SCALE, y * TINT_SCALE, 3);
-        field[map.idx(x, y)] = floor + Math.round(value * span);
+        field[map.idx(x, y)] = floor + Math.round(noise(x * TINT_SCALE, y * TINT_SCALE, 3) * span);
       }
     }
 

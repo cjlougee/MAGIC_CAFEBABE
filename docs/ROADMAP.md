@@ -21,10 +21,13 @@ slice hangs off.
 - [x] Command queue + `SimSnapshot` publisher
 - [x] Tile grids, terrain defs, seeded worldgen (elevation / moisture / ruins)
 - [x] Palette + `ArtProvider` procedural sprite generation
-- [x] Viewport-pooled terrain rendering with culling, camera pan/zoom
+- [x] Viewport-pooled terrain rendering with two-stage culling, camera pan/zoom
 - [x] Low-frequency tint field so large areas don't read as flat colour
 - [x] Day/night wash — pulled forward from M1, because a ticking clock with no visual
       consequence made the HUD read as decoration
+- [x] **2:1 isometric projection** with raised faces on solid terrain (ADR 0002).
+      Converted after M0 review; touched only `src/render/`, no simulation code — the
+      firewall paying for itself inside the first milestone
 - **Playable check:** ✅ pan and zoom a colourful generated map at a stable 60fps.
 
 ### M1 — Pawns & movement

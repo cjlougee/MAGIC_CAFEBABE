@@ -7,7 +7,8 @@
 
 import type { Camera } from './camera';
 
-const KEY_PAN_TILES_PER_SECOND = 18;
+/** World pixels per second. A tile is 64px wide, so this is roughly 11 tiles/sec. */
+const KEY_PAN_PIXELS_PER_SECOND = 700;
 const ZOOM_STEP = 1.12;
 
 const PAN_KEYS: Record<string, [number, number]> = {
@@ -66,10 +67,13 @@ export class CameraController {
     }
 
     if (dx !== 0 || dy !== 0) {
-      // Divided by zoom so panning covers the same on-screen distance at any zoom.
-      const distance = (KEY_PAN_TILES_PER_SECOND * dtMs) / 1000 / this.camera.zoom;
-      this.camera.x += dx * distance;
-      this.camera.y += dy * distance;
+      // Normalised so holding two keys doesn't pan faster diagonally, and divided by
+      // zoom so panning covers the same on-screen distance however far you're zoomed.
+      const length = Math.hypot(dx, dy);
+      const distance = (KEY_PAN_PIXELS_PER_SECOND * dtMs) / 1000 / this.camera.zoom;
+      // Screen-space directions, converted through the projection by the camera —
+      // "up" must mean up the screen, not up the tile grid.
+      this.camera.moveByWorld((dx / length) * distance, (dy / length) * distance);
     }
 
     this.camera.clampTo(mapWidth, mapHeight);

@@ -76,7 +76,7 @@ export class GameRenderer {
     this.camera.applyTo(this.worldContainer, width, height);
 
     const view = this.camera.visibleTiles(width, height, world.map.width, world.map.height);
-    this.terrain.update(world.map, world.seed, view);
+    this.terrain.update(world.map, world.seed, view, this.camera.visibleWorld(width, height));
     this.lighting.update(daylight(world.tick), width, height);
 
     this.app.renderer.render(this.app.stage);
