@@ -50,6 +50,7 @@ export function hashWorld(world: World): string {
 
   h = mixInt32(h, world.map.width);
   h = mixInt32(h, world.map.height);
+  h = mixInt32(h, world.map.levels);
   h = mixBytes(h, world.map.terrain);
 
   return h.toString(16).padStart(8, '0');

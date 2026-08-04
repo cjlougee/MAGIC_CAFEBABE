@@ -96,8 +96,13 @@ queue the sim drains at the start of each tick. The sim publishes a read-only `S
 
 - **Content lives in `src/sim/defs/` as typed TS objects**, not XML or JSON. We want autocomplete,
   refactorability, and compile-time errors on typos. Data-driven modding can layer on later.
-- **Grids are flat typed arrays** indexed `y * width + x`. Use `TileMap.idx(x, y)`. This is where
-  performance actually lives.
+- **Grids are flat typed arrays**, level-major: `z * layerSize + y * width + x`. Always index through
+  `TileMap.idx(x, y, z?)`. This is where performance actually lives.
+- **Positions carry a `z`, and always have.** Use `TilePos` from `src/sim/core/position.ts` — never
+  a bare `{x, y}`. The map is one level deep today, so every z is `GROUND_LEVEL` and this costs one
+  unused field. It exists because widening the position type *after* pawns, job targets, reservation
+  keys, and save files depend on it is a rewrite, whereas adding levels to a grid is a constructor
+  change. See `docs/decisions/0003-verticality.md`.
 - **Colours come from `src/render/art/palette.ts`.** Never hardcode a hex value in a layer or
   component. The palette is the art direction; keeping it in one file is what makes the game look
   coherent.

@@ -77,7 +77,29 @@ Real, but not designed in detail yet. Each gets its own design pass when we reac
 - **Slice 2 — Production.** Workbenches and bills, recipe chains, quality tiers, power grid.
   Delivers the *scrap → refined → relic-tech* ladder.
 - **Slice 3 — Threat.** Combat, body-part injury model (`hediffs`), raids, an event director that
-  paces pressure.
+  paces pressure. Where high-ground and cover modifiers land, since they need combat to modify.
 - **Slice 4 — The world outside.** World map, caravans, exploration of ruins, factions, trade.
+  Where multi-level worldgen and cave dungeons land, since they serve exploration.
 - **Slice 5 — Command.** Squad selection, formations, orders, morale — the Bannerlord layer, riding
   on the preemption support built in M2.
+
+## Verticality — reserved, not built
+
+The data model supports stacked z-levels; nothing generates or renders a second one yet. See ADR
+[0003](decisions/0003-verticality.md) for why this split, and for the height-field model that was
+rejected.
+
+**Already reserved** (costs one unused field per position, and one multiply-by-zero per index):
+- [x] `TilePos {x, y, z}` defined before the first pawn exists — the retrofit that would actually
+      have been expensive
+- [x] `TileMap.levels` with level-major indexing, exercised by tests on a real 3-level map
+- [x] Level-aware `tileToWorld` / `worldToTile`; `hashWorld` covers `levels`
+
+**Deliberately deferred**, each to the slice where it has something to serve:
+- [ ] Vertical connectivity — ramps/stairs in pathfinding *(M1, alongside reachability)*
+- [ ] Cross-section rendering: hide roofs, walls, levels above the cut plane *(when a second level
+      exists to look at — this is a draw-loop filter, not a data-model change)*
+- [ ] High-ground damage bonus, cover and trench defence bonuses *(Slice 3)*
+- [ ] Multi-level worldgen, caves, relic-tech dungeons *(Slice 4)*
+- [ ] Reconcile decorative terrain relief with `LEVEL_HEIGHT` — currently a raised rock tile and a
+      genuine level above would look identical while behaving completely differently

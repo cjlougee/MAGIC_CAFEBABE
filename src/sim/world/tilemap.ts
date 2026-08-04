@@ -1,17 +1,33 @@
 /**
  * The tile grid.
  *
- * Every per-cell field is a flat typed array indexed `y * width + x`. This is where
- * simulation performance actually lives: a 250x250 map is 62,500 cells, and anything
- * allocated per-cell would dominate. Read and write through idx().
+ * Every per-cell field is a flat typed array indexed by `idx(x, y, z)`. This is where
+ * simulation performance actually lives: a 250x250 map is 62,500 cells per level, and
+ * anything allocated per-cell would dominate. Read and write through idx().
+ *
+ * **Layout is level-major**: all of level 0, then all of level 1, and so on. Within a
+ * level it is row-major, `y * width + x`. Level-major is the right order because play
+ * iterates within a single level constantly (pathfinding, rendering, work scanning) and
+ * across levels rarely.
+ *
+ * `levels` is currently 1. The indexing is z-aware anyway so that adding levels is a
+ * constructor change rather than an edit to every call site — see
+ * docs/decisions/0003-verticality.md.
  */
 
 import { IMPASSABLE } from '../core/constants';
+import { GROUND_LEVEL } from '../core/position';
 import { Terrain, TERRAIN_DEFS, type TerrainId } from '../defs/terrain';
 
 export class TileMap {
   readonly width: number;
   readonly height: number;
+  /** Number of stacked z-levels. 1 until verticality lands. */
+  readonly levels: number;
+
+  /** Cells in a single level. The stride between levels in every grid. */
+  readonly layerSize: number;
+  /** Total cells across all levels. */
   readonly size: number;
 
   /** TerrainId per cell. */
@@ -19,18 +35,21 @@ export class TileMap {
   /** Movement cost per cell; IMPASSABLE (0) means blocked. Derived from terrain. */
   readonly walkCost: Uint8Array;
 
-  constructor(width: number, height: number) {
+  constructor(width: number, height: number, levels = 1) {
     this.width = width;
     this.height = height;
-    this.size = width * height;
+    this.levels = levels;
+    this.layerSize = width * height;
+    this.size = this.layerSize * levels;
+
     this.terrain = new Uint8Array(this.size);
     this.walkCost = new Uint8Array(this.size);
     this.terrain.fill(Terrain.Dirt);
     this.walkCost.fill(TERRAIN_DEFS[Terrain.Dirt].walkCost);
   }
 
-  idx(x: number, y: number): number {
-    return y * this.width + x;
+  idx(x: number, y: number, z: number = GROUND_LEVEL): number {
+    return z * this.layerSize + y * this.width + x;
   }
 
   xOf(index: number): number {
@@ -38,15 +57,24 @@ export class TileMap {
   }
 
   yOf(index: number): number {
-    return (index / this.width) | 0;
+    return ((index % this.layerSize) / this.width) | 0;
   }
 
-  inBounds(x: number, y: number): boolean {
-    return x >= 0 && y >= 0 && x < this.width && y < this.height;
+  zOf(index: number): number {
+    return (index / this.layerSize) | 0;
   }
 
-  getTerrain(x: number, y: number): TerrainId {
-    return this.terrain[this.idx(x, y)] as TerrainId;
+  inBounds(x: number, y: number, z: number = GROUND_LEVEL): boolean {
+    return x >= 0 && y >= 0 && z >= 0 && x < this.width && y < this.height && z < this.levels;
+  }
+
+  getTerrain(x: number, y: number, z: number = GROUND_LEVEL): TerrainId {
+    return this.terrain[this.idx(x, y, z)] as TerrainId;
+  }
+
+  /** Sets terrain and keeps the derived walk cost in sync. */
+  setTerrain(x: number, y: number, id: TerrainId, z: number = GROUND_LEVEL): void {
+    this.setTerrainAt(this.idx(x, y, z), id);
   }
 
   /**
@@ -59,19 +87,12 @@ export class TileMap {
     return this.terrain[index] as TerrainId;
   }
 
-  /** Sets terrain and keeps the derived walk cost in sync. */
-  setTerrain(x: number, y: number, id: TerrainId): void {
-    const i = this.idx(x, y);
-    this.terrain[i] = id;
-    this.walkCost[i] = TERRAIN_DEFS[id].walkCost;
-  }
-
   setTerrainAt(index: number, id: TerrainId): void {
     this.terrain[index] = id;
     this.walkCost[index] = TERRAIN_DEFS[id].walkCost;
   }
 
-  isPassable(x: number, y: number): boolean {
-    return this.inBounds(x, y) && this.walkCost[this.idx(x, y)] !== IMPASSABLE;
+  isPassable(x: number, y: number, z: number = GROUND_LEVEL): boolean {
+    return this.inBounds(x, y, z) && this.walkCost[this.idx(x, y, z)] !== IMPASSABLE;
   }
 }

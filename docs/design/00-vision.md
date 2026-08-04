@@ -38,13 +38,17 @@ This is a load-bearing choice, not flavour. It makes every pillar feed the other
 3. **Pressure worth defending against.** Threats that escalate and force the base to adapt.
 4. **A world outside the walls.** Exploration and factions that matter to the colony's economy.
 5. **Command when it counts.** Direct, tactical control in a fight — not just drafted positioning.
+6. **Ground worth fighting over.** Verticality that changes tactics: high ground, cover, trenches —
+   and caves that hide what the fallen civilization left behind.
 
 ## What this is not
 
 Naming the negative space is what keeps scope honest.
 
-- **Not 3D.** A 2D isometric tile grid (2:1 dimetric), permanently. Depth comes from
-  drawing raised faces on a flat grid, not from a camera that can orbit.
+- **Not 3D.** A 2D isometric tile grid (2:1 dimetric), permanently — sprites on a grid, never meshes,
+  and a camera that pans and zooms but never orbits. Verticality arrives as *discrete stacked levels*
+  viewed through a cross-section, not as a rotatable third dimension. See ADR
+  [0003](../decisions/0003-verticality.md).
 - **Not Dwarf Fortress scale.** Target ~250×250 tiles and ~20 pawns, not thousands.
 - **Not multiplayer.** The deterministic core would permit it; we are not building it.
 - **Not a survival roguelite.** Colonies are meant to persist and be invested in, not restarted hourly.

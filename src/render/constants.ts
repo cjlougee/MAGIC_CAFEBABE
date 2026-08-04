@@ -12,6 +12,17 @@ export const TILE_H = 32;
 export const HALF_TILE_W = TILE_W / 2;
 export const HALF_TILE_H = TILE_H / 2;
 
+/**
+ * Vertical offset of one z-level, in world pixels.
+ *
+ * Unused while the map is one level deep, but the projection takes z now so that
+ * adding levels doesn't mean revisiting every call site. Chosen slightly taller than
+ * the tallest terrain relief (bulkheads at 22px) so a full level reads as a storey
+ * rather than as a bump. Current terrain heights are decorative sub-level relief and
+ * will need reconciling against this when levels actually land.
+ */
+export const LEVEL_HEIGHT = 24;
+
 /** Zoom bounds, chosen so the sprite pool stays bounded (see TerrainLayer). */
 export const MIN_ZOOM = 0.35;
 export const MAX_ZOOM = 2.5;

@@ -71,12 +71,31 @@ The rule is enforcement rule 2, but the mechanics are worth stating:
 
 ## Grids
 
-Per-cell data lives in flat typed arrays indexed `y * width + x`, not objects. At 250×250 that's 62,500
-cells per field; anything allocated per cell would dominate both memory and GC. Access goes through
-`TileMap.idx()` / `terrainAt()`.
+Per-cell data lives in flat typed arrays, not objects. At 250×250 that's 62,500 cells per field per
+level; anything allocated per cell would dominate both memory and GC. Access goes through
+`TileMap.idx(x, y, z?)` / `terrainAt()`.
+
+Layout is **level-major**: `z * layerSize + y * width + x`. Level-major because play iterates within a
+single level constantly (pathfinding, rendering, work scanning) and across levels rarely.
 
 `walkCost` is derived from terrain and kept in sync by `setTerrain`. Impassable is the sentinel `0`,
 which lets pathfinding test passability with one array read and no branch into definitions.
+
+## Verticality
+
+The map is one level deep, but the model is **discrete z-levels** and the seams for them exist now:
+`TilePos` carries a `z`, `TileMap` carries `levels`, and the projection takes a level. Nothing
+generates or renders a second one yet.
+
+This split is deliberate. The expensive retrofit was never the grid — adding a trailing argument to
+`idx()` is mechanical. It was the *position type*: widening `{x, y}` to `{x, y, z}` after pawns, job
+targets, reservation keys, pathfinding nodes, and save files all depend on it would be a rewrite. So
+that one thing was done before M1 creates the first pawn, and everything else waits.
+
+Cross-section rendering is explicitly *not* reserved, because it's a filter in a draw loop rather than
+a data-model change — cheap to add whenever there's a second level worth looking at. ADR
+[0003](../decisions/0003-verticality.md) covers the full reasoning, including the height-field model
+that was rejected for being unable to express a cave.
 
 ## Rendering
 

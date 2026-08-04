@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { HALF_TILE_H, HALF_TILE_W, TILE_H, TILE_W } from '../src/render/constants';
+import { HALF_TILE_H, HALF_TILE_W, LEVEL_HEIGHT, TILE_H, TILE_W } from '../src/render/constants';
 import { tileDepth, tileToWorld, worldDeltaToTile, worldToTile } from '../src/render/iso';
 
 describe('isometric projection', () => {
@@ -72,6 +72,36 @@ describe('isometric projection', () => {
     const delta = worldDeltaToTile(0, TILE_H);
     expect(delta.x).toBeCloseTo(1, 10);
     expect(delta.y).toBeCloseTo(1, 10);
+  });
+});
+
+describe('levels', () => {
+  it('is identical to the flat projection at ground level', () => {
+    // Nothing currently passes z. If the default ever stopped being a no-op, the whole
+    // map would shift and it would look like a camera bug.
+    expect(tileToWorld(5, 9, 0)).toEqual(tileToWorld(5, 9));
+    expect(worldToTile(120, 64, 0)).toEqual(worldToTile(120, 64));
+  });
+
+  it('draws higher levels further up the screen', () => {
+    const ground = tileToWorld(4, 4, 0);
+    const above = tileToWorld(4, 4, 1);
+    expect(above.x).toBe(ground.x);
+    expect(ground.y - above.y).toBe(LEVEL_HEIGHT);
+  });
+
+  it('puts underground levels below the surface', () => {
+    const below = tileToWorld(4, 4, -1);
+    expect(below.y - tileToWorld(4, 4, 0).y).toBe(LEVEL_HEIGHT);
+  });
+
+  it('round-trips on any level', () => {
+    for (const z of [-2, -1, 0, 1, 3]) {
+      const world = tileToWorld(6, 11, z);
+      const back = worldToTile(world.x, world.y, z);
+      expect(back.x).toBeCloseTo(6, 10);
+      expect(back.y).toBeCloseTo(11, 10);
+    }
   });
 });
 
