@@ -1,0 +1,179 @@
+/*
+ * Colour values come from src/render/art/palette.ts via applyPaletteToCss(), exposed
+ * as --c-<name>. Do not hardcode hex here — canvas and DOM must never drift apart.
+ */
+
+:root {
+  --font-ui: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+  --hud-height: 44px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: var(--c-void);
+  color: var(--c-text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.viewport {
+  position: absolute;
+  inset: 0;
+}
+
+.viewport canvas {
+  display: block;
+  touch-action: none;
+}
+
+/* ── HUD ──────────────────────────────────────────────────────────────────── */
+
+.hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--hud-height);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 14px;
+  background: color-mix(in srgb, var(--c-panel) 88%, transparent);
+  border-bottom: 1px solid var(--c-panelEdge);
+  backdrop-filter: blur(6px);
+  user-select: none;
+}
+
+.hud__title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--c-relic);
+}
+
+.hud__loading {
+  color: var(--c-textDim);
+  font-style: italic;
+}
+
+.hud__group {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.hud__group--right {
+  margin-left: auto;
+}
+
+.hud__label {
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--c-textDim);
+}
+
+.hud__value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-text);
+}
+
+.hud__value--accent {
+  color: var(--c-relic);
+  font-weight: 600;
+}
+
+.hud__pip {
+  font-size: 14px;
+  line-height: 1;
+  color: var(--c-gold);
+}
+
+/* ── Controls ─────────────────────────────────────────────────────────────── */
+
+.hud__speeds {
+  gap: 3px;
+}
+
+.hud__speed,
+.hud__button {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--c-textDim);
+  background: transparent;
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    color 90ms ease,
+    border-color 90ms ease,
+    background-color 90ms ease;
+}
+
+.hud__speed {
+  min-width: 34px;
+  padding: 5px 0;
+}
+
+.hud__button {
+  padding: 5px 10px;
+}
+
+.hud__speed:hover,
+.hud__button:hover {
+  color: var(--c-text);
+  border-color: var(--c-relic);
+}
+
+.hud__speed.is-active {
+  color: var(--c-void);
+  background: var(--c-relic);
+  border-color: var(--c-relic);
+  font-weight: 700;
+}
+
+/* ── Footer hint ──────────────────────────────────────────────────────────── */
+
+.controls-hint {
+  position: absolute;
+  left: 14px;
+  bottom: 12px;
+  color: var(--c-textDim);
+  font-size: 11px;
+  pointer-events: none;
+  user-select: none;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 80%);
+}
+
+.controls-hint kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  margin: 0 1px;
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-panel) 75%, transparent);
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 3px;
+}

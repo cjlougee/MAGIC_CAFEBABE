@@ -1,0 +1,70 @@
+/**
+ * The art direction, in one file.
+ *
+ * The whole look rests on one rule: **terrain is desaturated, technology is
+ * saturated.** Wilderness sits in muted earth tones so that anything manufactured —
+ * and especially anything relic — reads instantly as the valuable thing on screen.
+ * `relic` cyan is the signature colour of the tier you cannot craft.
+ *
+ * Never hardcode a hex value outside this file. Coherence is the entire reason the
+ * procedural art approach works.
+ */
+
+export const Palette = {
+  // ── Terrain: desaturated, low contrast against each other ──────────────────
+  deepWater: 0x1d3b4a,
+  shallowWater: 0x2f5f6e,
+  sand: 0x8f7f5c,
+  dirt: 0x6d5a45,
+  grass: 0x5b6b41,
+  gravel: 0x6e6a63,
+  rock: 0x4b4844,
+  ruinFloor: 0x4a4e57,
+  ruinWall: 0x353941,
+
+  // ── Accents: saturated. Reserved for tech, alerts, and UI emphasis ─────────
+  relic: 0x53d6c4,
+  energy: 0x58b6f0,
+  hazard: 0xf0904a,
+  danger: 0xd9544f,
+  good: 0x7fbf5f,
+  gold: 0xe8c15c,
+
+  // ── Chrome ────────────────────────────────────────────────────────────────
+  void: 0x0a0d11,
+  ink: 0x0d1014,
+  panel: 0x161b22,
+  panelEdge: 0x2a323d,
+  text: 0xdfe6ee,
+  textDim: 0x8b97a6,
+
+  /** Colour the world is tinted toward at full night. */
+  nightTint: 0x2a3f66,
+} as const;
+
+export type PaletteColor = (typeof Palette)[keyof typeof Palette];
+
+/** Blend toward white (amount > 0) or black (amount < 0). Amount is -1..1. */
+export function shade(color: number, amount: number): number {
+  const r = (color >> 16) & 0xff;
+  const g = (color >> 8) & 0xff;
+  const b = color & 0xff;
+  const target = amount >= 0 ? 255 : 0;
+  const t = Math.abs(amount);
+
+  const mix = (channel: number): number =>
+    Math.max(0, Math.min(255, Math.round(channel + (target - channel) * t)));
+
+  return (mix(r) << 16) | (mix(g) << 8) | mix(b);
+}
+
+/** Linear blend between two colours. `t` of 0 returns `a`, 1 returns `b`. */
+export function mixColors(a: number, b: number, t: number): number {
+  const clamped = Math.max(0, Math.min(1, t));
+  const channel = (shift: number): number => {
+    const ca = (a >> shift) & 0xff;
+    const cb = (b >> shift) & 0xff;
+    return Math.round(ca + (cb - ca) * clamped) & 0xff;
+  };
+  return (channel(16) << 16) | (channel(8) << 8) | channel(0);
+}

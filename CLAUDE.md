@@ -1,0 +1,124 @@
+# MAGIC_CAFEBABE
+
+A colony simulation with RimWorld's systemic depth, Kenshi's scavenger-frontier feel, Space Haven's
+colorful look, and Bannerlord-style direct squad command.
+
+**Setting:** a fallen-tech frontier. You colonize a world littered with the wreckage of a collapsed
+high-tech civilization. The crafting ladder is **scrap → refined → salvaged relic-tech**, and the top
+tier can only be found in ruins — which is what gives exploration, crafting, and faction motives a
+shared spine.
+
+**Control model:** hybrid. Pawns self-organize off a work-priority grid for day-to-day labour; the
+player takes *direct* control for combat and expeditions.
+
+---
+
+## The three enforcement rules
+
+These are not style preferences. Each is cheap to hold now and brutally expensive to retrofit, and
+each is backed by an automated gate. **Do not weaken them to make a feature easier.**
+
+### 1. `src/sim/` is pure — it imports nothing from `render/`, `ui/`, `app/`, Pixi, React, or the DOM
+
+The simulation is plain TypeScript that runs headless. This is what buys us the headless test harness
+(fast-forward seven in-game days in a unit test), deterministic save/load, and reproducible bug
+reports.
+
+*Gate:* `tests/architecture.test.ts` scans every file under `src/sim/` for forbidden imports.
+ESLint's `src/sim/**` override gives the same feedback faster.
+
+### 2. No `Math.random()` anywhere in `src/sim/`
+
+One seeded RNG instance lives in world state and is serialized with the save. Every random decision
+draws from it. A world built from seed *S* and ticked *N* times must produce a byte-identical result
+every time, on every machine.
+
+*Gate:* `tests/architecture.test.ts` (scan) and `tests/determinism.test.ts` (behavioural).
+
+### 3. The job scheduler supports hard preemption
+
+`interrupt(pawn, reason)` must cleanly end the current job, release its reservations, and hand the
+pawn back to the AI. Combat lands in Slice 3 and squad command in Slice 5, but both depend on this
+existing in the core from the start.
+
+*Gate:* preemption tests in `tests/` once the job system lands (M2).
+
+---
+
+## Commands
+
+```bash
+npm run dev        # Vite dev server on :5173
+npm run check      # typecheck + lint + test — run this before calling anything done
+npm run test       # vitest
+npm run typecheck  # tsc --noEmit
+npm run lint       # eslint
+npm run build      # typecheck + production build
+```
+
+Claude: prefer the `run` skill or `preview_start` (`.claude/launch.json` defines the `game` config) to
+launch the dev server, then verify visually with the browser tools. **Look at the running game — test
+output alone is not verification for a rendering change.**
+
+---
+
+## Layout
+
+```
+src/
+  sim/          pure TS — the game. Deterministic, headless, fully unit-testable.
+    core/       tick, seeded RNG, entity store, command queue, constants
+    world/      tile grids, terrain, worldgen, rooms, time-of-day
+    pathfind/   A*, reachability
+    ai/         work givers, jobs, job drivers, toils, reservations, needs, mood
+    entities/   pawn, item, building
+    defs/       content as typed TS objects
+    save/       serialize / deserialize / migrate / hash
+  render/       PixiJS. Reads sim state; NEVER mutates it.
+    art/        palette, shape language, procedural sprite generation
+    layers/     terrain, buildings, items, pawns, lighting, overlays
+    camera/     pan, zoom, culling
+  ui/           React overlay (DOM, not Pixi)
+  input/        user intent → Command objects
+  app/          bootstrap, game loop, snapshot store
+docs/           see docs/README.md
+tests/          vitest; mirrors src/sim structure
+```
+
+**Data flow is a one-way loop.** UI never mutates sim state. Input dispatches `Command` objects onto a
+queue the sim drains at the start of each tick. The sim publishes a read-only `SimSnapshot` at ~10Hz
+(and immediately on selection change) that React renders from — React never re-renders at 60fps.
+
+---
+
+## Conventions
+
+- **Content lives in `src/sim/defs/` as typed TS objects**, not XML or JSON. We want autocomplete,
+  refactorability, and compile-time errors on typos. Data-driven modding can layer on later.
+- **Grids are flat typed arrays** indexed `y * width + x`. Use `TileMap.idx(x, y)`. This is where
+  performance actually lives.
+- **Colours come from `src/render/art/palette.ts`.** Never hardcode a hex value in a layer or
+  component. The palette is the art direction; keeping it in one file is what makes the game look
+  coherent.
+- Prefer small, focused files with one clear purpose. When a file grows past ~300 lines, that is
+  usually a signal it is doing too much.
+- Tests live in `tests/` and mirror the `src/sim/` structure.
+
+---
+
+## Keeping docs current
+
+`docs/` and this file are load-bearing — they are how the next session (human or Claude) gets up to
+speed without re-deriving decisions. **Treat them as part of the change, not as follow-up work.**
+
+When you finish a piece of work, update in the same commit:
+
+- **`docs/ROADMAP.md`** — tick off the milestone item, or add what actually happened if it diverged.
+- **`docs/design/`** — if you changed how a *system* works (job pipeline, needs, pathfinding), the
+  design doc describing it must match the code. A design doc that lies is worse than no doc.
+- **`docs/decisions/`** — if you made a call that a future reader would otherwise ask "why on earth is
+  it like this?" about, write a short ADR. Cheap to write now, irreplaceable in three months.
+- **This file** — if you added a command, moved a directory, changed a convention, or introduced a new
+  enforcement rule.
+
+If a doc is now wrong, fixing it is not optional cleanup — it is part of finishing the task.
