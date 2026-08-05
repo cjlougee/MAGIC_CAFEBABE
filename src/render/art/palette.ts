@@ -44,6 +44,22 @@ export const Palette = {
 
 export type PaletteColor = (typeof Palette)[keyof typeof Palette];
 
+/**
+ * Character colours, indexed by the appearance numbers sim/ rolls.
+ *
+ * These arrays must be at least as long as the counts in sim/defs/pawnKind.ts —
+ * asserted in tests/pawn.test.ts, because a short array would silently render pawns
+ * with an undefined colour rather than failing.
+ *
+ * Apparel is where the saturated half of the palette finally lands on something that
+ * moves. Terrain stays muted so colonists read instantly as the things that matter.
+ */
+export const PawnPalette = {
+  skin: [0xf0d6b8, 0xe0b48c, 0xc08a5e, 0x94603c, 0x63412a],
+  hair: [0x241c16, 0x4a3323, 0x7d5730, 0xb59760, 0x8e9095, 0x9c4436],
+  apparel: [0x3f7fae, 0x4a9c78, 0xb0663c, 0x8c4f63, 0x5b5f8a, 0x9c8f45, 0x556070],
+} as const;
+
 /** Blend toward white (amount > 0) or black (amount < 0). Amount is -1..1. */
 export function shade(color: number, amount: number): number {
   const r = (color >> 16) & 0xff;

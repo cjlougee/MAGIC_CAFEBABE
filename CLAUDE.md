@@ -76,8 +76,9 @@ src/
     save/       serialize / deserialize / migrate / hash
   render/       PixiJS. Reads sim state; NEVER mutates it.
     iso.ts      THE isometric projection — tile space <-> world pixels. One definition.
+    occlusion.ts  which raised tiles fade because a pawn is behind them
     art/        palette, shape language, procedural sprite generation
-    layers/     terrain, buildings, items, pawns, lighting, overlays
+    layers/     ground (flat, unsorted), objects (raised + pawns, depth-sorted), lighting
     camera/     pan, zoom, culling
   ui/           React overlay (DOM, not Pixi)
   input/        user intent → Command objects
@@ -85,6 +86,14 @@ src/
 docs/           see docs/README.md
 tests/          vitest; mirrors src/sim structure
 ```
+
+**Two things must agree or pawns break in ways that look like haunting**, both currently held by
+tests rather than by structure:
+
+- `pathfind/neighbours.ts` `canStep()` is used by *both* A\* and reachability. If reachability is ever
+  more optimistic, it promises routes A\* can't deliver and pawns re-plan forever.
+- Appearance is indices in `sim/`, colours in `render/`. `sim/defs/pawnKind.ts` declares how many of
+  each; `render/art/palette.ts` must have at least that many.
 
 **Data flow is a one-way loop.** UI never mutates sim state. Input dispatches `Command` objects onto a
 queue the sim drains at the start of each tick. The sim publishes a read-only `SimSnapshot` at ~10Hz

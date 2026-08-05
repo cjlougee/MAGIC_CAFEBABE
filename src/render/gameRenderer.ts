@@ -3,24 +3,34 @@
  *
  * Reads world state; never writes it. If you find yourself wanting to mutate the
  * simulation from in here, the change belongs in a Command instead.
+ *
+ * Draw layers, bottom to top:
+ *   GroundLayer   flat terrain — thousands of sprites, never overlaps, never sorted
+ *   ObjectLayer   raised terrain + colonists — few sprites, sorted together by depth
+ *   LightingLayer screen-space day/night wash
  */
 
 import { Application, Container } from 'pixi.js';
+import type { EntityId } from '../sim/core/entityStore';
 import { daylight } from '../sim/world/time';
 import type { World } from '../sim/world/world';
 import { ArtProvider } from './art/artProvider';
 import { Palette } from './art/palette';
+import { TerrainTintField } from './art/terrainTint';
 import { Camera } from './camera/camera';
 import { CameraController } from './camera/cameraController';
 import { DEFAULT_ZOOM } from './constants';
+import { GroundLayer } from './layers/groundLayer';
 import { LightingLayer } from './layers/lightingLayer';
-import { TerrainLayer } from './layers/terrainLayer';
+import { ObjectLayer } from './layers/objectLayer';
 
 export class GameRenderer {
   readonly camera: Camera;
 
   private readonly worldContainer = new Container();
-  private readonly terrain: TerrainLayer;
+  private readonly tint = new TerrainTintField();
+  private readonly ground: GroundLayer;
+  private readonly objects: ObjectLayer;
   private readonly lighting = new LightingLayer();
   private readonly controller: CameraController;
 
@@ -30,9 +40,11 @@ export class GameRenderer {
     camera: Camera,
   ) {
     this.camera = camera;
-    this.terrain = new TerrainLayer(art);
+    this.ground = new GroundLayer(art, this.tint);
+    this.objects = new ObjectLayer(art, this.tint);
 
-    this.worldContainer.addChild(this.terrain.container);
+    this.worldContainer.addChild(this.ground.container);
+    this.worldContainer.addChild(this.objects.container);
     this.app.stage.addChild(this.worldContainer);
     // Lighting sits outside the world container so it stays screen-aligned rather
     // than scaling and panning with the map.
@@ -58,7 +70,9 @@ export class GameRenderer {
     const art = new ArtProvider(app.renderer);
     art.warmUpTerrain();
 
-    const camera = new Camera(world.map.width / 2, world.map.height / 2, DEFAULT_ZOOM);
+    // Open on the colony rather than the geometric centre of the map — the player
+    // should be looking at their people the moment the game starts.
+    const camera = new Camera(world.landingSite.x, world.landingSite.y, DEFAULT_ZOOM);
 
     // The app's own ticker would drive rendering independently of the simulation
     // clock; we drive both from one loop so speed control stays coherent.
@@ -68,27 +82,43 @@ export class GameRenderer {
   }
 
   /** Draws one frame. `dtMs` is real elapsed time, used for smooth key panning. */
-  render(world: World, dtMs: number): void {
+  render(world: World, dtMs: number, selectedId: EntityId | null): void {
     const width = this.app.screen.width;
     const height = this.app.screen.height;
 
     this.controller.update(dtMs, world.map.width, world.map.height);
     this.camera.applyTo(this.worldContainer, width, height);
 
+    this.tint.ensure(world.map, world.seed);
+
     const view = this.camera.visibleTiles(width, height, world.map.width, world.map.height);
-    this.terrain.update(world.map, world.seed, view, this.camera.visibleWorld(width, height));
+    const visible = this.camera.visibleWorld(width, height);
+
+    this.ground.update(world.map, world.seed, view, visible);
+    this.objects.update(world, view, visible, selectedId);
     this.lighting.update(daylight(world.tick), width, height);
 
     this.app.renderer.render(this.app.stage);
+  }
+
+  /** Centres the view on a tile. Used when the player picks a colonist from the HUD. */
+  focusOn(x: number, y: number): void {
+    this.camera.x = x;
+    this.camera.y = y;
   }
 
   get canvas(): HTMLCanvasElement {
     return this.app.canvas;
   }
 
+  get viewSize(): { width: number; height: number } {
+    return { width: this.app.screen.width, height: this.app.screen.height };
+  }
+
   destroy(): void {
     this.controller.detach();
-    this.terrain.destroy();
+    this.ground.destroy();
+    this.objects.destroy();
     this.lighting.destroy();
     this.art.destroy();
     this.app.destroy(true, { children: true });

@@ -154,6 +154,63 @@ body {
   font-weight: 700;
 }
 
+/* ── Colonist roster ──────────────────────────────────────────────────────── */
+
+.colonists {
+  position: absolute;
+  top: calc(var(--hud-height) + 10px);
+  left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  user-select: none;
+}
+
+.colonist {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 132px;
+  padding: 5px 9px;
+  text-align: left;
+  background: color-mix(in srgb, var(--c-panel) 84%, transparent);
+  border: 1px solid var(--c-panelEdge);
+  border-left: 3px solid var(--c-panelEdge);
+  border-radius: 4px;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition:
+    border-color 90ms ease,
+    background-color 90ms ease;
+}
+
+.colonist:hover {
+  border-color: var(--c-relic);
+}
+
+.colonist.is-selected {
+  border-left-color: var(--c-relic);
+  background: color-mix(in srgb, var(--c-panelLight, var(--c-panel)) 92%, transparent);
+}
+
+.colonist__name {
+  font-size: 12px;
+  color: var(--c-text);
+}
+
+.colonist.is-selected .colonist__name {
+  color: var(--c-relic);
+  font-weight: 600;
+}
+
+.colonist__state {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--c-textDim);
+}
+
 /* ── Footer hint ──────────────────────────────────────────────────────────── */
 
 .controls-hint {

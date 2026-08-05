@@ -6,6 +6,7 @@
  * useSyncExternalStore compares by reference to decide whether to re-render.
  */
 
+import type { EntityId } from '../sim/core/entityStore';
 import type { SimSnapshot } from '../sim/snapshot';
 import type { GameSpeed } from './gameLoop';
 
@@ -14,6 +15,8 @@ export interface UiState {
   readonly speed: GameSpeed;
   readonly fps: number;
   readonly ready: boolean;
+  /** View state, not simulation state — where the player is looking, not what is true. */
+  readonly selectedPawnId: EntityId | null;
 }
 
 const INITIAL: UiState = {
@@ -21,6 +24,7 @@ const INITIAL: UiState = {
   speed: 1,
   fps: 0,
   ready: false,
+  selectedPawnId: null,
 };
 
 export class UiStore {

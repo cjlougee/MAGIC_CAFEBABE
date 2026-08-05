@@ -31,13 +31,18 @@ slice hangs off.
 - **Playable check:** ✅ pan and zoom a colourful generated map at a stable 60fps.
 
 ### M1 — Pawns & movement
-- [ ] Pawn entity + entity store
-- [ ] Binary-heap A* on the walk-cost grid
-- [ ] Connected-component reachability map, recomputed on wall change
-- [ ] Movement toil, selection, click-to-move as a direct order
-- [ ] Procedural layered pawn art (body / head / hair / apparel tint)
-- [ ] Per-cell light grid, replacing M0's flat day/night wash (lamps, fires)
-- **Playable check:** click a pawn, click the ground, they walk there and around obstacles.
+- [x] Pawn entity + generic entity store, ids saved so references can't be reused
+- [x] Binary-heap A* with reused scratch buffers and a generation-stamp instead of clearing
+- [x] Connected-component reachability, sharing `canStep()` with A* so the two can't disagree
+- [x] Movement stepping, selection, right-click-to-move as a direct order
+- [x] Procedural layered pawn art (skin / hair style / hair colour / apparel), colours by index
+- [x] Seeded landing-site choice + colonist spawning, HUD colonist roster
+- [x] Ground/object layer split with depth sorting, and **occlusion fade** for pawns behind cliffs
+- [~] Per-cell light grid — **moved to M3**. Lamps and campfires don't exist until then, and a light
+      grid with no light sources is the flat wash with extra machinery.
+- **Playable check:** ✅ click a pawn, right-click the ground, they walk there and around obstacles.
+
+See [`design/02-pawns-and-movement.md`](design/02-pawns-and-movement.md).
 
 ### M2 — The job system *(the big one)*
 - [ ] `WorkGiver` → `Job` → `JobDriver` → toils pipeline
@@ -52,6 +57,8 @@ slice hangs off.
 ### M3 — Needs, mood, survival
 - [ ] Hunger + Rest needs with emergency job escalation
 - [ ] Beds, campfire cooking
+- [ ] Per-cell light grid replacing M0's flat day/night wash (deferred here from M1, since
+      campfires are the first actual light source)
 - [ ] Thoughts and mood, mental break ("sad wander")
 - [ ] Alerts panel, pawn inspector (Needs / Gear / Work tabs)
 - **Playable check:** a colony feeds and beds itself unattended for 3 in-game days.

@@ -112,10 +112,22 @@ that walk. Pixi draws children in index order and the pool fills from index 0 in
 correctness is free — but iterating `TerrainLayer` differently would make tall terrain render through
 whatever stands in front of it.
 
+**Layers split by whether a thing has height.** `GroundLayer` draws flat terrain and needs *no*
+sorting at all, because flat diamonds tessellate exactly and never overlap — and it is the layer with
+thousands of sprites. `ObjectLayer` draws raised terrain and pawns together, sorted by depth, because
+a pawn walking behind a bulkhead has to be drawn before it and one walking in front after it. That
+decision is impossible if they live in separate containers. Ground is cached and reassigned only on
+view change; objects are rebuilt every frame because their contents move every frame.
+
 **Terrain uses a viewport-sized sprite pool**, not one sprite per cell and not pre-baked chunk render
 textures. A fully baked map is tens of megabytes of VRAM and grows quadratically with map size; a
-viewport pool is bounded by screen area, so it costs the same at 500×500. Sprites are reassigned only
-when the visible rect actually changes.
+viewport pool is bounded by screen area, so it costs the same at 500×500.
+
+**Occlusion fade** pays back isometric's standing cost: a pawn behind a cliff is correctly drawn
+behind it and therefore invisible. `render/occlusion.ts` fades raised tiles that overlap a pawn *and*
+sit at greater depth. The depth check is what keeps it from looking broken — a tile behind a pawn is
+drawn first and can't hide anything, so fading it would dim the cliff a colonist stands in front of.
+Details in [`02-pawns-and-movement.md`](02-pawns-and-movement.md).
 
 **Culling is two-stage.** The viewport is a diamond in tile space, so its bounding box holds roughly
 twice the tiles actually on screen. `Camera.visibleTiles()` returns that box as a *search* space and
@@ -152,6 +164,10 @@ sampling turns any sub-pixel offset back into a faint seam grid.
 | `determinism.test.ts` | Same seed → same world, batched or stepped; RNG save/restore |
 | `world.test.ts` | Terrain def/table alignment, grid indexing, worldgen sanity, time maths |
 | `iso.test.ts` | Projection round-trip, tessellation, and the draw-order invariant |
+| `position.test.ts` | Multi-level grid indexing, on a genuinely 3-level map |
+| `pathfind.test.ts` | A* correctness and route validity; **reachability agreeing with A\*** |
+| `pawn.test.ts` | Movement stepping, order preemption, spawn validity, appearance ranges |
+| `occlusion.test.ts` | Which raised tiles fade, and — just as important — which don't |
 
 The highest-value test in the project doesn't exist yet: the M5 headless harness that fast-forwards
 seven in-game days and asserts *nobody starved, nobody slept on the floor, the stockpile is non-empty*.

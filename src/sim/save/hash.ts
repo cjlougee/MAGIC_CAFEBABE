@@ -35,6 +35,14 @@ function mixBytes(hash: number, bytes: Uint8Array): number {
   return h;
 }
 
+function mixString(hash: number, text: string): number {
+  let h = mixInt32(hash, text.length);
+  for (let i = 0; i < text.length; i++) {
+    h = mixInt32(h, text.charCodeAt(i));
+  }
+  return h;
+}
+
 /** Hex fingerprint of everything the world considers persistent state. */
 export function hashWorld(world: World): string {
   let h = FNV_OFFSET >>> 0;
@@ -52,6 +60,31 @@ export function hashWorld(world: World): string {
   h = mixInt32(h, world.map.height);
   h = mixInt32(h, world.map.levels);
   h = mixBytes(h, world.map.terrain);
+
+  // Pawns, in the entity store's insertion order — which is stable, and part of what
+  // determinism means here. Derived indices (pathfinder scratch, reachability
+  // components) are deliberately absent: they are caches rebuilt from the above, and
+  // hashing them would fail determinism tests for reasons that don't affect the game.
+  h = mixInt32(h, world.pawns.size);
+  h = mixInt32(h, world.pawns.nextIdForSave);
+  for (const pawn of world.pawns.values()) {
+    h = mixInt32(h, pawn.id);
+    h = mixString(h, pawn.name);
+    h = mixInt32(h, pawn.pos.x);
+    h = mixInt32(h, pawn.pos.y);
+    h = mixInt32(h, pawn.pos.z);
+    h = mixInt32(h, pawn.moveTicksElapsed);
+    h = mixInt32(h, pawn.moveTicksTotal);
+    h = mixInt32(h, pawn.pathIndex);
+    h = mixInt32(h, pawn.path.length);
+    h = mixInt32(h, pawn.appearance.skinTone);
+    h = mixInt32(h, pawn.appearance.hairStyle);
+    h = mixInt32(h, pawn.appearance.hairColour);
+    h = mixInt32(h, pawn.appearance.apparelColour);
+  }
+
+  h = mixInt32(h, world.landingSite.x);
+  h = mixInt32(h, world.landingSite.y);
 
   return h.toString(16).padStart(8, '0');
 }
