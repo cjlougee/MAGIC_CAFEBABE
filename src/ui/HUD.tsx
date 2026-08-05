@@ -1,5 +1,5 @@
 /**
- * The top bar and colonist strip.
+ * The chrome: top bar, colonist roster, toolbar, and work panel.
  *
  * Reads a published snapshot; never reads World. Keeping this boundary strict is what
  * lets the simulation stay headless and testable.
@@ -9,8 +9,11 @@ import { useEffect, useSyncExternalStore } from 'react';
 import type { Engine } from '../app/engine';
 import type { GameSpeed } from '../app/gameLoop';
 import type { UiStore } from '../app/uiStore';
+import type { Tool } from '../input/worldInput';
 import type { EntityId } from '../sim/core/entityStore';
-import type { PawnSummary } from '../sim/snapshot';
+import type { PawnSummary, ResourceSummary } from '../sim/snapshot';
+import { Toolbar } from './Toolbar';
+import { WorkPanel } from './WorkPanel';
 
 const SPEEDS: ReadonlyArray<{ value: GameSpeed; label: string; title: string }> = [
   { value: 0, label: '❚❚', title: 'Pause (Space)' },
@@ -19,6 +22,13 @@ const SPEEDS: ReadonlyArray<{ value: GameSpeed; label: string; title: string }> 
   { value: 3, label: '3x', title: 'Very fast (3)' },
 ];
 
+const TOOL_KEYS: Record<string, Tool> = {
+  KeyQ: 'select',
+  KeyM: 'mine',
+  KeyB: 'stockpile',
+  KeyX: 'erase',
+};
+
 interface HUDProps {
   readonly store: UiStore;
   readonly engine: Engine | null;
@@ -26,7 +36,7 @@ interface HUDProps {
 
 export function HUD({ store, engine }: HUDProps) {
   const state = useSyncExternalStore(store.subscribe, store.getState);
-  const { snapshot, speed, fps, ready, selectedPawnId } = state;
+  const { snapshot, speed, fps, ready, selectedPawnId, tool, showWorkPanel } = state;
 
   useEffect(() => {
     if (!engine) return;
@@ -41,9 +51,18 @@ export function HUD({ store, engine }: HUDProps) {
         return;
       }
       if (event.code === 'Escape') {
+        // One key backs out of whatever mode you're in, always.
+        engine.setTool('select');
         engine.select(null);
         return;
       }
+
+      const nextTool = TOOL_KEYS[event.code];
+      if (nextTool) {
+        engine.setTool(nextTool);
+        return;
+      }
+
       const digit = { Digit1: 1, Digit2: 2, Digit3: 3 }[event.code];
       if (digit) engine.setSpeed(digit as GameSpeed);
     };
@@ -87,9 +106,11 @@ export function HUD({ store, engine }: HUDProps) {
           ))}
         </div>
 
-        <div className="hud__group">
-          <span className="hud__label">Seed</span>
-          <span className="hud__value">{snapshot.seed}</span>
+        <Resources resources={snapshot.resources} />
+
+        <div className="hud__group hud__group--right">
+          <span className="hud__label">Marked</span>
+          <span className="hud__value">{snapshot.mineDesignations}</span>
           <button
             type="button"
             className="hud__button"
@@ -98,11 +119,6 @@ export function HUD({ store, engine }: HUDProps) {
           >
             New world
           </button>
-        </div>
-
-        <div className="hud__group hud__group--right">
-          <span className="hud__label">Tick</span>
-          <span className="hud__value">{snapshot.tick.toLocaleString()}</span>
           <span className="hud__label">FPS</span>
           <span className="hud__value">{fps}</span>
         </div>
@@ -113,7 +129,38 @@ export function HUD({ store, engine }: HUDProps) {
         selectedId={selectedPawnId}
         onPick={(id) => engine?.focusPawn(id)}
       />
+
+      <Toolbar
+        active={tool}
+        workPanelOpen={showWorkPanel}
+        onPick={(next) => engine?.setTool(next)}
+        onToggleWork={() => store.update({ showWorkPanel: !showWorkPanel })}
+      />
+
+      {showWorkPanel && (
+        <WorkPanel
+          pawns={snapshot.pawns}
+          selectedId={selectedPawnId}
+          onSet={(pawnId, workType, priority) =>
+            engine?.setWorkPriority(pawnId, workType, priority)
+          }
+          onClose={() => store.update({ showWorkPanel: false })}
+        />
+      )}
     </>
+  );
+}
+
+function Resources({ resources }: { readonly resources: readonly ResourceSummary[] }) {
+  return (
+    <div className="hud__group">
+      {resources.map((resource) => (
+        <span key={resource.def} className="resource" title={resource.name}>
+          <span className="hud__label">{resource.name}</span>
+          <span className="hud__value">{resource.count}</span>
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -154,7 +201,9 @@ function ColonistStrip({ pawns, selectedId, onPick }: ColonistStripProps) {
           title={`${pawn.name} — (${pawn.x}, ${pawn.y})`}
         >
           <span className="colonist__name">{pawn.name}</span>
-          <span className="colonist__state">{pawn.moving ? 'walking' : 'idle'}</span>
+          <span className="colonist__state">
+            {pawn.carrying ? `${pawn.activity} · ${pawn.carrying}` : pawn.activity}
+          </span>
         </button>
       ))}
     </aside>

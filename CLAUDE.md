@@ -37,11 +37,15 @@ every time, on every machine.
 
 ### 3. The job scheduler supports hard preemption
 
-`interrupt(pawn, reason)` must cleanly end the current job, release its reservations, and hand the
-pawn back to the AI. Combat lands in Slice 3 and squad command in Slice 5, but both depend on this
-existing in the core from the start.
+`interrupt(pawn, reason)` cleanly ends the current job, releases its reservations, drops anything
+carried, and hands the pawn back to the AI. Combat lands in Slice 3 and squad command in Slice 5,
+but both depend on this existing in the core.
 
-*Gate:* preemption tests in `tests/` once the job system lands (M2).
+**`endJob()` is the single exit.** Completion, failure, and preemption all route through it, so
+cleanup cannot be remembered on one path and forgotten on another. Never release a reservation
+anywhere else.
+
+*Gate:* preemption and reservation-leak tests in `tests/jobs.test.ts`.
 
 ---
 
@@ -87,13 +91,23 @@ docs/           see docs/README.md
 tests/          vitest; mirrors src/sim structure
 ```
 
-**Two things must agree or pawns break in ways that look like haunting**, both currently held by
+**Things that must agree or pawns break in ways that look like haunting**, all currently held by
 tests rather than by structure:
 
 - `pathfind/neighbours.ts` `canStep()` is used by *both* A\* and reachability. If reachability is ever
   more optimistic, it promises routes A\* can't deliver and pawns re-plan forever.
 - Appearance is indices in `sim/`, colours in `render/`. `sim/defs/pawnKind.ts` declares how many of
   each; `render/art/palette.ts` must have at least that many.
+- Changing terrain must call `reachability.markDirty()`. `TileMap.revision` bumps automatically and
+  is what keeps render caches honest — without it, mining leaves a hole where the rock was.
+- Anything added to saved state must be added to `hashWorld()`, or the determinism tests go green
+  while guarding nothing.
+
+## Skills
+
+- **`add-work-type`** — adding a kind of colonist work (Construct, Cook, Clean…). Walks the
+  `WorkGiver → Job → JobDriver → toils` pipeline and the invariants above that fail *silently*.
+  Written after M2, once the pattern was real rather than predicted.
 
 **Data flow is a one-way loop.** UI never mutates sim state. Input dispatches `Command` objects onto a
 queue the sim drains at the start of each tick. The sim publishes a read-only `SimSnapshot` at ~10Hz

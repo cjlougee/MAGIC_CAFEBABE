@@ -15,9 +15,11 @@
 import { Container, Sprite } from 'pixi.js';
 import type { EntityId } from '../../sim/core/entityStore';
 import { TERRAIN_DEFS } from '../../sim/defs/terrain';
+import { isOnGround } from '../../sim/entities/item';
 import { pawnVisualPos, type Pawn, type PawnAppearance } from '../../sim/entities/pawn';
 import type { World } from '../../sim/world/world';
 import type { ArtProvider } from '../art/artProvider';
+import { ITEM_GROUND_Y, ITEM_H, ITEM_W } from '../art/itemArt';
 import { PAWN_GROUND_Y, PAWN_H } from '../art/pawnArt';
 import { terrainHeight, variantForCell } from '../art/terrainArt';
 import type { TerrainTintField } from '../art/terrainTint';
@@ -36,7 +38,10 @@ const OCCLUDED_ALPHA = 0.32;
  * stands on, before the tile in front of it.
  */
 const DEPTH_SCALE = 16;
+/** Pawns draw after the tile they stand on, and after any pile on it. */
 const ENTITY_BIAS = 8;
+/** Item piles sit on the floor, so they draw between the tile and anyone standing there. */
+const ITEM_BIAS = 4;
 
 interface PawnVisual {
   readonly pawn: Pawn;
@@ -47,6 +52,7 @@ export class ObjectLayer {
   readonly container = new Container();
 
   private readonly tilePool: Sprite[] = [];
+  private readonly itemPool: Sprite[] = [];
   private readonly pawnSprites = new Map<EntityId, Sprite>();
   private readonly facing = new Map<EntityId, number>();
   private readonly occluders = new Set<number>();
@@ -78,7 +84,31 @@ export class ObjectLayer {
     );
 
     this.updateTiles(world, view, visible);
+    this.updateItems(world, visible);
     this.updatePawns(visuals, selectedId);
+  }
+
+  /** Piles lying on the ground. Carried stacks travel with their pawn instead. */
+  private updateItems(world: World, visible: WorldRect): void {
+    let used = 0;
+
+    for (const item of world.items.values()) {
+      if (!isOnGround(item) || !item.pos) continue;
+
+      const at = tileToWorld(item.pos.x, item.pos.y, item.pos.z);
+      if (at.x + ITEM_W < visible.x0 || at.x - ITEM_W > visible.x1) continue;
+      if (at.y + ITEM_H < visible.y0 || at.y - ITEM_H > visible.y1) continue;
+
+      const sprite = this.itemAt(used++);
+      sprite.texture = this.art.item(item.def);
+      sprite.position.set(at.x, at.y);
+      sprite.zIndex = (item.pos.x + item.pos.y) * DEPTH_SCALE + ITEM_BIAS;
+      sprite.visible = true;
+    }
+
+    for (let i = used; i < this.itemPool.length; i++) {
+      this.itemPool[i].visible = false;
+    }
   }
 
   private updateTiles(world: World, view: TileRect, visible: WorldRect): void {
@@ -168,6 +198,19 @@ export class ObjectLayer {
     return this.facing.get(pawn.id) ?? 1;
   }
 
+  private itemAt(index: number): Sprite {
+    let sprite = this.itemPool[index];
+    if (!sprite) {
+      sprite = new Sprite();
+      // Anchored where the pile meets the floor, like a pawn's feet.
+      sprite.anchor.set(0.5, ITEM_GROUND_Y / ITEM_H);
+      sprite.eventMode = 'none';
+      this.itemPool[index] = sprite;
+      this.container.addChild(sprite);
+    }
+    return sprite;
+  }
+
   private tileAt(index: number): Sprite {
     let sprite = this.tilePool[index];
     if (!sprite) {
@@ -196,6 +239,7 @@ export class ObjectLayer {
   destroy(): void {
     this.container.destroy({ children: true });
     this.tilePool.length = 0;
+    this.itemPool.length = 0;
     this.pawnSprites.clear();
     this.facing.clear();
   }

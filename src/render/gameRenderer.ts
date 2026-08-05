@@ -6,7 +6,8 @@
  *
  * Draw layers, bottom to top:
  *   GroundLayer   flat terrain — thousands of sprites, never overlaps, never sorted
- *   ObjectLayer   raised terrain + colonists — few sprites, sorted together by depth
+ *   OverlayLayer  designations and zones — marks on the floor, so objects cover them
+ *   ObjectLayer   raised terrain + items + colonists — sorted together by depth
  *   LightingLayer screen-space day/night wash
  */
 
@@ -23,6 +24,7 @@ import { DEFAULT_ZOOM } from './constants';
 import { GroundLayer } from './layers/groundLayer';
 import { LightingLayer } from './layers/lightingLayer';
 import { ObjectLayer } from './layers/objectLayer';
+import { OverlayLayer, type DragPreview } from './layers/overlayLayer';
 
 export class GameRenderer {
   readonly camera: Camera;
@@ -30,6 +32,7 @@ export class GameRenderer {
   private readonly worldContainer = new Container();
   private readonly tint = new TerrainTintField();
   private readonly ground: GroundLayer;
+  private readonly overlays: OverlayLayer;
   private readonly objects: ObjectLayer;
   private readonly lighting = new LightingLayer();
   private readonly controller: CameraController;
@@ -38,24 +41,31 @@ export class GameRenderer {
     private readonly app: Application,
     private readonly art: ArtProvider,
     camera: Camera,
+    shouldPan: (event: PointerEvent) => boolean,
   ) {
     this.camera = camera;
     this.ground = new GroundLayer(art, this.tint);
+    this.overlays = new OverlayLayer(art);
     this.objects = new ObjectLayer(art, this.tint);
 
     this.worldContainer.addChild(this.ground.container);
+    this.worldContainer.addChild(this.overlays.container);
     this.worldContainer.addChild(this.objects.container);
     this.app.stage.addChild(this.worldContainer);
     // Lighting sits outside the world container so it stays screen-aligned rather
     // than scaling and panning with the map.
     this.app.stage.addChild(this.lighting.sprite);
 
-    this.controller = new CameraController(this.camera, this.app.canvas);
+    this.controller = new CameraController(this.camera, this.app.canvas, shouldPan);
     this.controller.attach();
     this.app.canvas.style.cursor = 'grab';
   }
 
-  static async create(host: HTMLElement, world: World): Promise<GameRenderer> {
+  static async create(
+    host: HTMLElement,
+    world: World,
+    shouldPan: (event: PointerEvent) => boolean = () => true,
+  ): Promise<GameRenderer> {
     const app = new Application();
     await app.init({
       background: Palette.void,
@@ -78,11 +88,16 @@ export class GameRenderer {
     // clock; we drive both from one loop so speed control stays coherent.
     app.ticker.stop();
 
-    return new GameRenderer(app, art, camera);
+    return new GameRenderer(app, art, camera, shouldPan);
   }
 
   /** Draws one frame. `dtMs` is real elapsed time, used for smooth key panning. */
-  render(world: World, dtMs: number, selectedId: EntityId | null): void {
+  render(
+    world: World,
+    dtMs: number,
+    selectedId: EntityId | null,
+    preview: DragPreview | null = null,
+  ): void {
     const width = this.app.screen.width;
     const height = this.app.screen.height;
 
@@ -95,6 +110,7 @@ export class GameRenderer {
     const visible = this.camera.visibleWorld(width, height);
 
     this.ground.update(world.map, world.seed, view, visible);
+    this.overlays.update(world, view, visible, preview);
     this.objects.update(world, view, visible, selectedId);
     this.lighting.update(daylight(world.tick), width, height);
 
@@ -118,6 +134,7 @@ export class GameRenderer {
   destroy(): void {
     this.controller.detach();
     this.ground.destroy();
+    this.overlays.destroy();
     this.objects.destroy();
     this.lighting.destroy();
     this.art.destroy();

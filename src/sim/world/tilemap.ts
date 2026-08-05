@@ -35,6 +35,16 @@ export class TileMap {
   /** Movement cost per cell; IMPASSABLE (0) means blocked. Derived from terrain. */
   readonly walkCost: Uint8Array;
 
+  /**
+   * Bumped on every terrain change.
+   *
+   * Render layers cache their sprite assignments and only rebuild when something they
+   * depend on changes. Without a signal, mining a rock leaves the cached ground layer
+   * showing the world as it was — the mined cell is simply never redrawn and a hole
+   * appears where the terrain used to be.
+   */
+  private revisionCount = 0;
+
   constructor(width: number, height: number, levels = 1) {
     this.width = width;
     this.height = height;
@@ -46,6 +56,11 @@ export class TileMap {
     this.walkCost = new Uint8Array(this.size);
     this.terrain.fill(Terrain.Dirt);
     this.walkCost.fill(TERRAIN_DEFS[Terrain.Dirt].walkCost);
+  }
+
+  /** Monotonic counter identifying the current terrain state. */
+  get revision(): number {
+    return this.revisionCount;
   }
 
   idx(x: number, y: number, z: number = GROUND_LEVEL): number {
@@ -88,8 +103,10 @@ export class TileMap {
   }
 
   setTerrainAt(index: number, id: TerrainId): void {
+    if (this.terrain[index] === id) return;
     this.terrain[index] = id;
     this.walkCost[index] = TERRAIN_DEFS[id].walkCost;
+    this.revisionCount++;
   }
 
   isPassable(x: number, y: number, z: number = GROUND_LEVEL): boolean {

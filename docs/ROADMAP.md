@@ -45,18 +45,24 @@ slice hangs off.
 See [`design/02-pawns-and-movement.md`](design/02-pawns-and-movement.md).
 
 ### M2 — The job system *(the big one)*
-- [ ] `WorkGiver` → `Job` → `JobDriver` → toils pipeline
-- [ ] Reservation system (no two pawns on one target)
-- [ ] **Hard preemption** — `interrupt(pawn, reason)` releases reservations cleanly
-- [ ] Staggered pawn thinking (`tick % 30 === index % 30`)
-- [ ] Work types: Construct, Mine, Haul, Cook, Clean + per-pawn priority grid UI
-- [ ] Ground item stacks, stockpile zone painting, designation overlays
-- **Playable check:** designate rocks; pawns mine and haul to a stockpile with zero further input,
-  and never fight over the same rock.
+- [x] `WorkGiver` → `Job` → `JobDriver` → toils pipeline, with a reusable toil library
+- [x] Reservation system, released through the single exit `endJob()`
+- [x] **Hard preemption** — `interrupt(pawn, reason)` releases claims and drops carried goods
+- [x] Staggered pawn thinking (`tick % 30 === id % 30`)
+- [x] Per-pawn priority grid UI (1 most urgent, 0 disabled)
+- [x] Ground item stacks with spill-on-overflow, stockpile painting, designation overlays
+- [x] Tool modes (select / mine / stockpile / erase) with drag-rect preview
+- [~] Work types: **Mine and Haul only.** Construct needs blueprints (M4) and Cook needs
+      stoves (M3) — a column with no giver behind it is a lie told to the player. Each
+      new type is now one giver + one driver.
+- **Playable check:** ✅ designate rock, paint a stockpile, walk away — colonists mine,
+  haul, and never fight over the same rock. Verified headless *and* in-browser.
+
+See [`design/03-work-and-jobs.md`](design/03-work-and-jobs.md).
 
 ### M3 — Needs, mood, survival
 - [ ] Hunger + Rest needs with emergency job escalation
-- [ ] Beds, campfire cooking
+- [ ] Beds, campfire cooking — brings the **Cook** work type with it
 - [ ] Per-cell light grid replacing M0's flat day/night wash (deferred here from M1, since
       campfires are the first actual light source)
 - [ ] Thoughts and mood, mental break ("sad wander")
@@ -64,7 +70,7 @@ See [`design/02-pawns-and-movement.md`](design/02-pawns-and-movement.md).
 - **Playable check:** a colony feeds and beds itself unattended for 3 in-game days.
 
 ### M4 — Construction & rooms
-- [ ] Architect menu, blueprints, material delivery jobs, frames
+- [ ] Architect menu, blueprints, material delivery jobs, frames — brings **Construct**
 - [ ] Walls, doors, floors
 - [ ] Room flood-fill; indoors / beauty thoughts
 - **Playable check:** draw a house; pawns haul materials and build it; sleeping inside lifts mood.

@@ -211,6 +211,183 @@ body {
   color: var(--c-textDim);
 }
 
+.resource {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: 6px;
+}
+
+/* ── Toolbar ──────────────────────────────────────────────────────────────── */
+
+.toolbar {
+  position: absolute;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px;
+  background: color-mix(in srgb, var(--c-panel) 90%, transparent);
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 7px;
+  backdrop-filter: blur(6px);
+  user-select: none;
+}
+
+.toolbar__button {
+  padding: 6px 13px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--c-textDim);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    color 90ms ease,
+    background-color 90ms ease;
+}
+
+.toolbar__button:hover {
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-panelEdge) 60%, transparent);
+}
+
+.toolbar__button.is-active {
+  color: var(--c-void);
+  background: var(--c-relic);
+  font-weight: 600;
+}
+
+.toolbar__divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 0 3px;
+  background: var(--c-panelEdge);
+}
+
+/* ── Work panel ───────────────────────────────────────────────────────────── */
+
+.work-panel {
+  position: absolute;
+  right: 14px;
+  top: calc(var(--hud-height) + 12px);
+  min-width: 260px;
+  background: color-mix(in srgb, var(--c-panel) 94%, transparent);
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 6px;
+  backdrop-filter: blur(8px);
+  user-select: none;
+}
+
+.work-panel__head {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--c-panelEdge);
+}
+
+.work-panel__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--c-text);
+}
+
+.work-panel__legend {
+  font-size: 10px;
+  color: var(--c-textDim);
+}
+
+.work-panel__close {
+  margin-left: auto;
+  padding: 0 3px;
+  font-size: 12px;
+  color: var(--c-textDim);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.work-panel__close:hover {
+  color: var(--c-danger);
+}
+
+.work-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.work-table th {
+  padding: 6px 9px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--c-textDim);
+  text-align: center;
+}
+
+.work-table__name {
+  text-align: left !important;
+  white-space: nowrap;
+}
+
+.work-table td {
+  padding: 3px 9px;
+  text-align: center;
+  color: var(--c-text);
+}
+
+.work-table tr.is-selected .work-table__name {
+  color: var(--c-relic);
+  font-weight: 600;
+}
+
+.priority {
+  width: 26px;
+  height: 24px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-panelEdge) 55%, transparent);
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.priority:hover {
+  border-color: var(--c-relic);
+}
+
+/* Urgency reads as heat: 1 is hot, 4 is cool, 0 is absent. */
+.priority--0 {
+  color: var(--c-textDim);
+  background: transparent;
+}
+.priority--1 {
+  color: var(--c-void);
+  background: var(--c-danger);
+  font-weight: 700;
+}
+.priority--2 {
+  color: var(--c-void);
+  background: var(--c-hazard);
+}
+.priority--3 {
+  color: var(--c-void);
+  background: var(--c-gold);
+}
+.priority--4 {
+  color: var(--c-void);
+  background: var(--c-good);
+}
+
 /* ── Footer hint ──────────────────────────────────────────────────────────── */
 
 .controls-hint {

@@ -6,9 +6,12 @@
  * deterministic — which is what makes save/load, replay, and reproducible bug
  * reports possible.
  *
- * This union grows one entry per milestone. M2 adds designations and work priorities.
+ * Area commands carry a rectangle rather than a list of cells: a drag across a large
+ * map would otherwise put thousands of coordinates on the queue for something the
+ * simulation can expand itself in a loop.
  */
 
+import type { WorkTypeId } from '../defs/workTypes';
 import type { EntityId } from './entityStore';
 import type { TilePos } from './position';
 
@@ -20,9 +23,8 @@ export interface RegenerateCommand {
 /**
  * A direct player order to walk somewhere.
  *
- * This is the first of the *direct control* commands — the half of the hybrid control
- * model the player drives by hand. In M2 it will need to preempt whatever job the pawn
- * was doing; the plumbing for that is the same queue.
+ * Preempts whatever the pawn was doing — the direct-control half of the hybrid model
+ * taking precedence over autonomous work.
  */
 export interface MoveToCommand {
   readonly type: 'moveTo';
@@ -30,7 +32,42 @@ export interface MoveToCommand {
   readonly target: TilePos;
 }
 
-export type Command = RegenerateCommand | MoveToCommand;
+export interface TileRectangle {
+  readonly x0: number;
+  readonly y0: number;
+  readonly x1: number;
+  readonly y1: number;
+  readonly z: number;
+}
+
+/** Marks cells for mining, or clears existing marks. */
+export interface DesignateCommand {
+  readonly type: 'designate';
+  readonly action: 'mine' | 'cancel';
+  readonly area: TileRectangle;
+}
+
+/** Paints or erases stockpile cells. */
+export interface ZoneCommand {
+  readonly type: 'zone';
+  readonly action: 'stockpile' | 'clear';
+  readonly area: TileRectangle;
+}
+
+export interface SetWorkPriorityCommand {
+  readonly type: 'setWorkPriority';
+  readonly pawnId: EntityId;
+  readonly workType: WorkTypeId;
+  /** 0 disables the work type; 1 is most urgent. */
+  readonly priority: number;
+}
+
+export type Command =
+  | RegenerateCommand
+  | MoveToCommand
+  | DesignateCommand
+  | ZoneCommand
+  | SetWorkPriorityCommand;
 
 export class CommandQueue {
   private pending: Command[] = [];
@@ -50,4 +87,21 @@ export class CommandQueue {
   get size(): number {
     return this.pending.length;
   }
+}
+
+/** Normalises a drag into an ordered, inclusive rectangle. */
+export function normaliseRect(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  z: number,
+): TileRectangle {
+  return {
+    x0: Math.min(ax, bx),
+    y0: Math.min(ay, by),
+    x1: Math.max(ax, bx),
+    y1: Math.max(ay, by),
+    z,
+  };
 }

@@ -9,6 +9,7 @@
  * here** — a hash that ignores a field silently stops guarding it.
  */
 
+import { Designation } from '../world/designations';
 import type { World } from '../world/world';
 
 const FNV_OFFSET = 2166136261;
@@ -81,7 +82,34 @@ export function hashWorld(world: World): string {
     h = mixInt32(h, pawn.appearance.hairStyle);
     h = mixInt32(h, pawn.appearance.hairColour);
     h = mixInt32(h, pawn.appearance.apparelColour);
+
+    for (const priority of pawn.priorities) h = mixInt32(h, priority);
+
+    // Job progress, so a determinism failure mid-job is caught at the tick it diverges
+    // rather than whenever the outcome happens to differ.
+    h = mixInt32(h, pawn.carryingItemId ?? -1);
+    h = mixInt32(h, pawn.job ? 1 : 0);
+    if (pawn.job) {
+      h = mixString(h, pawn.job.job.kind);
+      h = mixInt32(h, pawn.job.toilIndex);
+      h = mixInt32(h, pawn.job.workDone);
+      h = mixInt32(h, pawn.job.attempts);
+    }
   }
+
+  h = mixInt32(h, world.items.size);
+  h = mixInt32(h, world.items.nextIdForSave);
+  for (const item of world.items.values()) {
+    h = mixInt32(h, item.id);
+    h = mixInt32(h, item.def);
+    h = mixInt32(h, item.count);
+    h = mixInt32(h, item.pos?.x ?? -1);
+    h = mixInt32(h, item.pos?.y ?? -1);
+    h = mixInt32(h, item.carriedBy ?? -1);
+  }
+
+  for (const cell of world.designations.cells(Designation.Mine)) h = mixInt32(h, cell);
+  for (const cell of world.zones.stockpiles) h = mixInt32(h, cell);
 
   h = mixInt32(h, world.landingSite.x);
   h = mixInt32(h, world.landingSite.y);

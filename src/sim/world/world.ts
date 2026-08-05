@@ -7,6 +7,7 @@
  * determinism tests fail for reasons that don't affect the game.
  */
 
+import { Reservations } from '../ai/reservations';
 import { DEFAULT_MAP_SIZE, STARTING_TICK } from '../core/constants';
 import { EntityStore } from '../core/entityStore';
 import type { TilePos } from '../core/position';
@@ -15,9 +16,12 @@ import { STARTING_COLONISTS } from '../defs/pawnKind';
 import type { Pawn } from '../entities/pawn';
 import { Pathfinder } from '../pathfind/pathfinder';
 import { ReachabilityMap } from '../pathfind/reachability';
+import { Designations } from './designations';
+import { ItemStore } from './itemStore';
 import { spawnColonists } from './spawn';
 import type { TileMap } from './tilemap';
 import { generateMap } from './worldgen';
+import { Zones } from './zones';
 
 export interface World {
   // ── Saved state ───────────────────────────────────────────────────────────
@@ -29,6 +33,13 @@ export interface World {
   readonly rng: Rng;
   readonly map: TileMap;
   readonly pawns: EntityStore<Pawn>;
+  readonly items: ItemStore;
+  /** Cells the player has marked for work. */
+  readonly designations: Designations;
+  /** Player-painted areas — stockpiles, for now. */
+  readonly zones: Zones;
+  /** Claims on targets, so two colonists never pick the same rock. */
+  readonly reservations: Reservations;
   /** Where the colony set down. Used to frame the camera on load. */
   readonly landingSite: TilePos;
 
@@ -62,6 +73,10 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
     rng,
     map,
     pawns,
+    items: new ItemStore(),
+    designations: new Designations(),
+    zones: new Zones(),
+    reservations: new Reservations(),
     landingSite,
     pathfinder: new Pathfinder(map),
     reachability: new ReachabilityMap(map),

@@ -8,9 +8,16 @@
  */
 
 import { Graphics, Texture, type Renderer } from 'pixi.js';
+import type { ItemDefId } from '../../sim/defs/items';
 import { TERRAIN_DEFS, type TerrainId } from '../../sim/defs/terrain';
 import type { PawnAppearance } from '../../sim/entities/pawn';
 import { HALF_TILE_H, HALF_TILE_W } from '../constants';
+import { buildItemGraphics } from './itemArt';
+import {
+  buildMineMarkerGraphics,
+  buildPreviewGraphics,
+  buildStockpileGraphics,
+} from './overlayArt';
 import { Palette } from './palette';
 import { appearanceKey, buildPawnGraphics } from './pawnArt';
 import { buildTerrainGraphics } from './terrainArt';
@@ -42,6 +49,23 @@ export class ArtProvider {
         .stroke({ width: 2, color: Palette.relic, alignment: 0.5 });
       return g;
     });
+  }
+
+  /** Texture for a pile of one kind of item. */
+  item(def: ItemDefId): Texture {
+    return this.cached(`item:${def}`, () => buildItemGraphics(def));
+  }
+
+  stockpileTile(): Texture {
+    return this.cached('ui:stockpile', buildStockpileGraphics);
+  }
+
+  mineMarker(): Texture {
+    return this.cached('ui:mine', buildMineMarkerGraphics);
+  }
+
+  previewTile(): Texture {
+    return this.cached('ui:preview', buildPreviewGraphics);
   }
 
   /** Generates every terrain texture up front, so panning never stutters mid-drag. */

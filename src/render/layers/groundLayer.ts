@@ -41,10 +41,12 @@ export class GroundLayer {
   }
 
   update(map: TileMap, seed: number, view: TileRect, visible: WorldRect): void {
-    // Seed is part of the key so regenerating the world invalidates the cache. World
-    // positions don't depend on zoom (the container scales), but the visible rect
+    // Seed invalidates on world regeneration; revision invalidates when terrain changes
+    // under us — mining a rock turns it into gravel, and without that term the cached
+    // layer keeps showing the world as it was and a hole appears where the rock stood.
+    // World positions don't depend on zoom (the container scales), but the visible rect
     // does, so zooming changes the key too.
-    const key = `${seed}:${view.x0},${view.y0},${view.x1},${view.y1}`;
+    const key = `${seed}:${map.revision}:${view.x0},${view.y0},${view.x1},${view.y1}`;
     if (key === this.lastKey) return;
     this.lastKey = key;
 

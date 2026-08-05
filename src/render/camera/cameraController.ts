@@ -28,9 +28,15 @@ export class CameraController {
   private lastY = 0;
   private readonly held = new Set<string>();
 
+  /**
+   * `shouldPan` lets the app veto drag-panning per event. Area tools need left-drag for
+   * their selection rectangle, and without this the camera would slide out from under
+   * the player every time they marked a wall for mining.
+   */
   constructor(
     private readonly camera: Camera,
     private readonly canvas: HTMLCanvasElement,
+    private readonly shouldPan: (event: PointerEvent) => boolean = () => true,
   ) {}
 
   attach(): void {
@@ -80,6 +86,7 @@ export class CameraController {
   }
 
   private onPointerDown = (event: PointerEvent): void => {
+    if (!this.shouldPan(event)) return;
     this.dragging = true;
     this.lastX = event.clientX;
     this.lastY = event.clientY;

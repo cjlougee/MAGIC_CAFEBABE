@@ -1,23 +1,29 @@
 /**
  * Turning clicks into intent.
  *
- * Left-click selects a colonist; right-click orders the selected one to walk. Selection
- * is *view* state and never enters the simulation — where the player's attention is
- * isn't part of the world. Movement orders do enter, as Commands, like every other
- * mutation.
+ * Two modes of interaction, matching the two halves of the control model. With the
+ * **select** tool the player commands individuals directly — click a colonist,
+ * right-click to send them somewhere. With an **area** tool they express standing
+ * intent — mark rock for mining, paint a stockpile — and the colony decides who does it
+ * and when.
  *
- * This is the first piece of the hybrid control model's direct-control half. In M2 the
- * same right-click becomes "preempt whatever you were doing and do this instead".
+ * Selection and the in-progress drag are *view* state and never enter the simulation.
+ * Nothing is designated until the button comes up; until then the rectangle is a
+ * preview and the world knows nothing about it.
  */
 
+import type { Camera } from '../render/camera/camera';
+import type { DragPreview } from '../render/layers/overlayLayer';
 import type { EntityId } from '../sim/core/entityStore';
+import { normaliseRect, type Command } from '../sim/core/commands';
 import { GROUND_LEVEL, type TilePos } from '../sim/core/position';
 import type { World } from '../sim/world/world';
-import type { Camera } from '../render/camera/camera';
+
+export type Tool = 'select' | 'mine' | 'stockpile' | 'erase';
 
 /**
- * Pointer travel, in pixels, above which a press counts as a camera drag rather than
- * a click. Without it, every pan ends by selecting or deselecting something.
+ * Pointer travel, in pixels, above which a press counts as a drag rather than a click.
+ * Without it, every camera pan ends by selecting or deselecting something.
  */
 const CLICK_SLOP = 5;
 
@@ -26,16 +32,19 @@ const PICK_RADIUS = 0.9;
 
 export interface WorldInputHandlers {
   readonly onSelect: (id: EntityId | null) => void;
-  readonly onMoveOrder: (pawnId: EntityId, target: TilePos) => void;
+  readonly dispatch: (command: Command) => void;
   readonly getSelected: () => EntityId | null;
   readonly getWorld: () => World;
   readonly getViewSize: () => { width: number; height: number };
 }
 
 export class WorldInput {
+  private tool: Tool = 'select';
   private downX = 0;
   private downY = 0;
   private downButton = -1;
+  private dragFrom: { x: number; y: number } | null = null;
+  private dragTo: { x: number; y: number } | null = null;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -43,16 +52,46 @@ export class WorldInput {
     private readonly handlers: WorldInputHandlers,
   ) {}
 
+  get activeTool(): Tool {
+    return this.tool;
+  }
+
+  setTool(tool: Tool): void {
+    this.tool = tool;
+    this.cancelDrag();
+  }
+
+  /** The rectangle currently being dragged, for the renderer to outline. */
+  get preview(): DragPreview | null {
+    if (!this.dragFrom || !this.dragTo) return null;
+    const rect = normaliseRect(
+      this.dragFrom.x,
+      this.dragFrom.y,
+      this.dragTo.x,
+      this.dragTo.y,
+      GROUND_LEVEL,
+    );
+    return rect;
+  }
+
   attach(): void {
     this.canvas.addEventListener('pointerdown', this.onPointerDown);
-    this.canvas.addEventListener('pointerup', this.onPointerUp);
+    window.addEventListener('pointermove', this.onPointerMove);
+    window.addEventListener('pointerup', this.onPointerUp);
     this.canvas.addEventListener('contextmenu', this.onContextMenu);
   }
 
   detach(): void {
     this.canvas.removeEventListener('pointerdown', this.onPointerDown);
-    this.canvas.removeEventListener('pointerup', this.onPointerUp);
+    window.removeEventListener('pointermove', this.onPointerMove);
+    window.removeEventListener('pointerup', this.onPointerUp);
     this.canvas.removeEventListener('contextmenu', this.onContextMenu);
+  }
+
+  cancelDrag(): void {
+    this.dragFrom = null;
+    this.dragTo = null;
+    this.downButton = -1;
   }
 
   private onContextMenu = (event: Event): void => {
@@ -64,18 +103,61 @@ export class WorldInput {
     this.downX = event.clientX;
     this.downY = event.clientY;
     this.downButton = event.button;
+
+    if (event.button === 0 && this.tool !== 'select') {
+      const tile = this.tileUnder(event);
+      this.dragFrom = { x: Math.round(tile.x), y: Math.round(tile.y) };
+      this.dragTo = this.dragFrom;
+    }
+  };
+
+  private onPointerMove = (event: PointerEvent): void => {
+    if (!this.dragFrom) return;
+    const tile = this.tileUnder(event);
+    this.dragTo = { x: Math.round(tile.x), y: Math.round(tile.y) };
   };
 
   private onPointerUp = (event: PointerEvent): void => {
     if (event.button !== this.downButton) return;
     const travel = Math.hypot(event.clientX - this.downX, event.clientY - this.downY);
     this.downButton = -1;
+
+    if (this.dragFrom) {
+      this.commitDrag();
+      return;
+    }
+
     if (travel > CLICK_SLOP) return; // The player was panning, not clicking.
 
     const tile = this.tileUnder(event);
     if (event.button === 0) this.select(tile);
     else if (event.button === 2) this.order(tile);
   };
+
+  /** Turns the finished rectangle into the command the active tool implies. */
+  private commitDrag(): void {
+    const area = this.preview;
+    this.dragFrom = null;
+    this.dragTo = null;
+    if (!area) return;
+
+    switch (this.tool) {
+      case 'mine':
+        this.handlers.dispatch({ type: 'designate', action: 'mine', area });
+        break;
+      case 'stockpile':
+        this.handlers.dispatch({ type: 'zone', action: 'stockpile', area });
+        break;
+      case 'erase':
+        // One gesture clears both kinds of mark, because the player is expressing
+        // "undo whatever is here" rather than picking a specific system to undo.
+        this.handlers.dispatch({ type: 'designate', action: 'cancel', area });
+        this.handlers.dispatch({ type: 'zone', action: 'clear', area });
+        break;
+      case 'select':
+        break;
+    }
+  }
 
   private tileUnder(event: PointerEvent): { x: number; y: number } {
     const rect = this.canvas.getBoundingClientRect();
@@ -119,6 +201,6 @@ export class WorldInput {
     const map = this.handlers.getWorld().map;
     if (!map.isPassable(target.x, target.y, target.z)) return;
 
-    this.handlers.onMoveOrder(selected, target);
+    this.handlers.dispatch({ type: 'moveTo', pawnId: selected, target });
   }
 }

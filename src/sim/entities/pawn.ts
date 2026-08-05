@@ -12,8 +12,10 @@
  * saved state while leaving art direction entirely to the renderer.
  */
 
+import type { ActiveJob } from '../ai/job';
 import type { EntityId } from '../core/entityStore';
 import { GROUND_LEVEL, type TilePos } from '../core/position';
+import { defaultPriorities } from '../defs/workTypes';
 
 /** Ticks per unit of move cost, as hundredths. 130 puts open ground at 13 ticks/tile. */
 const MOVE_TICKS_PER_COST = 130;
@@ -41,6 +43,18 @@ export interface Pawn {
   /** Remaining route, excluding the current tile. Empty when idle. */
   path: TilePos[];
   pathIndex: number;
+
+  /** What this colonist is doing, or null when idle. */
+  job: ActiveJob | null;
+  /** The single stack being carried. Pawns have one pair of hands. */
+  carryingItemId: EntityId | null;
+  /**
+   * Work-type priority, indexed by WorkTypeId. 0 disables; 1 is most urgent.
+   *
+   * Per-pawn rather than global, because "who does what" is the main lever the player
+   * has over an autonomous colony.
+   */
+  priorities: number[];
 }
 
 export function createPawn(
@@ -59,6 +73,9 @@ export function createPawn(
     moveTicksElapsed: 0,
     path: [],
     pathIndex: 0,
+    job: null,
+    carryingItemId: null,
+    priorities: defaultPriorities(),
   };
 }
 
@@ -68,6 +85,12 @@ export function ticksToEnter(moveCost: number): number {
 
 export function isMoving(pawn: Pawn): boolean {
   return pawn.moveTarget !== null || pawn.pathIndex < pawn.path.length;
+}
+
+/** Short label for the UI. Not for logic — nothing should branch on a display string. */
+export function pawnActivity(pawn: Pawn): string {
+  if (pawn.job) return pawn.job.job.kind === 'mine' ? 'mining' : 'hauling';
+  return isMoving(pawn) ? 'walking' : 'idle';
 }
 
 /** Abandons the current route. Does not interrupt the step already in progress. */

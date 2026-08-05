@@ -5,16 +5,25 @@
  * Pixi or World.
  */
 
-import { WorldInput } from '../input/worldInput';
+import { WorldInput, type Tool } from '../input/worldInput';
 import { GameRenderer } from '../render/gameRenderer';
+import type { Command } from '../sim/core/commands';
 import type { EntityId } from '../sim/core/entityStore';
-import type { TilePos } from '../sim/core/position';
+import type { WorkTypeId } from '../sim/defs/workTypes';
 import { Simulation } from '../sim/simulation';
 import { GameLoop, type GameSpeed } from './gameLoop';
 import type { UiStore } from './uiStore';
 
 /** How often UI state is republished. 10Hz is imperceptible for a clock readout. */
 const SNAPSHOT_INTERVAL_MS = 100;
+
+/**
+ * Shared so the camera controller can ask which tool is active before the Engine that
+ * owns it exists — the renderer has to be constructed first, and it needs the answer.
+ */
+interface ToolRef {
+  current: Tool;
+}
 
 export class Engine {
   readonly loop: GameLoop;
@@ -27,6 +36,7 @@ export class Engine {
     readonly sim: Simulation,
     readonly renderer: GameRenderer,
     private readonly store: UiStore,
+    private readonly toolRef: ToolRef,
   ) {
     this.loop = new GameLoop(
       () => this.sim.tick(),
@@ -36,7 +46,7 @@ export class Engine {
 
     this.input = new WorldInput(this.renderer.canvas, this.renderer.camera, {
       onSelect: (id) => this.select(id),
-      onMoveOrder: (pawnId, target) => this.orderMove(pawnId, target),
+      dispatch: (command) => this.dispatch(command),
       getSelected: () => this.selectedId,
       getWorld: () => this.sim.world,
       getViewSize: () => this.renderer.viewSize,
@@ -46,16 +56,41 @@ export class Engine {
 
   static async create(host: HTMLElement, seed: number, store: UiStore): Promise<Engine> {
     const sim = new Simulation({ seed });
-    const renderer = await GameRenderer.create(host, sim.world);
-    const engine = new Engine(sim, renderer, store);
+    const toolRef: ToolRef = { current: 'select' };
 
+    // Left-drag belongs to area tools; the camera only claims it in select mode. Middle
+    // button always pans, so there is a way to move the view without leaving the tool.
+    const renderer = await GameRenderer.create(
+      host,
+      sim.world,
+      (event) => event.button === 1 || toolRef.current === 'select',
+    );
+
+    const engine = new Engine(sim, renderer, store, toolRef);
     store.update({ ready: true, snapshot: sim.snapshot(), speed: engine.loop.speed });
     return engine;
+  }
+
+  /**
+   * Sends a command to the simulation.
+   *
+   * While paused no tick arrives to drain the queue, so a paused player's actions would
+   * appear to do nothing. Flushing keeps the game usable as a planning mode.
+   */
+  dispatch(command: Command): void {
+    this.sim.dispatch(command);
+    if (this.loop.speed === 0) this.sim.flushCommands();
   }
 
   setSpeed(speed: GameSpeed): void {
     this.loop.speed = speed;
     this.store.update({ speed });
+  }
+
+  setTool(tool: Tool): void {
+    this.toolRef.current = tool;
+    this.input.setTool(tool);
+    this.store.update({ tool });
   }
 
   /** Selection is view state, so it is published to the UI but never sent to the sim. */
@@ -72,25 +107,23 @@ export class Engine {
     this.renderer.focusOn(pawn.pos.x, pawn.pos.y);
   }
 
-  orderMove(pawnId: EntityId, target: TilePos): void {
-    this.sim.dispatch({ type: 'moveTo', pawnId, target });
-    // Paused means no tick is coming to drain the queue, so drain it explicitly —
-    // otherwise issuing orders while paused would appear to do nothing.
-    if (this.loop.speed === 0) this.sim.flushCommands();
+  setWorkPriority(pawnId: EntityId, workType: WorkTypeId, priority: number): void {
+    this.dispatch({ type: 'setWorkPriority', pawnId, workType, priority });
+    this.store.update({ snapshot: this.sim.snapshot() });
   }
 
   /** Rebuilds the world from a new seed, through the command queue like any change. */
   regenerate(seed: number): void {
-    this.sim.dispatch({ type: 'regenerate', seed });
-    if (this.loop.speed === 0) this.sim.flushCommands();
+    this.dispatch({ type: 'regenerate', seed });
     // The old colonists no longer exist, so a held selection would dangle.
     this.select(null);
+    this.setTool('select');
     this.renderer.focusOn(this.sim.world.landingSite.x, this.sim.world.landingSite.y);
     this.store.update({ snapshot: this.sim.snapshot() });
   }
 
   private onDraw(dtMs: number): void {
-    this.renderer.render(this.sim.world, dtMs, this.selectedId);
+    this.renderer.render(this.sim.world, dtMs, this.selectedId, this.input.preview);
 
     this.snapshotTimerMs += dtMs;
     if (this.snapshotTimerMs >= SNAPSHOT_INTERVAL_MS) {

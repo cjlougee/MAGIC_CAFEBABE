@@ -6,6 +6,7 @@
  * useSyncExternalStore compares by reference to decide whether to re-render.
  */
 
+import type { Tool } from '../input/worldInput';
 import type { EntityId } from '../sim/core/entityStore';
 import type { SimSnapshot } from '../sim/snapshot';
 import type { GameSpeed } from './gameLoop';
@@ -17,6 +18,8 @@ export interface UiState {
   readonly ready: boolean;
   /** View state, not simulation state — where the player is looking, not what is true. */
   readonly selectedPawnId: EntityId | null;
+  readonly tool: Tool;
+  readonly showWorkPanel: boolean;
 }
 
 const INITIAL: UiState = {
@@ -25,6 +28,8 @@ const INITIAL: UiState = {
   fps: 0,
   ready: false,
   selectedPawnId: null,
+  tool: 'select',
+  showWorkPanel: false,
 };
 
 export class UiStore {
