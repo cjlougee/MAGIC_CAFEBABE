@@ -81,6 +81,13 @@ Add to the `Command` union in `src/sim/core/commands.ts` and handle it in
   jobs, so a leftover route walks the pawn off the cell it just reached.
 - **New saved state goes in `hashWorld()`.** A hash that ignores a field silently stops
   guarding it, and the determinism tests go green while protecting nothing.
+- **`passable` is not `storable`.** Anything that puts goods on the ground filters on
+  `map.isStorable(...)`; only movement uses `isPassable`. Water is passable and not
+  storable, and that is the whole reason the distinction exists.
+- **Player-facing placement rules go in `sim/world/placement.ts`**, not inline in the
+  command handler. The drag preview reads the same predicates, and if they drift the
+  preview promises something the simulation then refuses — which reads to the player as
+  the click not registering.
 
 ## Tests to write — `tests/jobs.test.ts`
 

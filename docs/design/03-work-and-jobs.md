@@ -106,6 +106,13 @@ it. Overflow past a stack limit **spills to neighbouring cells** rather than cla
 because mining a rock yields more than a cell can hold and silently deleting the
 difference would make the economy leak.
 
+**Placement filters on `storable`, not `passable`.** A colonist can wade a shallow ford
+but must not leave a crate in it — so the spill search skips water, and a pawn
+interrupted mid-ford drops their load on the bank. `placeAt` consumes the carried stack
+and re-deposits its contents through the same path, which is what keeps
+one-stack-per-cell-per-def true when the target cell can't take the whole load. See ADR
+[0004](../decisions/0004-water.md).
+
 ## What renders it
 
 `OverlayLayer` draws designations and zones between the ground and the objects standing

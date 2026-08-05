@@ -100,6 +100,10 @@ tests rather than by structure:
   each; `render/art/palette.ts` must have at least that many.
 - Changing terrain must call `reachability.markDirty()`. `TileMap.revision` bumps automatically and
   is what keeps render caches honest — without it, mining leaves a hole where the rock was.
+- **`passable` is not `storable`.** A colonist can wade a shallow ford but must not leave goods in
+  it. Anything placing items on the ground filters on `storable`; only movement uses `passable`. The
+  rules live once in `sim/world/placement.ts`, consulted by both the command handlers and the drag
+  preview, so the preview can never promise what the sim will refuse. See ADR 0004.
 - Anything added to saved state must be added to `hashWorld()`, or the determinism tests go green
   while guarding nothing.
 

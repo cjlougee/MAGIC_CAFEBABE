@@ -112,4 +112,18 @@ export class TileMap {
   isPassable(x: number, y: number, z: number = GROUND_LEVEL): boolean {
     return this.inBounds(x, y, z) && this.walkCost[this.idx(x, y, z)] !== IMPASSABLE;
   }
+
+  /**
+   * Whether goods may rest on this cell.
+   *
+   * A strictly narrower question than passability — a colonist can wade a ford but must
+   * not leave a crate in it. Keep the two apart at every call site.
+   */
+  isStorable(x: number, y: number, z: number = GROUND_LEVEL): boolean {
+    return this.inBounds(x, y, z) && TERRAIN_DEFS[this.terrain[this.idx(x, y, z)]].storable;
+  }
+
+  isStorableAt(index: number): boolean {
+    return TERRAIN_DEFS[this.terrain[index]].storable;
+  }
 }

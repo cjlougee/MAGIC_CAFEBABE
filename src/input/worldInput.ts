@@ -64,6 +64,8 @@ export class WorldInput {
   /** The rectangle currently being dragged, for the renderer to outline. */
   get preview(): DragPreview | null {
     if (!this.dragFrom || !this.dragTo) return null;
+    if (this.tool === 'select') return null;
+
     const rect = normaliseRect(
       this.dragFrom.x,
       this.dragFrom.y,
@@ -71,7 +73,9 @@ export class WorldInput {
       this.dragTo.y,
       GROUND_LEVEL,
     );
-    return rect;
+    // The tool travels with the rectangle so the overlay can grey out cells it would
+    // skip — a drag across a river should say so before the player commits.
+    return { ...rect, tool: this.tool };
   }
 
   attach(): void {

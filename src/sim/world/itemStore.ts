@@ -62,16 +62,25 @@ export class ItemStore {
 
   /**
    * Puts `count` of `def` on the map at `pos`, merging into the stack already there and
-   * spilling any remainder onto nearby cells.
+   * spilling any remainder onto nearby storable cells.
    *
    * Spilling rather than clamping matters: mining a rock yields more than a cell can
    * hold, and silently deleting the difference would make the economy leak.
+   *
+   * If every cell within SPILL_RADIUS is full or unstorable the remainder *is* lost.
+   * That needs a colonist working a one-tile island, and the alternative — over-stacking
+   * — would break the one-stack-per-cell invariant everything else relies on.
    */
   spawn(map: TileMap, def: ItemDefId, count: number, pos: TilePos): Item[] {
+    return this.deposit(map, def, count, pos);
+  }
+
+  /** The single placement path. Everything that puts goods on the ground goes here. */
+  private deposit(map: TileMap, def: ItemDefId, count: number, origin: TilePos): Item[] {
     const created: Item[] = [];
     let remaining = count;
 
-    for (const cell of this.spillCells(map, pos)) {
+    for (const cell of this.spillCells(map, origin)) {
       if (remaining <= 0) break;
       const room = this.capacityAt(cell.index, def);
       if (room <= 0) continue;
@@ -100,31 +109,21 @@ export class ItemStore {
   }
 
   /**
-   * Puts a carried item down, merging into a matching stack if one is there.
+   * Puts a carried stack down at `pos`, or on the nearest storable cell to it.
    *
-   * Returns the surviving item — which may not be the one passed in, because merging
-   * consumes the carried stack. Callers must not keep holding the old reference.
+   * The carried entity is consumed and its contents re-deposited, rather than being
+   * repositioned. That is what keeps one-stack-per-cell-per-def true: repositioning
+   * would drop a second stack of the same def onto a cell that already held one
+   * whenever the target didn't have room for the whole load.
+   *
+   * Starting the search *at* `pos` means a colonist interrupted mid-ford puts their load
+   * on the bank rather than in the current — the water cell simply isn't storable, so
+   * the search moves outward.
    */
-  placeAt(item: Item, map: TileMap, pos: TilePos): Item {
-    const index = map.idx(pos.x, pos.y, pos.z);
-    const existing = this.stackAt(index, item.def);
-
-    if (existing) {
-      const room = this.capacityAt(index, item.def);
-      const merged = Math.min(room, item.count);
-      existing.count += merged;
-      item.count -= merged;
-
-      if (item.count <= 0) {
-        this.entities.remove(item.id);
-        return existing;
-      }
-    }
-
-    item.pos = pos;
-    item.carriedBy = null;
-    this.addToCell(index, item.id);
-    return item;
+  placeAt(item: Item, map: TileMap, pos: TilePos): void {
+    const { def, count } = item;
+    this.remove(item.id, map);
+    this.deposit(map, def, count, pos);
   }
 
   remove(id: EntityId, map: TileMap): void {
@@ -134,7 +133,13 @@ export class ItemStore {
     this.entities.remove(id);
   }
 
-  /** Cells to try when placing, nearest first. */
+  /**
+   * Cells to try when placing, nearest first.
+   *
+   * Filters on *storable*, not passable — otherwise mining a rock on a riverbank spills
+   * its stone into the water, and a colonist interrupted mid-ford drops their load in
+   * the current.
+   */
   private *spillCells(map: TileMap, origin: TilePos): Generator<{ index: number; pos: TilePos }> {
     const z = origin.z ?? GROUND_LEVEL;
     for (let radius = 0; radius <= SPILL_RADIUS; radius++) {
@@ -143,7 +148,7 @@ export class ItemStore {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
           const x = origin.x + dx;
           const y = origin.y + dy;
-          if (!map.isPassable(x, y, z)) continue;
+          if (!map.isStorable(x, y, z)) continue;
           yield { index: map.idx(x, y, z), pos: { x, y, z } };
         }
       }

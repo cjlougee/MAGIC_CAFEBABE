@@ -21,10 +21,10 @@ import {
   type ZoneCommand,
 } from './core/commands';
 import { clearPath } from './entities/pawn';
-import { isMineable } from './defs/terrain';
 import { PRIORITY_DISABLED, PRIORITY_LOWEST, WORK_TYPE_COUNT } from './defs/workTypes';
 import { buildSnapshot, type SimSnapshot } from './snapshot';
 import { Designation } from './world/designations';
+import { canDesignateMine, canPlaceStockpile } from './world/placement';
 import { createWorld, type World, type WorldOptions } from './world/world';
 
 export interface SimulationOptions extends WorldOptions {
@@ -158,9 +158,9 @@ export class Simulation {
         world.designations.remove(Designation.Mine, index);
         return;
       }
-      // Only solid terrain can be mined; marking open ground would create work that
-      // can never be completed and a designation the player can't explain.
-      if (!isMineable(world.map.terrainAt(index))) return;
+      // Marking open ground would create work that can never be completed and a
+      // designation the player can't explain.
+      if (!canDesignateMine(world.map, index)) return;
       world.designations.add(Designation.Mine, index);
     });
   }
@@ -173,8 +173,7 @@ export class Simulation {
         world.zones.removeStockpile(index);
         return;
       }
-      // A stockpile inside a wall would accept haul jobs nobody can complete.
-      if (world.map.walkCost[index] === 0) return;
+      if (!canPlaceStockpile(world.map, index)) return;
       world.zones.addStockpile(index);
     });
   }

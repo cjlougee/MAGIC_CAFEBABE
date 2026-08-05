@@ -11,11 +11,16 @@
 
 import { Container, Sprite } from 'pixi.js';
 import { Designation } from '../../sim/world/designations';
+import { canDesignateMine, canPlaceStockpile } from '../../sim/world/placement';
 import type { World } from '../../sim/world/world';
 import type { ArtProvider } from '../art/artProvider';
+import { Palette } from '../art/palette';
 import type { TileRect, WorldRect } from '../camera/camera';
 import { HALF_TILE_H, HALF_TILE_W } from '../constants';
 import { tileToWorld } from '../iso';
+
+/** Which cells a tool would actually affect, so the preview can say so up front. */
+export type PreviewTool = 'mine' | 'stockpile' | 'erase';
 
 export interface DragPreview {
   readonly x0: number;
@@ -23,6 +28,31 @@ export interface DragPreview {
   readonly x1: number;
   readonly y1: number;
   readonly z: number;
+  readonly tool: PreviewTool;
+}
+
+const REJECTED_TINT = Palette.danger;
+const REJECTED_ALPHA = 0.55;
+
+/**
+ * Whether the active tool would actually affect a cell.
+ *
+ * Delegates to the same predicates the command handlers use, so the preview can never
+ * promise something the simulation then refuses.
+ */
+function acceptsCell(world: World, tool: PreviewTool, x: number, y: number, z: number): boolean {
+  if (!world.map.inBounds(x, y, z)) return false;
+  const index = world.map.idx(x, y, z);
+
+  switch (tool) {
+    case 'mine':
+      return canDesignateMine(world.map, index);
+    case 'stockpile':
+      return canPlaceStockpile(world.map, index);
+    case 'erase':
+      // Erase always applies; there is nothing to be refused.
+      return true;
+  }
 }
 
 export class OverlayLayer {
@@ -37,7 +67,7 @@ export class OverlayLayer {
   update(world: World, view: TileRect, visible: WorldRect, preview: DragPreview | null): void {
     let used = 0;
 
-    const place = (x: number, y: number, texture: Sprite['texture']): void => {
+    const place = (x: number, y: number, texture: Sprite['texture'], rejected = false): void => {
       const at = tileToWorld(x, y);
       if (at.x + HALF_TILE_W < visible.x0 || at.x - HALF_TILE_W > visible.x1) return;
       if (at.y + HALF_TILE_H < visible.y0 || at.y - HALF_TILE_H > visible.y1) return;
@@ -45,6 +75,8 @@ export class OverlayLayer {
       const sprite = this.spriteAt(used++);
       sprite.texture = texture;
       sprite.position.set(at.x - HALF_TILE_W, at.y - HALF_TILE_H);
+      sprite.tint = rejected ? REJECTED_TINT : 0xffffff;
+      sprite.alpha = rejected ? REJECTED_ALPHA : 1;
       sprite.visible = true;
     };
 
@@ -72,7 +104,9 @@ export class OverlayLayer {
       for (let y = preview.y0; y <= preview.y1; y++) {
         for (let x = preview.x0; x <= preview.x1; x++) {
           if (!world.map.inBounds(x, y, preview.z)) continue;
-          place(x, y, previewTexture);
+          // Cells the tool will skip are marked before the player commits, rather than
+          // silently doing nothing and leaving them to wonder whether it registered.
+          place(x, y, previewTexture, !acceptsCell(world, preview.tool, x, y, preview.z));
         }
       }
     }
@@ -92,6 +126,7 @@ export class OverlayLayer {
     }
     return sprite;
   }
+
 
   destroy(): void {
     this.container.destroy({ children: true });

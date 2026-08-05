@@ -32,6 +32,15 @@ export interface TerrainDef {
   readonly variants: number;
   /** True for terrain that must be mined or deconstructed rather than walked around. */
   readonly solid: boolean;
+  /**
+   * Whether goods may rest here.
+   *
+   * Deliberately *not* the same as passable. Water is the one terrain a colonist can
+   * enter but must not use — you can wade a ford, you cannot leave a crate in it. Every
+   * other terrain answers both questions the same way, which is exactly why conflating
+   * them went unnoticed until a stockpile appeared in a river.
+   */
+  readonly storable: boolean;
   /** Ticks of work to clear this cell. Zero means it cannot be mined. */
   readonly mineWork: number;
   /** What clearing it drops, and what it leaves behind. */
@@ -51,31 +60,35 @@ export interface TerrainDef {
 const NOT_MINEABLE = { mineWork: 0, mineYield: null, minedInto: null } as const;
 
 export const TERRAIN_DEFS: readonly TerrainDef[] = [
-  { id: Terrain.DeepWater, name: 'Deep Water', walkCost: IMPASSABLE, variants: 4, solid: false, ...NOT_MINEABLE },
-  { id: Terrain.ShallowWater, name: 'Shallow Water', walkCost: 22, variants: 4, solid: false, ...NOT_MINEABLE },
+  // Water: deep is a hard barrier, shallow is a slow ford. Neither holds goods.
+  // See docs/decisions/0004-water.md.
+  { id: Terrain.DeepWater, name: 'Deep Water', walkCost: IMPASSABLE, variants: 4, solid: false, storable: false, ...NOT_MINEABLE },
+  { id: Terrain.ShallowWater, name: 'Shallow Water', walkCost: 22, variants: 4, solid: false, storable: false, ...NOT_MINEABLE },
   // Ground terrains carry more variants because they cover the most area, and that is
   // where tile repetition becomes visible as a grid.
-  { id: Terrain.Sand, name: 'Sand', walkCost: 12, variants: 6, solid: false, ...NOT_MINEABLE },
-  { id: Terrain.Dirt, name: 'Dirt', walkCost: 10, variants: 6, solid: false, ...NOT_MINEABLE },
-  { id: Terrain.Grass, name: 'Grass', walkCost: 10, variants: 6, solid: false, ...NOT_MINEABLE },
-  { id: Terrain.Gravel, name: 'Gravel', walkCost: 11, variants: 6, solid: false, ...NOT_MINEABLE },
+  { id: Terrain.Sand, name: 'Sand', walkCost: 12, variants: 6, solid: false, storable: true, ...NOT_MINEABLE },
+  { id: Terrain.Dirt, name: 'Dirt', walkCost: 10, variants: 6, solid: false, storable: true, ...NOT_MINEABLE },
+  { id: Terrain.Grass, name: 'Grass', walkCost: 10, variants: 6, solid: false, storable: true, ...NOT_MINEABLE },
+  { id: Terrain.Gravel, name: 'Gravel', walkCost: 11, variants: 6, solid: false, storable: true, ...NOT_MINEABLE },
   {
     id: Terrain.Rock,
     name: 'Rock',
     walkCost: IMPASSABLE,
     variants: 6,
     solid: true,
+    storable: false,
     mineWork: 480,
     mineYield: { def: ItemDef.Stone, count: 20 },
     minedInto: Terrain.Gravel,
   },
-  { id: Terrain.RuinFloor, name: 'Relic Plating', walkCost: 9, variants: 5, solid: false, ...NOT_MINEABLE },
+  { id: Terrain.RuinFloor, name: 'Relic Plating', walkCost: 9, variants: 5, solid: false, storable: true, ...NOT_MINEABLE },
   {
     id: Terrain.RuinWall,
     name: 'Relic Bulkhead',
     walkCost: IMPASSABLE,
     variants: 5,
     solid: true,
+    storable: false,
     // Slower than rock and worth less bulk, but scrap is the first rung of the ladder
     // that leads somewhere rock never does.
     mineWork: 700,
@@ -86,6 +99,10 @@ export const TERRAIN_DEFS: readonly TerrainDef[] = [
 
 export function isMineable(id: TerrainId): boolean {
   return TERRAIN_DEFS[id].mineWork > 0;
+}
+
+export function isStorable(id: TerrainId): boolean {
+  return TERRAIN_DEFS[id].storable;
 }
 
 export function terrainDef(id: TerrainId): TerrainDef {
