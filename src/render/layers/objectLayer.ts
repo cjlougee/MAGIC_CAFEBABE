@@ -20,6 +20,8 @@ import { pawnVisualPos, type Pawn, type PawnAppearance } from '../../sim/entitie
 import { ripeness } from '../../sim/entities/plant';
 import type { World } from '../../sim/world/world';
 import type { ArtProvider } from '../art/artProvider';
+import { buildProgress } from '../../sim/entities/constructionSite';
+import { BUILDING_HEIGHT, siteStageFor } from '../art/buildingArt';
 import { ITEM_GROUND_Y, ITEM_H, ITEM_W } from '../art/itemArt';
 import { PAWN_GROUND_Y, PAWN_H } from '../art/pawnArt';
 import { PLANT_GROUND_Y, PLANT_H, PLANT_W, stageFor } from '../art/plantArt';
@@ -61,6 +63,7 @@ export class ObjectLayer {
   private readonly itemPool: Sprite[] = [];
   private readonly plantPool: Sprite[] = [];
   private readonly buildingPool: Sprite[] = [];
+  private readonly sitePool: Sprite[] = [];
   private readonly pawnSprites = new Map<EntityId, Sprite>();
   private readonly facing = new Map<EntityId, number>();
   private readonly occluders = new Set<number>();
@@ -93,6 +96,7 @@ export class ObjectLayer {
 
     this.updateTiles(world, view, visible);
     this.updateBuildings(world, visible);
+    this.updateSites(world, visible);
     this.updatePlants(world, visible);
     this.updateItems(world, visible);
     this.updatePawns(visuals, selectedId);
@@ -102,18 +106,47 @@ export class ObjectLayer {
     let used = 0;
 
     for (const building of world.buildings.values()) {
+      const height = BUILDING_HEIGHT[building.def] ?? 0;
       const at = tileToWorld(building.pos.x, building.pos.y, building.pos.z);
       if (at.x + HALF_TILE_W < visible.x0 || at.x - HALF_TILE_W > visible.x1) continue;
-      if (at.y + HALF_TILE_H < visible.y0 || at.y - HALF_TILE_H > visible.y1) continue;
+      if (at.y + HALF_TILE_H < visible.y0 || at.y - HALF_TILE_H - height > visible.y1) continue;
 
       const sprite = this.fromPool(this.buildingPool, used++, 0, 0);
       sprite.texture = this.art.building(building.def);
-      sprite.position.set(at.x - HALF_TILE_W, at.y - HALF_TILE_H);
-      sprite.zIndex = (building.pos.x + building.pos.y) * DEPTH_SCALE + BUILDING_BIAS;
+      // Same offset rule as raised terrain: the texture's base diamond sits `height`
+      // pixels down from its top edge, so the footprint lands on the ground plane.
+      sprite.position.set(at.x - HALF_TILE_W, at.y - HALF_TILE_H - height);
+      /*
+       * Raised structures sort with the *pawn* bias, not the floor bias.
+       *
+       * A wall is a tall thing standing on a cell, exactly like a rock — sorting it
+       * under items would draw a stone pile in front of the wall behind it. Flat
+       * buildings keep the floor bias so a bedroll stays under whoever sleeps on it.
+       */
+      const bias = height > 0 ? ENTITY_BIAS - 1 : BUILDING_BIAS;
+      sprite.zIndex = (building.pos.x + building.pos.y) * DEPTH_SCALE + bias;
       sprite.visible = true;
     }
 
     this.hideRest(this.buildingPool, used);
+  }
+
+  private updateSites(world: World, visible: WorldRect): void {
+    let used = 0;
+
+    for (const site of world.sites.values()) {
+      const at = tileToWorld(site.pos.x, site.pos.y, site.pos.z);
+      if (at.x + HALF_TILE_W < visible.x0 || at.x - HALF_TILE_W > visible.x1) continue;
+      if (at.y + HALF_TILE_H < visible.y0 || at.y - HALF_TILE_H > visible.y1) continue;
+
+      const sprite = this.fromPool(this.sitePool, used++, 0, 0);
+      sprite.texture = this.art.site(siteStageFor(buildProgress(site)));
+      sprite.position.set(at.x - HALF_TILE_W, at.y - HALF_TILE_H);
+      sprite.zIndex = (site.pos.x + site.pos.y) * DEPTH_SCALE + BUILDING_BIAS + 1;
+      sprite.visible = true;
+    }
+
+    this.hideRest(this.sitePool, used);
   }
 
   private updatePlants(world: World, visible: WorldRect): void {
@@ -294,6 +327,7 @@ export class ObjectLayer {
     this.itemPool.length = 0;
     this.plantPool.length = 0;
     this.buildingPool.length = 0;
+    this.sitePool.length = 0;
     this.pawnSprites.clear();
     this.facing.clear();
   }

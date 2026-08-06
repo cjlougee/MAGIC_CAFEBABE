@@ -21,10 +21,11 @@ export const Thought = {
   AteRawFood: 0,
   SleptInBed: 1,
   SleptOnGround: 2,
+  SleptIndoors: 3,
   // Situational.
-  Hungry: 3,
-  Starving: 4,
-  Exhausted: 5,
+  Hungry: 4,
+  Starving: 5,
+  Exhausted: 6,
 } as const;
 
 export type ThoughtId = (typeof Thought)[keyof typeof Thought];
@@ -62,6 +63,16 @@ export const THOUGHT_DEFS: readonly ThoughtDef[] = [
     id: Thought.SleptOnGround,
     label: 'Slept on the ground',
     mood: -0.07,
+    durationTicks: hours(10),
+    situational: false,
+  },
+  {
+    id: Thought.SleptIndoors,
+    label: 'Slept under a roof',
+    // Stacks with the bed thought rather than replacing it, so a bed inside a built
+    // room is meaningfully better than a bedroll in a field — the first payoff for
+    // having bothered to build anything.
+    mood: +0.05,
     durationTicks: hours(10),
     situational: false,
   },

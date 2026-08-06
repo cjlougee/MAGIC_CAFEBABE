@@ -11,7 +11,7 @@
 
 import { Container, Sprite } from 'pixi.js';
 import { Designation } from '../../sim/world/designations';
-import { canDesignateMine, canPlaceStockpile } from '../../sim/world/placement';
+import { canDesignateMine, canPlaceBlueprint, canPlaceStockpile } from '../../sim/world/placement';
 import type { World } from '../../sim/world/world';
 import type { ArtProvider } from '../art/artProvider';
 import { Palette } from '../art/palette';
@@ -20,7 +20,7 @@ import { HALF_TILE_H, HALF_TILE_W } from '../constants';
 import { tileToWorld } from '../iso';
 
 /** Which cells a tool would actually affect, so the preview can say so up front. */
-export type PreviewTool = 'mine' | 'stockpile' | 'erase';
+export type PreviewTool = 'mine' | 'stockpile' | 'erase' | 'build';
 
 export interface DragPreview {
   readonly x0: number;
@@ -49,6 +49,8 @@ function acceptsCell(world: World, tool: PreviewTool, x: number, y: number, z: n
       return canDesignateMine(world.map, index);
     case 'stockpile':
       return canPlaceStockpile(world.map, index);
+    case 'build':
+      return canPlaceBlueprint(world, index);
     case 'erase':
       // Erase always applies; there is nothing to be refused.
       return true;

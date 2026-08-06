@@ -77,6 +77,9 @@ export interface SimSnapshot {
   readonly stockpileCells: number;
   readonly alerts: readonly Alert[];
   readonly ripePlants: number;
+  /** Genuinely enclosed rooms — the ones the player built. */
+  readonly rooms: number;
+  readonly constructionSites: number;
 }
 
 export function buildSnapshot(world: World): SimSnapshot {
@@ -139,6 +142,8 @@ export function buildSnapshot(world: World): SimSnapshot {
     stockpileCells: world.zones.stockpileCount,
     alerts: buildAlerts(world),
     ripePlants,
+    rooms: world.rooms.enclosedCount,
+    constructionSites: world.sites.size,
   };
 }
 

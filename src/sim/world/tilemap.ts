@@ -36,6 +36,20 @@ export class TileMap {
   readonly walkCost: Uint8Array;
 
   /**
+   * Non-zero where a building blocks movement, and where one seals a room.
+   *
+   * Kept apart from `walkCost` because these are two different questions with two
+   * different owners: terrain decides cost, structures decide obstruction. Folding a
+   * wall into walkCost would mean deconstructing it had to *guess* what the cost
+   * underneath used to be.
+   *
+   * Room-blocking is separate again, because a **door** blocks a room without blocking
+   * movement.
+   */
+  readonly buildingBlocks: Uint8Array;
+  readonly buildingSealsRoom: Uint8Array;
+
+  /**
    * Bumped on every terrain change.
    *
    * Render layers cache their sprite assignments and only rebuild when something they
@@ -54,8 +68,26 @@ export class TileMap {
 
     this.terrain = new Uint8Array(this.size);
     this.walkCost = new Uint8Array(this.size);
+    this.buildingBlocks = new Uint8Array(this.size);
+    this.buildingSealsRoom = new Uint8Array(this.size);
     this.terrain.fill(Terrain.Dirt);
     this.walkCost.fill(TERRAIN_DEFS[Terrain.Dirt].walkCost);
+  }
+
+  /** Records what a structure does to a cell. Bumps the revision so caches refresh. */
+  setBuildingAt(index: number, blocksMovement: boolean, sealsRoom: boolean): void {
+    const blocks = blocksMovement ? 1 : 0;
+    const seals = sealsRoom ? 1 : 0;
+    if (this.buildingBlocks[index] === blocks && this.buildingSealsRoom[index] === seals) return;
+
+    this.buildingBlocks[index] = blocks;
+    this.buildingSealsRoom[index] = seals;
+    this.revisionCount++;
+  }
+
+  /** True where a wall or door forms the edge of a room. */
+  sealsRoomAt(index: number): boolean {
+    return this.buildingSealsRoom[index] !== 0;
   }
 
   /** Monotonic counter identifying the current terrain state. */
@@ -110,7 +142,9 @@ export class TileMap {
   }
 
   isPassable(x: number, y: number, z: number = GROUND_LEVEL): boolean {
-    return this.inBounds(x, y, z) && this.walkCost[this.idx(x, y, z)] !== IMPASSABLE;
+    if (!this.inBounds(x, y, z)) return false;
+    const index = this.idx(x, y, z);
+    return this.walkCost[index] !== IMPASSABLE && this.buildingBlocks[index] === 0;
   }
 
   /**
@@ -120,10 +154,10 @@ export class TileMap {
    * not leave a crate in it. Keep the two apart at every call site.
    */
   isStorable(x: number, y: number, z: number = GROUND_LEVEL): boolean {
-    return this.inBounds(x, y, z) && TERRAIN_DEFS[this.terrain[this.idx(x, y, z)]].storable;
+    return this.inBounds(x, y, z) && this.isStorableAt(this.idx(x, y, z));
   }
 
   isStorableAt(index: number): boolean {
-    return TERRAIN_DEFS[this.terrain[index]].storable;
+    return TERRAIN_DEFS[this.terrain[index]].storable && this.buildingBlocks[index] === 0;
   }
 }

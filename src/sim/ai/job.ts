@@ -11,7 +11,15 @@
 import type { EntityId } from '../core/entityStore';
 import type { TilePos } from '../core/position';
 
-export type JobKind = 'mine' | 'haul' | 'harvest' | 'eat' | 'sleep' | 'wander';
+export type JobKind =
+  | 'mine'
+  | 'haul'
+  | 'harvest'
+  | 'eat'
+  | 'sleep'
+  | 'wander'
+  | 'deliver'
+  | 'construct';
 
 export interface MineJob {
   readonly kind: 'mine';
@@ -48,7 +56,30 @@ export interface WanderJob {
   readonly to: TilePos;
 }
 
-export type Job = MineJob | HaulJob | HarvestJob | EatJob | SleepJob | WanderJob;
+/**
+ * Carrying materials to a blueprint. This is **Haul** work, not Construct — the player
+ * schedules "who carries things", and delivering to a site is carrying things.
+ */
+export interface DeliverJob {
+  readonly kind: 'deliver';
+  readonly site: EntityId;
+  readonly item: EntityId;
+}
+
+export interface ConstructJob {
+  readonly kind: 'construct';
+  readonly site: EntityId;
+}
+
+export type Job =
+  | MineJob
+  | HaulJob
+  | HarvestJob
+  | EatJob
+  | SleepJob
+  | WanderJob
+  | DeliverJob
+  | ConstructJob;
 
 export interface ActiveJob {
   readonly job: Job;

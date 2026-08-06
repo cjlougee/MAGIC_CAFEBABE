@@ -128,6 +128,21 @@ export function hashWorld(world: World): string {
     h = mixInt32(h, building.owner ?? -1);
   }
 
+  h = mixInt32(h, world.sites.size);
+  for (const site of world.sites.values()) {
+    h = mixInt32(h, site.id);
+    h = mixInt32(h, site.def);
+    h = mixInt32(h, site.pos.x);
+    h = mixInt32(h, site.pos.y);
+    h = mixInt32(h, site.workDone);
+    for (const delivered of site.delivered) h = mixInt32(h, delivered);
+  }
+
+  // Structures change passability without changing terrain, so the terrain array alone
+  // no longer describes the map.
+  h = mixBytes(h, world.map.buildingBlocks);
+  h = mixBytes(h, world.map.buildingSealsRoom);
+
   h = mixInt32(h, world.items.size);
   h = mixInt32(h, world.items.nextIdForSave);
   for (const item of world.items.values()) {

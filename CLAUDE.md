@@ -100,6 +100,14 @@ tests rather than by structure:
   each; `render/art/palette.ts` must have at least that many.
 - Changing terrain must call `reachability.markDirty()`. `TileMap.revision` bumps automatically and
   is what keeps render caches honest — without it, mining leaves a hole where the rock was.
+- **A pawn on an impassable cell is the worst state in the simulation.** Reachability
+  reports their own position as unreachable, so `canReach` fails for *every* target and
+  they idle forever with no visible cause. Never complete a structure on an occupied cell
+  (`toilWork`'s `canProgress` waits rather than fails), and `escapeIfTrapped` in
+  `ai/movement.ts` is the backstop.
+- **Blocking, sealing, and terrain cost are three separate questions.** `walkCost` is
+  terrain; `buildingBlocks` is obstruction; `buildingSealsRoom` is room edges. A door is
+  walkable *and* a room edge, which is why the last two can't be one flag.
 - **Need jobs outrank all work, unconditionally.** Eating and sleeping never enter the priority
   grid and can't be switched off — otherwise a colonist with Haul at priority 1 starves beside a
   stockpile. The hierarchy lives in `tickPawnAI`: break → needs → work. See ADR-free notes in

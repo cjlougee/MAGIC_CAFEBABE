@@ -9,6 +9,8 @@
 
 export const Building = {
   Bedroll: 0,
+  Wall: 1,
+  Door: 2,
 } as const;
 
 export type BuildingId = (typeof Building)[keyof typeof Building];
@@ -18,13 +20,23 @@ export interface BuildingDef {
   readonly name: string;
   /** Colonists can sleep here, and sleeping here is better than the ground. */
   readonly isBed: boolean;
-  /** Whether the building blocks movement. */
+  /** Whether colonists can walk through it. */
   readonly passable: boolean;
+  /**
+   * Whether it forms the edge of a room.
+   *
+   * Separate from `passable` because a **door is both**: colonists walk through it, and
+   * it still seals the room. Conflating the two would mean a house with a door has no
+   * interior, which is the whole point of building one.
+   */
+  readonly blocksRoom: boolean;
 }
 
 /** Indexed by BuildingId — array position must equal `id`. */
 export const BUILDING_DEFS: readonly BuildingDef[] = [
-  { id: Building.Bedroll, name: 'Bedroll', isBed: true, passable: true },
+  { id: Building.Bedroll, name: 'Bedroll', isBed: true, passable: true, blocksRoom: false },
+  { id: Building.Wall, name: 'Wall', isBed: false, passable: false, blocksRoom: true },
+  { id: Building.Door, name: 'Door', isBed: false, passable: true, blocksRoom: true },
 ];
 
 export function buildingDef(id: BuildingId): BuildingDef {

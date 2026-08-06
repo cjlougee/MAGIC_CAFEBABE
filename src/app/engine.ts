@@ -9,6 +9,7 @@ import { WorldInput, type Tool } from '../input/worldInput';
 import { GameRenderer } from '../render/gameRenderer';
 import type { Command } from '../sim/core/commands';
 import type { EntityId } from '../sim/core/entityStore';
+import type { BuildableId } from '../sim/defs/buildables';
 import type { WorkTypeId } from '../sim/defs/workTypes';
 import { Simulation } from '../sim/simulation';
 import { GameLoop, type GameSpeed } from './gameLoop';
@@ -91,6 +92,13 @@ export class Engine {
     this.toolRef.current = tool;
     this.input.setTool(tool);
     this.store.update({ tool });
+  }
+
+  /** Picking a blueprint also switches to the build tool — one click, not two. */
+  setBuildable(buildable: BuildableId): void {
+    this.toolRef.current = 'build';
+    this.input.setBuildable(buildable);
+    this.store.update({ tool: 'build', buildable });
   }
 
   /** Selection is view state, so it is published to the UI but never sent to the sim. */

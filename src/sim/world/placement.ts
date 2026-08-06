@@ -11,7 +11,9 @@
  */
 
 import { isMineable } from '../defs/terrain';
+import { buildingAt, siteAt } from './lookup';
 import type { TileMap } from './tilemap';
+import type { World } from './world';
 
 /** Rock and bulkheads can be cut; open ground and water cannot. */
 export function canDesignateMine(map: TileMap, cellIndex: number): boolean {
@@ -26,4 +28,18 @@ export function canDesignateMine(map: TileMap, cellIndex: number): boolean {
  */
 export function canPlaceStockpile(map: TileMap, cellIndex: number): boolean {
   return map.isStorableAt(cellIndex);
+}
+
+/**
+ * Blueprints go on dry, open ground that isn't already occupied.
+ *
+ * Uses `isStorableAt` for the same reason stockpiles do — you cannot build in a river,
+ * and bridges are a later problem. The occupancy checks stop a drag across an existing
+ * wall from queueing a second wall on top of it.
+ */
+export function canPlaceBlueprint(world: World, cellIndex: number): boolean {
+  if (!world.map.isStorableAt(cellIndex)) return false;
+  if (buildingAt(world, cellIndex)) return false;
+  if (siteAt(world, cellIndex)) return false;
+  return true;
 }

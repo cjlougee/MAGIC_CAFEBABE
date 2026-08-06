@@ -23,15 +23,19 @@
 import { Graphics } from 'pixi.js';
 import { Rng } from '../../sim/core/rng';
 import { Terrain, type TerrainId } from '../../sim/defs/terrain';
-import { HALF_TILE_H, HALF_TILE_W, TILE_H, TILE_W } from '../constants';
+import { HALF_TILE_H, HALF_TILE_W, TILE_W } from '../constants';
+import {
+  diamond,
+  leftFace,
+  LEFT_FACE_SHADE,
+  rightFace,
+  RIGHT_FACE_SHADE,
+  topFace,
+} from './isoShapes';
 import { Palette, shade } from './palette';
 
 /** Small enough not to show tile seams; broad variation is TerrainLayer's tint field. */
 const TONE_RANGE = 0.025;
-
-/** Side-face shading. The left face is darker, as though light comes from upper-right. */
-const LEFT_FACE_SHADE = -0.3;
-const RIGHT_FACE_SHADE = -0.14;
 
 const TERRAIN_BASE: Record<TerrainId, number> = {
   [Terrain.DeepWater]: Palette.deepWater,
@@ -43,6 +47,7 @@ const TERRAIN_BASE: Record<TerrainId, number> = {
   [Terrain.Rock]: Palette.rock,
   [Terrain.RuinFloor]: Palette.ruinFloor,
   [Terrain.RuinWall]: Palette.ruinWall,
+  [Terrain.StoneFloor]: Palette.stoneFloor,
 };
 
 /**
@@ -62,47 +67,15 @@ const TERRAIN_HEIGHT: Record<TerrainId, number> = {
   [Terrain.Rock]: 14,
   [Terrain.RuinFloor]: 0,
   [Terrain.RuinWall]: 22,
+  [Terrain.StoneFloor]: 0,
 };
 
 export function terrainHeight(id: TerrainId): number {
   return TERRAIN_HEIGHT[id] ?? 0;
 }
 
-// ── Geometry helpers ────────────────────────────────────────────────────────────
-// The top face occupies y ∈ [0, TILE_H] of the texture; side faces hang below it, so
-// total texture height is TILE_H + height.
-
-function diamond(g: Graphics, cx: number, cy: number, halfW: number, halfH: number): Graphics {
-  return g.poly([cx, cy - halfH, cx + halfW, cy, cx, cy + halfH, cx - halfW, cy]);
-}
-
-/** Parallelogram down the left side, following the diamond's lower-left edge. */
-function leftFace(g: Graphics, top: number, depth: number): Graphics {
-  return g.poly([
-    0,
-    HALF_TILE_H + top,
-    HALF_TILE_W,
-    TILE_H + top,
-    HALF_TILE_W,
-    TILE_H + top + depth,
-    0,
-    HALF_TILE_H + top + depth,
-  ]);
-}
-
-/** Parallelogram down the right side, following the diamond's lower-right edge. */
-function rightFace(g: Graphics, top: number, depth: number): Graphics {
-  return g.poly([
-    HALF_TILE_W,
-    TILE_H + top,
-    TILE_W,
-    HALF_TILE_H + top,
-    TILE_W,
-    HALF_TILE_H + top + depth,
-    HALF_TILE_W,
-    TILE_H + top + depth,
-  ]);
-}
+// Geometry comes from isoShapes.ts, shared with buildings so a stone wall butts
+// against a rock face without a seam or a lighting mismatch.
 
 /**
  * A uniformly distributed point inside the top face.
@@ -206,6 +179,25 @@ function drawTopDetail(g: Graphics, id: TerrainId, base: number, rng: Rng): void
         color: shade(base, 0.16),
       });
       break;
+
+    case Terrain.StoneFloor:
+      // Four cut slabs. Regular where relic plating is panelled and dirt is speckled,
+      // so a laid floor reads as deliberate human work at a glance.
+      for (const [ox, oy] of [
+        [-0.5, 0],
+        [0.5, 0],
+        [0, -0.5],
+        [0, 0.5],
+      ]) {
+        diamond(
+          g,
+          HALF_TILE_W + ox * HALF_TILE_W * 0.52,
+          HALF_TILE_H + oy * HALF_TILE_H * 0.52,
+          HALF_TILE_W * 0.24,
+          HALF_TILE_H * 0.24,
+        ).fill({ color: shade(base, rng.rangeFloat(-0.07, 0.09)) });
+      }
+      break;
   }
 }
 
@@ -259,7 +251,7 @@ export function buildTerrainGraphics(id: TerrainId, variant: number): Graphics {
     drawSideDetail(g, id, base, depth, rng);
   }
 
-  diamond(g, HALF_TILE_W, HALF_TILE_H, HALF_TILE_W, HALF_TILE_H).fill({ color: base });
+  topFace(g).fill({ color: base });
   drawTopDetail(g, id, base, rng);
 
   return g;

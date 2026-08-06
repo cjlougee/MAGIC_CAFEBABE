@@ -13,6 +13,7 @@
 
 import { GROUND_LEVEL, samePos, type TilePos } from '../core/position';
 import { Need } from '../defs/needs';
+import type { Item } from '../entities/item';
 import type { Pawn } from '../entities/pawn';
 import { clearPath } from '../entities/pawn';
 import { DIRECTIONS } from '../pathfind/neighbours';
@@ -224,11 +225,20 @@ export function toilWork(options: {
   readonly rate?: number;
   /** Cell the pawn must stay beside. Work stops if they end up somewhere else. */
   readonly besides?: (job: Job) => TilePos;
+  /**
+   * Whether work may advance right now.
+   *
+   * Distinct from `stillValid`: returning false here **waits**, it does not fail. Used
+   * for conditions that are temporary and will clear on their own — a colonist standing
+   * where a wall is about to go up should delay the wall, not cancel it.
+   */
+  readonly canProgress?: (ctx: ToilContext) => boolean;
 }): Toil {
   return {
     name: 'work',
     tick: (ctx) => {
       if (!options.stillValid(ctx)) return 'failed';
+      if (options.canProgress && !options.canProgress(ctx)) return 'running';
 
       // Belt and braces against a pawn drifting off its target mid-job. Cheap, and the
       // alternative is mining a rock from across the map with no visible cause.
@@ -273,6 +283,38 @@ export function toilDropCarried(): Toil {
 
       world.items.placeAt(item, world.map, pawn.pos);
       pawn.carryingItemId = null;
+      return 'done';
+    },
+  };
+}
+
+/**
+ * Hands the carried stack over to something that wants it.
+ *
+ * `accept` returns how much was taken. Anything left over is put down where the pawn
+ * stands rather than destroyed — a colonist who carried ten stone to a wall that only
+ * needed five should be holding five, not have lost them.
+ */
+export function toilDeposit(accept: (ctx: ToilContext, item: Item) => number): Toil {
+  return {
+    name: 'deposit',
+    tick: (ctx) => {
+      const { world, pawn } = ctx;
+      if (pawn.carryingItemId === null) return 'failed';
+
+      const item = world.items.get(pawn.carryingItemId);
+      if (!item) {
+        pawn.carryingItemId = null;
+        return 'failed';
+      }
+
+      const taken = accept(ctx, item);
+      item.count -= taken;
+      pawn.carryingItemId = null;
+
+      if (item.count > 0) world.items.placeAt(item, world.map, pawn.pos);
+      else world.items.remove(item.id, world.map);
+
       return 'done';
     },
   };

@@ -11,6 +11,7 @@
  * simulation can expand itself in a loop.
  */
 
+import type { BuildableId } from '../defs/buildables';
 import type { WorkTypeId } from '../defs/workTypes';
 import type { EntityId } from './entityStore';
 import type { TilePos } from './position';
@@ -62,12 +63,20 @@ export interface SetWorkPriorityCommand {
   readonly priority: number;
 }
 
+/** Places blueprints across an area, or clears the sites already there. */
+export interface BuildCommand {
+  readonly type: 'build';
+  readonly buildable: BuildableId;
+  readonly area: TileRectangle;
+}
+
 export type Command =
   | RegenerateCommand
   | MoveToCommand
   | DesignateCommand
   | ZoneCommand
-  | SetWorkPriorityCommand;
+  | SetWorkPriorityCommand
+  | BuildCommand;
 
 export class CommandQueue {
   private pending: Command[] = [];

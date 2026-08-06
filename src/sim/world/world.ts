@@ -15,12 +15,14 @@ import { Rng } from '../core/rng';
 import { STARTING_BEDROLLS_PER_COLONIST } from '../defs/buildings';
 import { STARTING_COLONISTS } from '../defs/pawnKind';
 import type { Building } from '../entities/building';
+import type { ConstructionSite } from '../entities/constructionSite';
 import type { Pawn } from '../entities/pawn';
 import type { Plant } from '../entities/plant';
 import { Pathfinder } from '../pathfind/pathfinder';
 import { ReachabilityMap } from '../pathfind/reachability';
 import { Designations } from './designations';
 import { ItemStore } from './itemStore';
+import { RoomMap } from './rooms';
 import { placeBedrolls, scatterPlants, spawnColonists } from './spawn';
 import type { TileMap } from './tilemap';
 import { generateMap } from './worldgen';
@@ -39,6 +41,7 @@ export interface World {
   readonly items: ItemStore;
   readonly plants: EntityStore<Plant>;
   readonly buildings: EntityStore<Building>;
+  readonly sites: EntityStore<ConstructionSite>;
   /** Cells the player has marked for work. */
   readonly designations: Designations;
   /** Player-painted areas — stockpiles, for now. */
@@ -51,6 +54,7 @@ export interface World {
   // ── Derived indices — rebuilt, never saved, never hashed ──────────────────
   readonly pathfinder: Pathfinder;
   readonly reachability: ReachabilityMap;
+  readonly rooms: RoomMap;
 }
 
 export interface WorldOptions {
@@ -68,6 +72,7 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
   const pawns = new EntityStore<Pawn>();
   const plants = new EntityStore<Plant>();
   const buildings = new EntityStore<Building>();
+  const sites = new EntityStore<ConstructionSite>();
 
   // Offset so the simulation's random stream is independent of the noise fields
   // worldgen consumed — otherwise gameplay randomness would correlate with terrain.
@@ -84,6 +89,7 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
     pawns,
     plants,
     buildings,
+    sites,
     items: new ItemStore(),
     designations: new Designations(),
     zones: new Zones(),
@@ -91,5 +97,6 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
     landingSite,
     pathfinder: new Pathfinder(map),
     reachability: new ReachabilityMap(map),
+    rooms: new RoomMap(map),
   };
 }

@@ -261,6 +261,19 @@ body {
   font-weight: 600;
 }
 
+.toolbar--architect {
+  bottom: 78px;
+}
+
+.toolbar__cost {
+  display: block;
+  margin-top: 1px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.03em;
+  opacity: 0.75;
+}
+
 .toolbar__divider {
   width: 1px;
   align-self: stretch;

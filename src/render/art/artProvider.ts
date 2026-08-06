@@ -13,7 +13,7 @@ import type { ItemDefId } from '../../sim/defs/items';
 import { TERRAIN_DEFS, type TerrainId } from '../../sim/defs/terrain';
 import type { PawnAppearance } from '../../sim/entities/pawn';
 import { HALF_TILE_H, HALF_TILE_W } from '../constants';
-import { buildBuildingGraphics } from './buildingArt';
+import { buildBuildingGraphics, buildSiteGraphics } from './buildingArt';
 import { buildItemGraphics } from './itemArt';
 import { buildPlantGraphics } from './plantArt';
 import {
@@ -66,6 +66,11 @@ export class ArtProvider {
 
   building(def: BuildingId): Texture {
     return this.cached(`building:${def}`, () => buildBuildingGraphics(def));
+  }
+
+  /** A blueprint or part-built frame, at one of a few progress stages. */
+  site(stage: number): Texture {
+    return this.cached(`site:${stage}`, () => buildSiteGraphics(stage));
   }
 
   stockpileTile(): Texture {

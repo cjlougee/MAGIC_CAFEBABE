@@ -81,6 +81,14 @@ Add to the `Command` union in `src/sim/core/commands.ts` and handle it in
   jobs, so a leftover route walks the pawn off the cell it just reached.
 - **New saved state goes in `hashWorld()`.** A hash that ignores a field silently stops
   guarding it, and the determinism tests go green while protecting nothing.
+- **Never make a cell impassable while a pawn stands on it.** A pawn on an impassable
+  cell has no reachability component, so `canReach` fails for *every* target and they
+  idle forever with no visible cause. If work would block a cell, use `toilWork`'s
+  `canProgress` to **wait** (not fail) while `pawnOccupies` is true.
+- **`canProgress` waits; `stillValid` fails.** Use the first for conditions that clear on
+  their own, the second for reasons the job should be abandoned. Getting them the wrong
+  way round either cancels work that was merely blocked, or spins on work that will never
+  become possible.
 - **`passable` is not `storable`.** Anything that puts goods on the ground filters on
   `map.isStorable(...)`; only movement uses `isPassable`. Water is passable and not
   storable, and that is the whole reason the distinction exists.

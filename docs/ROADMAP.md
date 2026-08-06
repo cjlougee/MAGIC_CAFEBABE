@@ -80,10 +80,21 @@ See [`design/03-work-and-jobs.md`](design/03-work-and-jobs.md).
 See [`design/04-needs-and-mood.md`](design/04-needs-and-mood.md).
 
 ### M4 — Construction & rooms
-- [ ] Architect menu, blueprints, material delivery jobs, frames — brings **Construct**
-- [ ] Walls, doors, floors
-- [ ] Room flood-fill; indoors / beauty thoughts
-- **Playable check:** draw a house; pawns haul materials and build it; sleeping inside lifts mood.
+- [x] Architect menu with costs; blueprints that accumulate materials then labour
+- [x] **Construct** work type; material delivery added as a second **Haul** giver
+- [x] Walls, doors, and stone floors — one `Buildable` list covering building *and*
+      terrain results
+- [x] Buildings affect passability separately from terrain, and sealing separately from
+      blocking, so a door is walkable *and* a room edge
+- [x] Room flood-fill requiring a **built** boundary, not merely an enclosed one
+- [x] "Slept under a roof" thought, stacking with the bed thought
+- [x] Cancelling a blueprint refunds delivered materials
+- [x] Harvest stops at a ~3-day food buffer — without it colonists harvest forever and
+      never mine or build anything
+- **Playable check:** ✅ order a hut; colonists deliver stone, raise the walls, hang the
+  door, and the inside registers as a room — asserted headless in `tests/construction.test.ts`.
+
+See [`design/05-construction-and-rooms.md`](design/05-construction-and-rooms.md).
 
 ### M5 — Save/load & the survival test
 - [ ] Serialization with version field + migration hook

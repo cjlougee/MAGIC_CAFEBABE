@@ -16,8 +16,9 @@
 
 export const WorkType = {
   Harvest: 0,
-  Mine: 1,
-  Haul: 2,
+  Construct: 1,
+  Mine: 2,
+  Haul: 3,
 } as const;
 
 export type WorkTypeId = (typeof WorkType)[keyof typeof WorkType];
@@ -41,6 +42,11 @@ export const WORK_TYPE_DEFS: readonly WorkTypeDef[] = [
     description: 'Gather ripe food from plants.',
   },
   {
+    id: WorkType.Construct,
+    label: 'Build',
+    description: 'Raise walls, doors, and floors from blueprints.',
+  },
+  {
     id: WorkType.Mine,
     label: 'Mine',
     description: 'Cut rock and strip bulkheads down for materials.',
@@ -48,7 +54,9 @@ export const WORK_TYPE_DEFS: readonly WorkTypeDef[] = [
   {
     id: WorkType.Haul,
     label: 'Haul',
-    description: 'Carry loose items to a stockpile.',
+    // Delivering materials to a blueprint is hauling, so it lives under this column
+    // rather than adding a lever the player didn't ask for.
+    description: 'Carry loose items to a stockpile, and materials to building sites.',
   },
 ];
 

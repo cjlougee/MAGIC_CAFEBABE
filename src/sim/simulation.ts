@@ -16,6 +16,7 @@ import { interrupt, isThinkTick, tickJob, tickPawnAI } from './ai/think';
 import { growPlants } from './world/growth';
 import {
   CommandQueue,
+  type BuildCommand,
   type Command,
   type DesignateCommand,
   type MoveToCommand,
@@ -23,11 +24,14 @@ import {
   type TileRectangle,
   type ZoneCommand,
 } from './core/commands';
+import { createSite } from './entities/constructionSite';
+import { cancelConstruction } from './world/construction';
+import { siteAt } from './world/lookup';
 import { clearPath } from './entities/pawn';
 import { PRIORITY_DISABLED, PRIORITY_LOWEST, WORK_TYPE_COUNT } from './defs/workTypes';
 import { buildSnapshot, type SimSnapshot } from './snapshot';
 import { Designation } from './world/designations';
-import { canDesignateMine, canPlaceStockpile } from './world/placement';
+import { canDesignateMine, canPlaceBlueprint, canPlaceStockpile } from './world/placement';
 import { createWorld, type World, type WorldOptions } from './world/world';
 
 export interface SimulationOptions extends WorldOptions {
@@ -127,8 +131,25 @@ export class Simulation {
         case 'setWorkPriority':
           this.applyWorkPriority(command);
           break;
+        case 'build':
+          this.applyBuild(command);
+          break;
       }
     }
+  }
+
+  private applyBuild(command: BuildCommand): void {
+    const world = this.worldState;
+
+    this.forEachCell(command.area, (index) => {
+      if (!canPlaceBlueprint(world, index)) return;
+      const pos = {
+        x: world.map.xOf(index),
+        y: world.map.yOf(index),
+        z: world.map.zOf(index),
+      };
+      world.sites.add((id) => createSite(id, command.buildable, pos));
+    });
   }
 
   private applyMoveTo(command: MoveToCommand): void {
@@ -169,6 +190,10 @@ export class Simulation {
     this.forEachCell(command.area, (index) => {
       if (command.action === 'cancel') {
         world.designations.remove(Designation.Mine, index);
+        // Erasing should undo whatever the player put here, including a blueprint they
+        // no longer want — with the delivered materials handed back.
+        const site = siteAt(world, index);
+        if (site) cancelConstruction(world, site);
         return;
       }
       // Marking open ground would create work that can never be completed and a

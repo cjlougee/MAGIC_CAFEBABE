@@ -11,8 +11,14 @@
  */
 
 import type { TilePos } from '../core/position';
+import { itemDef } from '../defs/items';
 import type { WorkTypeId } from '../defs/workTypes';
 import { WorkType } from '../defs/workTypes';
+import {
+  hasAllMaterials,
+  missingMaterials,
+  type ConstructionSite,
+} from '../entities/constructionSite';
 import { isOnGround, type Item } from '../entities/item';
 import type { Pawn } from '../entities/pawn';
 import { isRipe, type Plant } from '../entities/plant';
@@ -123,11 +129,42 @@ const HaulGiver: WorkGiver = {
   },
 };
 
+/**
+ * Days of food the colony aims to keep on hand.
+ *
+ * Berry bushes regrow forever, so without a stopping rule colonists harvest for eternity
+ * and never mine or build a thing — the whole rest of the game silently never happens.
+ * A larder target is also just better behaviour: nobody strips every bush on the map
+ * when the stores are full.
+ */
+const FOOD_BUFFER_DAYS = 3;
+
+/** Roughly what one colonist eats in a day, in units of raw food. */
+const FOOD_PER_COLONIST_DAY = 8;
+
+function colonyHasEnoughFood(world: World): boolean {
+  let living = 0;
+  for (const pawn of world.pawns.values()) {
+    if (!pawn.dead) living++;
+  }
+  if (living === 0) return true;
+
+  let stored = 0;
+  for (const item of world.items.values()) {
+    if (isOnGround(item) && itemDef(item.def).edible) stored += item.count;
+  }
+
+  return stored >= living * FOOD_PER_COLONIST_DAY * FOOD_BUFFER_DAYS;
+}
+
 const HarvestGiver: WorkGiver = {
   id: 'harvest',
   workType: WorkType.Harvest,
 
   tryGiveJob(world, pawn) {
+    // Stores are full; leave the bushes and go do something else.
+    if (colonyHasEnoughFood(world)) return null;
+
     let best: Plant | null = null;
     let bestDistance = Infinity;
 
@@ -150,5 +187,80 @@ const HarvestGiver: WorkGiver = {
   },
 };
 
+const ConstructGiver: WorkGiver = {
+  id: 'construct',
+  workType: WorkType.Construct,
+
+  tryGiveJob(world, pawn) {
+    let best: ConstructionSite | null = null;
+    let bestDistance = Infinity;
+
+    for (const site of world.sites.values()) {
+      // Nothing to build until the materials are all here — that half is Haul's job.
+      if (!hasAllMaterials(site)) continue;
+      if (!world.reservations.canReserveEntity(site.id, pawn.id)) continue;
+
+      const distance = roughDistance(pawn.pos, site.pos);
+      if (distance >= bestDistance) continue;
+      if (!bestAdjacentCell(world, site.pos, pawn.pos)) continue;
+
+      bestDistance = distance;
+      best = site;
+    }
+
+    return best ? { kind: 'construct', site: best.id } : null;
+  },
+};
+
+/**
+ * Materials to blueprints.
+ *
+ * A second giver under **Haul**, not a work type of its own: the player schedules "who
+ * carries things", and this is carrying things. Listed before the stockpile giver so
+ * building sites are supplied before loose stone gets tidied away.
+ */
+const DeliverGiver: WorkGiver = {
+  id: 'deliver',
+  workType: WorkType.Haul,
+
+  tryGiveJob(world, pawn) {
+    for (const site of world.sites.values()) {
+      if (hasAllMaterials(site)) continue;
+      if (!world.reservations.canReserveEntity(site.id, pawn.id)) continue;
+
+      const wanted = missingMaterials(site);
+      let best: Item | null = null;
+      let bestDistance = Infinity;
+
+      for (const item of world.items.values()) {
+        if (!isOnGround(item) || !item.pos) continue;
+        if (!wanted.includes(item.def)) continue;
+        if (!world.reservations.canReserveEntity(item.id, pawn.id)) continue;
+
+        const distance = roughDistance(pawn.pos, item.pos);
+        if (distance >= bestDistance) continue;
+        if (!world.reachability.canReach(pawn.pos, item.pos)) continue;
+
+        bestDistance = distance;
+        best = item;
+      }
+
+      // A site the colonist can't reach or supply isn't work; try the next one.
+      if (!best) continue;
+      if (!world.reachability.canReach(pawn.pos, site.pos)) continue;
+
+      return { kind: 'deliver', site: site.id, item: best.id };
+    }
+
+    return null;
+  },
+};
+
 /** Consulted in this order within a priority band, so order here is a tiebreak. */
-export const WORK_GIVERS: readonly WorkGiver[] = [HarvestGiver, MineGiver, HaulGiver];
+export const WORK_GIVERS: readonly WorkGiver[] = [
+  HarvestGiver,
+  ConstructGiver,
+  DeliverGiver,
+  MineGiver,
+  HaulGiver,
+];

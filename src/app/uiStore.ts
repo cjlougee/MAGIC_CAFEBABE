@@ -8,6 +8,7 @@
 
 import type { Tool } from '../input/worldInput';
 import type { EntityId } from '../sim/core/entityStore';
+import { Buildable, type BuildableId } from '../sim/defs/buildables';
 import type { SimSnapshot } from '../sim/snapshot';
 import type { GameSpeed } from './gameLoop';
 
@@ -19,6 +20,8 @@ export interface UiState {
   /** View state, not simulation state — where the player is looking, not what is true. */
   readonly selectedPawnId: EntityId | null;
   readonly tool: Tool;
+  /** Which blueprint the build tool would place. */
+  readonly buildable: BuildableId;
   readonly showWorkPanel: boolean;
 }
 
@@ -29,6 +32,7 @@ const INITIAL: UiState = {
   ready: false,
   selectedPawnId: null,
   tool: 'select',
+  buildable: Buildable.Wall,
   showWorkPanel: false,
 };
 

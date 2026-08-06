@@ -19,6 +19,7 @@ export const Terrain = {
   Rock: 6,
   RuinFloor: 7,
   RuinWall: 8,
+  StoneFloor: 9,
 } as const;
 
 export type TerrainId = (typeof Terrain)[keyof typeof Terrain];
@@ -95,6 +96,9 @@ export const TERRAIN_DEFS: readonly TerrainDef[] = [
     mineYield: { def: ItemDef.Scrap, count: 12 },
     minedInto: Terrain.RuinFloor,
   },
+  // Player-laid paving. Slightly faster than open ground — the first thing built for
+  // convenience rather than survival.
+  { id: Terrain.StoneFloor, name: 'Stone Floor', walkCost: 9, variants: 4, solid: false, storable: true, ...NOT_MINEABLE },
 ];
 
 export function isMineable(id: TerrainId): boolean {

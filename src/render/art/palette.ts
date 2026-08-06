@@ -21,6 +21,9 @@ export const Palette = {
   rock: 0x4b4844,
   ruinFloor: 0x4a4e57,
   ruinWall: 0x353941,
+  /** Player-laid paving. Warmer than relic plating, so built floors read as *yours*. */
+  stoneFloor: 0x77706a,
+  wall: 0x6a6259,
 
   // ── Accents: saturated. Reserved for tech, alerts, and UI emphasis ─────────
   relic: 0x53d6c4,

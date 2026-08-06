@@ -29,6 +29,7 @@ const TOOL_KEYS: Record<string, Tool> = {
   KeyM: 'mine',
   KeyB: 'stockpile',
   KeyX: 'erase',
+  KeyC: 'build',
 };
 
 interface HUDProps {
@@ -38,7 +39,7 @@ interface HUDProps {
 
 export function HUD({ store, engine }: HUDProps) {
   const state = useSyncExternalStore(store.subscribe, store.getState);
-  const { snapshot, speed, fps, ready, selectedPawnId, tool, showWorkPanel } = state;
+  const { snapshot, speed, fps, ready, selectedPawnId, tool, buildable, showWorkPanel } = state;
 
   useEffect(() => {
     if (!engine) return;
@@ -115,8 +116,10 @@ export function HUD({ store, engine }: HUDProps) {
         <div className="hud__group hud__group--right">
           <span className="hud__label">Ripe</span>
           <span className="hud__value">{snapshot.ripePlants}</span>
-          <span className="hud__label">Marked</span>
-          <span className="hud__value">{snapshot.mineDesignations}</span>
+          <span className="hud__label">Rooms</span>
+          <span className="hud__value">{snapshot.rooms}</span>
+          <span className="hud__label">Sites</span>
+          <span className="hud__value">{snapshot.constructionSites}</span>
           <button
             type="button"
             className="hud__button"
@@ -138,8 +141,10 @@ export function HUD({ store, engine }: HUDProps) {
 
       <Toolbar
         active={tool}
+        buildable={buildable}
         workPanelOpen={showWorkPanel}
         onPick={(next) => engine?.setTool(next)}
+        onPickBuildable={(next) => engine?.setBuildable(next)}
         onToggleWork={() => store.update({ showWorkPanel: !showWorkPanel })}
       />
 

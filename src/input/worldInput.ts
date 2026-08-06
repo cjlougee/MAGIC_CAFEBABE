@@ -13,13 +13,14 @@
  */
 
 import type { Camera } from '../render/camera/camera';
-import type { DragPreview } from '../render/layers/overlayLayer';
+import type { DragPreview, PreviewTool } from '../render/layers/overlayLayer';
+import { Buildable, type BuildableId } from '../sim/defs/buildables';
 import type { EntityId } from '../sim/core/entityStore';
 import { normaliseRect, type Command } from '../sim/core/commands';
 import { GROUND_LEVEL, type TilePos } from '../sim/core/position';
 import type { World } from '../sim/world/world';
 
-export type Tool = 'select' | 'mine' | 'stockpile' | 'erase';
+export type Tool = 'select' | 'mine' | 'stockpile' | 'erase' | 'build';
 
 /**
  * Pointer travel, in pixels, above which a press counts as a drag rather than a click.
@@ -40,6 +41,8 @@ export interface WorldInputHandlers {
 
 export class WorldInput {
   private tool: Tool = 'select';
+  /** Which blueprint the build tool places. Meaningless for other tools. */
+  private buildable: BuildableId = Buildable.Wall;
   private downX = 0;
   private downY = 0;
   private downButton = -1;
@@ -61,6 +64,12 @@ export class WorldInput {
     this.cancelDrag();
   }
 
+  setBuildable(buildable: BuildableId): void {
+    this.buildable = buildable;
+    this.tool = 'build';
+    this.cancelDrag();
+  }
+
   /** The rectangle currently being dragged, for the renderer to outline. */
   get preview(): DragPreview | null {
     if (!this.dragFrom || !this.dragTo) return null;
@@ -75,7 +84,7 @@ export class WorldInput {
     );
     // The tool travels with the rectangle so the overlay can grey out cells it would
     // skip — a drag across a river should say so before the player commits.
-    return { ...rect, tool: this.tool };
+    return { ...rect, tool: this.tool as PreviewTool };
   }
 
   attach(): void {
@@ -152,9 +161,13 @@ export class WorldInput {
       case 'stockpile':
         this.handlers.dispatch({ type: 'zone', action: 'stockpile', area });
         break;
+      case 'build':
+        this.handlers.dispatch({ type: 'build', buildable: this.buildable, area });
+        break;
       case 'erase':
-        // One gesture clears both kinds of mark, because the player is expressing
+        // One gesture clears every kind of mark, because the player is expressing
         // "undo whatever is here" rather than picking a specific system to undo.
+        // Cancelling a blueprint refunds whatever was already delivered to it.
         this.handlers.dispatch({ type: 'designate', action: 'cancel', area });
         this.handlers.dispatch({ type: 'zone', action: 'clear', area });
         break;

@@ -7,12 +7,16 @@
  */
 
 import type { TilePos } from '../core/position';
+import { buildableDef } from '../defs/buildables';
 import { NUTRITION_PER_RAW_FOOD } from '../defs/needs';
 import { plantDef } from '../defs/plants';
 import { terrainDef } from '../defs/terrain';
 import { Thought } from '../defs/thoughts';
+import { hasAllMaterials, outstanding } from '../entities/constructionSite';
 import { isRipe } from '../entities/plant';
+import { completeConstruction } from '../world/construction';
 import { Designation } from '../world/designations';
+import { pawnOccupies } from '../world/lookup';
 import type { Job, JobKind } from './job';
 import { addThought } from './mood';
 import { consumeFood } from './needs';
@@ -21,6 +25,7 @@ import {
   toilPickUp,
   toilReserveCell,
   toilReserveEntity,
+  toilDeposit,
   toilReserveItem,
   toilSleep,
   toilWalkAdjacentTo,
@@ -59,6 +64,16 @@ function asSleep(job: Job) {
 
 function asWander(job: Job) {
   if (job.kind !== 'wander') throw new Error(`Expected a wander job, got ${job.kind}`);
+  return job;
+}
+
+function asDeliver(job: Job) {
+  if (job.kind !== 'deliver') throw new Error(`Expected a deliver job, got ${job.kind}`);
+  return job;
+}
+
+function asConstruct(job: Job) {
+  if (job.kind !== 'construct') throw new Error(`Expected a construct job, got ${job.kind}`);
   return job;
 }
 
@@ -174,11 +189,78 @@ const SLEEP_TOILS: readonly Toil[] = [
     wakeAt: 0.9,
     onWake: (ctx) => {
       addThought(ctx.pawn, asSleep(ctx.job).bed === null ? Thought.SleptOnGround : Thought.SleptInBed);
+      // A roof is worth something on its own, so this stacks with the bed thought
+      // rather than replacing it.
+      if (ctx.world.rooms.isIndoors(ctx.pawn.pos)) addThought(ctx.pawn, Thought.SleptIndoors);
     },
   }),
 ];
 
 const WANDER_TOILS: readonly Toil[] = [toilWalkTo((job) => asWander(job).to)];
+
+/**
+ * Carrying materials to a blueprint.
+ *
+ * The site is reserved for the duration, which serialises deliveries to one site at a
+ * time. Without it two colonists both fetch the last five stone and one load is wasted;
+ * with it they simply pick different sites.
+ */
+const DELIVER_TOILS: readonly Toil[] = [
+  toilReserveEntity(
+    (job) => asDeliver(job).site,
+    (ctx, id) => ctx.world.sites.get(id) !== undefined,
+  ),
+  toilReserveItem((job) => asDeliver(job).item),
+  toilWalkTo((job, world) => world.items.get(asDeliver(job).item)?.pos ?? null),
+  toilPickUp((job) => asDeliver(job).item),
+  // Delivered from *beside* the site, not standing on it. A colonist who parks on a
+  // planned wall to drop stone can be sealed inside it the moment someone else finishes
+  // the job — and an entombed pawn can reach nothing, ever again.
+  toilWalkAdjacentTo((job, world) => world.sites.get(asDeliver(job).site)?.pos ?? null),
+  toilDeposit((ctx, item) => {
+    const site = ctx.world.sites.get(asDeliver(ctx.job).site);
+    if (!site) return 0;
+
+    const wanted = outstanding(site, item.def);
+    const taken = Math.min(wanted, item.count);
+    site.delivered[item.def] += taken;
+    return taken;
+  }),
+];
+
+const CONSTRUCT_TOILS: readonly Toil[] = [
+  toilReserveEntity(
+    (job) => asConstruct(job).site,
+    (ctx, id) => ctx.world.sites.get(id) !== undefined,
+  ),
+  // Built from beside it, not on top of it: a colonist standing where a wall completes
+  // would end up sealed inside their own masonry.
+  toilWalkAdjacentTo((job, world) => world.sites.get(asConstruct(job).site)?.pos ?? null),
+  toilWork({
+    workNeeded: (ctx) => {
+      const site = ctx.world.sites.get(asConstruct(ctx.job).site);
+      return site ? buildableDef(site.def).work : 0;
+    },
+    stillValid: (ctx) => {
+      const site = ctx.world.sites.get(asConstruct(ctx.job).site);
+      // Cancelled, finished by someone else, or the materials were taken back.
+      return site !== undefined && hasAllMaterials(site);
+    },
+
+    // Wait rather than wall someone in. Anyone standing on the cell will move on;
+    // sealing them inside would leave a colonist who can reach nothing, ever again.
+    canProgress: (ctx) => {
+      const site = ctx.world.sites.get(asConstruct(ctx.job).site);
+      if (!site) return true;
+      const index = ctx.world.map.idx(site.pos.x, site.pos.y, site.pos.z);
+      return !pawnOccupies(ctx.world, index);
+    },
+    complete: (ctx) => {
+      const site = ctx.world.sites.get(asConstruct(ctx.job).site);
+      if (site) completeConstruction(ctx.world, site);
+    },
+  }),
+];
 
 const DRIVERS: Record<JobKind, readonly Toil[]> = {
   mine: MINE_TOILS,
@@ -187,6 +269,8 @@ const DRIVERS: Record<JobKind, readonly Toil[]> = {
   eat: EAT_TOILS,
   sleep: SLEEP_TOILS,
   wander: WANDER_TOILS,
+  deliver: DELIVER_TOILS,
+  construct: CONSTRUCT_TOILS,
 };
 
 export function driverFor(kind: JobKind): readonly Toil[] {
