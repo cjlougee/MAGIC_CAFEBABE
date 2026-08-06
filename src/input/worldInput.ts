@@ -33,6 +33,8 @@ const PICK_RADIUS = 0.9;
 
 export interface WorldInputHandlers {
   readonly onSelect: (id: EntityId | null) => void;
+  /** Returns to the select tool. Raised by a quick right-click while a tool is active. */
+  readonly onCancelTool: () => void;
   readonly dispatch: (command: Command) => void;
   readonly getSelected: () => EntityId | null;
   readonly getWorld: () => World;
@@ -205,7 +207,20 @@ export class WorldInput {
     this.handlers.onSelect(closestId);
   }
 
+  /**
+   * A quick right-click: back out, or give an order.
+   *
+   * Cancelling the active tool takes priority, matching the convention every RTS shares —
+   * right-click means "never mind". It also removes the main reason mode-switching felt
+   * heavy: leaving a tool no longer requires travelling to the toolbar or remembering a
+   * key.
+   */
   private order(tile: { x: number; y: number }): void {
+    if (this.tool !== 'select') {
+      this.handlers.onCancelTool();
+      return;
+    }
+
     const selected = this.handlers.getSelected();
     if (selected === null) return;
 

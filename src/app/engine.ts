@@ -47,6 +47,7 @@ export class Engine {
 
     this.input = new WorldInput(this.renderer.canvas, this.renderer.camera, {
       onSelect: (id) => this.select(id),
+      onCancelTool: () => this.setTool('select'),
       dispatch: (command) => this.dispatch(command),
       getSelected: () => this.selectedId,
       getWorld: () => this.sim.world,
@@ -59,12 +60,22 @@ export class Engine {
     const sim = new Simulation({ seed });
     const toolRef: ToolRef = { current: 'select' };
 
-    // Left-drag belongs to area tools; the camera only claims it in select mode. Middle
-    // button always pans, so there is a way to move the view without leaving the tool.
+    /*
+     * The camera belongs to the right button, in every mode.
+     *
+     * Tying panning to left-drag-in-select-mode meant the same gesture did different
+     * things depending on invisible state: reach for the camera with a tool active and
+     * you painted a wall instead. Making the right button *always* mean "move the view"
+     * removes the mode from the most common action in the game. Left-drag is then
+     * unambiguously "apply the current tool", and a quick right-click — released before
+     * travelling far enough to count as a drag — stays free for context actions.
+     *
+     * Middle-drag pans too, for anyone who expects it.
+     */
     const renderer = await GameRenderer.create(
       host,
       sim.world,
-      (event) => event.button === 1 || toolRef.current === 'select',
+      (event) => event.button === 2 || event.button === 1,
     );
 
     const engine = new Engine(sim, renderer, store, toolRef);
@@ -91,6 +102,8 @@ export class Engine {
   setTool(tool: Tool): void {
     this.toolRef.current = tool;
     this.input.setTool(tool);
+    // The cursor is the only persistent signal of which gesture the left button carries.
+    this.renderer.setCursor(tool === 'select' ? 'default' : 'crosshair');
     this.store.update({ tool });
   }
 
@@ -98,6 +111,7 @@ export class Engine {
   setBuildable(buildable: BuildableId): void {
     this.toolRef.current = 'build';
     this.input.setBuildable(buildable);
+    this.renderer.setCursor('crosshair');
     this.store.update({ tool: 'build', buildable });
   }
 

@@ -118,7 +118,8 @@ export function HUD({ store, engine }: HUDProps) {
           <span className="hud__value">{snapshot.ripePlants}</span>
           <span className="hud__label">Rooms</span>
           <span className="hud__value">{snapshot.rooms}</span>
-          <span className="hud__label">Sites</span>
+          {/* "Sites" meant nothing to anyone; this is the queue of unbuilt blueprints. */}
+          <span className="hud__label">To build</span>
           <span className="hud__value">{snapshot.constructionSites}</span>
           <button
             type="button"

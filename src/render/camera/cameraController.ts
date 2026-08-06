@@ -26,12 +26,15 @@ export class CameraController {
   private dragging = false;
   private lastX = 0;
   private lastY = 0;
+  private restingCursor = 'default';
   private readonly held = new Set<string>();
 
   /**
-   * `shouldPan` lets the app veto drag-panning per event. Area tools need left-drag for
-   * their selection rectangle, and without this the camera would slide out from under
-   * the player every time they marked a wall for mining.
+   * `shouldPan` decides which button drags the view.
+   *
+   * The app binds this to the right and middle buttons so left-drag is always the active
+   * tool and right-drag is always the camera — no gesture changes meaning depending on
+   * which mode happens to be selected.
    */
   constructor(
     private readonly camera: Camera,
@@ -90,6 +93,9 @@ export class CameraController {
     this.dragging = true;
     this.lastX = event.clientX;
     this.lastY = event.clientY;
+    // Remembered rather than assumed, because the resting cursor depends on the active
+    // tool and the camera has no business knowing which one that is.
+    this.restingCursor = this.canvas.style.cursor;
     this.canvas.style.cursor = 'grabbing';
   };
 
@@ -101,8 +107,9 @@ export class CameraController {
   };
 
   private onPointerUp = (): void => {
+    if (!this.dragging) return;
     this.dragging = false;
-    this.canvas.style.cursor = 'grab';
+    this.canvas.style.cursor = this.restingCursor;
   };
 
   private onWheel = (event: WheelEvent): void => {
@@ -133,6 +140,7 @@ export class CameraController {
   /** Releasing keys on blur stops the camera drifting forever after an alt-tab. */
   private onBlur = (): void => {
     this.held.clear();
+    if (this.dragging) this.canvas.style.cursor = this.restingCursor;
     this.dragging = false;
   };
 }

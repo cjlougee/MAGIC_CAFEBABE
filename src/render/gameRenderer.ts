@@ -58,7 +58,12 @@ export class GameRenderer {
 
     this.controller = new CameraController(this.camera, this.app.canvas, shouldPan);
     this.controller.attach();
-    this.app.canvas.style.cursor = 'grab';
+    this.app.canvas.style.cursor = 'default';
+  }
+
+  /** Resting cursor. The camera swaps to `grabbing` while a pan is in progress. */
+  setCursor(cursor: string): void {
+    this.app.canvas.style.cursor = cursor;
   }
 
   static async create(

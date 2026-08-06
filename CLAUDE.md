@@ -145,6 +145,10 @@ queue the sim drains at the start of each tick. The sim publishes a read-only `S
   unused field. It exists because widening the position type *after* pawns, job targets, reservation
   keys, and save files depend on it is a rewrite, whereas adding levels to a grid is a constructor
   change. See `docs/decisions/0003-verticality.md`.
+- **A gesture means one thing, never a mode-dependent thing.** Right button is always the
+  camera, left button is always the active tool. Adding an input that changes meaning
+  based on state the player can't see is how the first scheme became unusable. See
+  `docs/decisions/0005-controls.md`.
 - **Colours come from `src/render/art/palette.ts`.** Never hardcode a hex value in a layer or
   component. The palette is the art direction; keeping it in one file is what makes the game look
   coherent.

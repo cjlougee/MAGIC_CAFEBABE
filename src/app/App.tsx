@@ -45,9 +45,9 @@ export function App() {
       <div className="viewport" ref={hostRef} />
       <HUD store={store} engine={engine} />
       <footer className="controls-hint">
-        <kbd>Q</kbd> select · <kbd>M</kbd> mine · <kbd>B</kbd> stockpile · <kbd>X</kbd> erase ·{' '}
-        <kbd>Right-click</kbd> move here · <kbd>Wheel</kbd> zoom · <kbd>WASD</kbd> scroll ·{' '}
-        <kbd>Space</kbd> pause
+        <kbd>Right-drag</kbd> pan · <kbd>Right-click</kbd> order / cancel tool ·{' '}
+        <kbd>Left-drag</kbd> use tool · <kbd>Wheel</kbd> zoom · <kbd>WASD</kbd> scroll ·{' '}
+        <kbd>Space</kbd> pause · <kbd>Q</kbd><kbd>M</kbd><kbd>B</kbd><kbd>C</kbd><kbd>X</kbd> tools
       </footer>
     </div>
   );
