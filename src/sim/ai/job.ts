@@ -11,7 +11,7 @@
 import type { EntityId } from '../core/entityStore';
 import type { TilePos } from '../core/position';
 
-export type JobKind = 'mine' | 'haul';
+export type JobKind = 'mine' | 'haul' | 'harvest' | 'eat' | 'sleep' | 'wander';
 
 export interface MineJob {
   readonly kind: 'mine';
@@ -24,7 +24,31 @@ export interface HaulJob {
   readonly to: TilePos;
 }
 
-export type Job = MineJob | HaulJob;
+export interface HarvestJob {
+  readonly kind: 'harvest';
+  readonly plant: EntityId;
+}
+
+/** A need job. Never enters the priority grid and cannot be switched off. */
+export interface EatJob {
+  readonly kind: 'eat';
+  readonly item: EntityId;
+}
+
+/** `bed` is null when sleeping rough — which costs mood, but beats not sleeping. */
+export interface SleepJob {
+  readonly kind: 'sleep';
+  readonly bed: EntityId | null;
+  readonly spot: TilePos;
+}
+
+/** What a colonist does instead of coping. */
+export interface WanderJob {
+  readonly kind: 'wander';
+  readonly to: TilePos;
+}
+
+export type Job = MineJob | HaulJob | HarvestJob | EatJob | SleepJob | WanderJob;
 
 export interface ActiveJob {
   readonly job: Job;

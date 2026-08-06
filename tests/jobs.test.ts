@@ -45,6 +45,11 @@ function miningYard(colonists = 2) {
   const sim = new Simulation({ seed: 11, width: 40, height: 40, colonists });
   const world = sim.world;
 
+  // Strip the vegetation. These tests are about mining and hauling; leaving berry
+  // bushes in would have colonists wandering off to harvest and make the timings
+  // depend on the food system, which has its own tests.
+  for (const plant of [...world.plants.values()]) world.plants.remove(plant.id);
+
   clearArea(world, 2, 2, 37, 37);
   world.map.setTerrain(25, 20, Terrain.Rock);
   world.map.setTerrain(25, 21, Terrain.Rock);

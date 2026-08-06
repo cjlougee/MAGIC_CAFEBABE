@@ -61,13 +61,23 @@ See [`design/02-pawns-and-movement.md`](design/02-pawns-and-movement.md).
 See [`design/03-work-and-jobs.md`](design/03-work-and-jobs.md).
 
 ### M3 — Needs, mood, survival
-- [ ] Hunger + Rest needs with emergency job escalation
-- [ ] Beds, campfire cooking — brings the **Cook** work type with it
-- [ ] Per-cell light grid replacing M0's flat day/night wash (deferred here from M1, since
-      campfires are the first actual light source)
-- [ ] Thoughts and mood, mental break ("sad wander")
-- [ ] Alerts panel, pawn inspector (Needs / Gear / Work tabs)
-- **Playable check:** a colony feeds and beds itself unattended for 3 in-game days.
+- [x] Hunger + Rest, with need jobs that outrank *all* work unconditionally
+- [x] Berry bushes that regrow + the **Harvest** work type — food as a loop, not a countdown
+- [x] Eating (a meal, not a mouthful), starvation damage, death
+- [x] Bedrolls carried by the landing party; sleeping rough costs mood
+- [x] Thoughts and mood — mood is always a list of reasons, never a number
+- [x] Mental break ("sad wander"), preempting whatever they were doing
+- [x] Alerts panel and colonist inspector (needs, health, mood, thoughts)
+- [x] Unique colonist names (a duplicate roster entry made every story ambiguous)
+- [~] **Cooking moved to Slice 2.** Cooking is production, and production is Slice 2 with the
+      bill system; a one-off campfire recipe here would be rewritten immediately. Raw food
+      carries a mood penalty instead, which motivates cooking rather than pre-empting it.
+- [~] **Light grid follows cooking to Slice 2.** It was deferred here because campfires would be
+      the first light source. No campfires, so still nothing to light.
+- **Playable check:** ✅ a colony feeds and beds itself unattended for 3 in-game days — asserted
+  headless in `tests/survival.test.ts`, 180,000 ticks in under a second.
+
+See [`design/04-needs-and-mood.md`](design/04-needs-and-mood.md).
 
 ### M4 — Construction & rooms
 - [ ] Architect menu, blueprints, material delivery jobs, frames — brings **Construct**
@@ -88,7 +98,9 @@ See [`design/03-work-and-jobs.md`](design/03-work-and-jobs.md).
 Real, but not designed in detail yet. Each gets its own design pass when we reach it.
 
 - **Slice 2 — Production.** Workbenches and bills, recipe chains, quality tiers, power grid.
-  Delivers the *scrap → refined → relic-tech* ladder.
+  Delivers the *scrap → refined → relic-tech* ladder. Also picks up **cooking** (the first real
+  bill) and the **per-cell light grid** (campfires being the first light source), both deferred
+  from M3 for want of the systems they depend on.
 - **Slice 3 — Threat.** Combat, body-part injury model (`hediffs`), raids, an event director that
   paces pressure. Where high-ground and cover modifiers land, since they need combat to modify.
 - **Slice 4 — The world outside.** World map, caravans, exploration of ruins, factions, trade.

@@ -12,6 +12,8 @@ import type { UiStore } from '../app/uiStore';
 import type { Tool } from '../input/worldInput';
 import type { EntityId } from '../sim/core/entityStore';
 import type { PawnSummary, ResourceSummary } from '../sim/snapshot';
+import { AlertsPanel } from './AlertsPanel';
+import { ColonistPanel } from './ColonistPanel';
 import { Toolbar } from './Toolbar';
 import { WorkPanel } from './WorkPanel';
 
@@ -71,6 +73,8 @@ export function HUD({ store, engine }: HUDProps) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [engine, speed]);
 
+  const selected = snapshot?.pawns.find((pawn) => pawn.id === selectedPawnId) ?? null;
+
   if (!ready || !snapshot) {
     return (
       <header className="hud">
@@ -109,6 +113,8 @@ export function HUD({ store, engine }: HUDProps) {
         <Resources resources={snapshot.resources} />
 
         <div className="hud__group hud__group--right">
+          <span className="hud__label">Ripe</span>
+          <span className="hud__value">{snapshot.ripePlants}</span>
           <span className="hud__label">Marked</span>
           <span className="hud__value">{snapshot.mineDesignations}</span>
           <button
@@ -136,6 +142,12 @@ export function HUD({ store, engine }: HUDProps) {
         onPick={(next) => engine?.setTool(next)}
         onToggleWork={() => store.update({ showWorkPanel: !showWorkPanel })}
       />
+
+      <AlertsPanel alerts={snapshot.alerts} />
+
+      {selected && !showWorkPanel && (
+        <ColonistPanel pawn={selected} onClose={() => engine?.select(null)} />
+      )}
 
       {showWorkPanel && (
         <WorkPanel

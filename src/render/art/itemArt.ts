@@ -23,6 +23,7 @@ const CENTRE = ITEM_W / 2;
 const ITEM_BASE: Record<ItemDefId, number> = {
   [ItemDef.Stone]: 0x8c8781,
   [ItemDef.Scrap]: 0x6d7b82,
+  [ItemDef.RawFood]: 0x8e5f6b,
 };
 
 function chunk(g: Graphics, x: number, y: number, size: number, colour: number): void {
@@ -46,6 +47,16 @@ export function buildItemGraphics(def: ItemDefId): Graphics {
   // Scrap carries a dim relic glint — the first hint of the tier you can't craft.
   if (def === ItemDef.Scrap) {
     chunk(g, CENTRE + 1, ITEM_GROUND_Y - 4, 2, shade(Palette.relic, -0.3));
+  }
+
+  // Berries read as rounder and brighter than mineral piles, so food is findable at a
+  // glance in a stockpile full of grey.
+  if (def === ItemDef.RawFood) {
+    for (let i = 0; i < 3; i++) {
+      const x = CENTRE + rng.rangeFloat(-4, 4);
+      const y = ITEM_GROUND_Y - rng.rangeFloat(1, 5);
+      g.circle(x, y, rng.rangeFloat(1.4, 2.2)).fill({ color: shade(base, 0.28) });
+    }
   }
 
   return g;

@@ -12,6 +12,7 @@
  */
 
 import { GROUND_LEVEL, samePos, type TilePos } from '../core/position';
+import { Need } from '../defs/needs';
 import type { Pawn } from '../entities/pawn';
 import { clearPath } from '../entities/pawn';
 import { DIRECTIONS } from '../pathfind/neighbours';
@@ -104,7 +105,56 @@ export function toilReserveItem(pick: (job: Job) => number): Toil {
     tick: ({ world, pawn, job }) => {
       const id = pick(job);
       if (!world.items.get(id)) return 'failed';
-      return world.reservations.reserveItem(id, pawn.id) ? 'done' : 'failed';
+      return world.reservations.reserveEntity(id, pawn.id) ? 'done' : 'failed';
+    },
+  };
+}
+
+/**
+ * Claims any entity — a plant, a bed, a stack.
+ *
+ * `exists` is supplied by the caller because only the driver knows which store the id
+ * lives in, and a claim on something that has since been destroyed is worse than no
+ * claim at all.
+ */
+export function toilReserveEntity(
+  pick: (job: Job) => number | null,
+  exists: (ctx: ToilContext, id: number) => boolean,
+): Toil {
+  return {
+    name: 'reserveEntity',
+    tick: (ctx) => {
+      const id = pick(ctx.job);
+      // A null target is legitimate for optional claims — sleeping rough has no bed.
+      if (id === null) return 'done';
+      if (!exists(ctx, id)) return 'failed';
+      return ctx.world.reservations.reserveEntity(id, ctx.pawn.id) ? 'done' : 'failed';
+    },
+  };
+}
+
+/**
+ * Sleeps until rested, or until something more urgent wakes the colonist.
+ *
+ * Not a work toil: it ends on a *need* threshold rather than accumulated effort, and it
+ * must survive tens of thousands of ticks, so it stores nothing beyond the pawn's own
+ * `asleep` flag.
+ */
+export function toilSleep(options: {
+  readonly wakeAt: number;
+  readonly onWake: (ctx: ToilContext) => void;
+}): Toil {
+  return {
+    name: 'sleep',
+    tick: (ctx) => {
+      const { pawn } = ctx;
+      pawn.asleep = true;
+
+      if (pawn.needs[Need.Rest] < options.wakeAt) return 'running';
+
+      pawn.asleep = false;
+      options.onWake(ctx);
+      return 'done';
     },
   };
 }
@@ -139,11 +189,12 @@ export function toilWalkTo(pick: (job: Job, world: World) => TilePos | null): To
  * Recomputed each tick rather than fixed on arrival, so a colonist whose chosen
  * approach gets blocked mid-walk simply picks another instead of failing the job.
  */
-export function toilWalkAdjacentTo(pick: (job: Job) => TilePos): Toil {
+export function toilWalkAdjacentTo(pick: (job: Job, world: World) => TilePos | null): Toil {
   return {
     name: 'walkAdjacentTo',
     tick: (ctx) => {
-      const target = pick(ctx.job);
+      const target = pick(ctx.job, ctx.world);
+      if (!target) return 'failed';
       if (isAdjacent(ctx.pawn.pos, target) && !ctx.pawn.moveTarget) {
         // See toilWalkTo: a stale route would walk the pawn away from its own work.
         clearPath(ctx.pawn);

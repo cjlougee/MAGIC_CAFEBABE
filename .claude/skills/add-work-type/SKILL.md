@@ -89,6 +89,17 @@ Add to the `Command` union in `src/sim/core/commands.ts` and handle it in
   preview promises something the simulation then refuses — which reads to the player as
   the click not registering.
 
+## If the work serves a need rather than the player
+
+Eating and sleeping are **not** work types. They come from `findNeedJob` in `sim/ai/needs.ts`
+and outrank every work type unconditionally — a colonist with Haul at priority 1 must not
+starve beside a stockpile. Add there, not to `WORK_GIVERS`, and make sure the fallback
+when the need *can't* be met is to carry on working rather than freeze.
+
+Reservations are keyed by **entity**, not by item — plants, beds, and stacks all claim
+through `reserveEntity`. Use `toilReserveEntity` with an existence check against
+whichever store the id lives in.
+
 ## Tests to write — `tests/jobs.test.ts`
 
 Mirror the existing ones; the first is the one that matters:
@@ -103,8 +114,15 @@ Mirror the existing ones; the first is the one that matters:
 5. **Priority respected** — the work type at priority 1 is chosen over one at 4, and a
    work type at 0 is never chosen.
 
+**Isolate the scenario.** A focused test should strip whatever it isn't about — clearing
+plants out of a mining test, for instance. Otherwise adding a new work type silently
+changes the timing of every existing behavioural test, and they start failing for
+reasons unrelated to what they assert.
+
 ## Finally
 
 Update `docs/ROADMAP.md`, `docs/design/03-work-and-jobs.md` if the pipeline changed, and
-run `npm run check`. Then **look at it in the browser** — the last two real bugs in this
-system were both invisible to tests.
+run `npm run check`. Then **look at it in the browser** — every real bug this system has
+had was invisible to tests: a cached ground layer leaving holes where rock was mined, a
+preview that silently refused, and colonists eating one berry per trip because nothing
+in a test can notice that behaviour is merely *technically* correct.

@@ -17,6 +17,8 @@ import { PRIORITY_DISABLED, PRIORITY_HIGHEST, PRIORITY_LOWEST } from '../defs/wo
 import type { World } from '../world/world';
 import { createActiveJob, type Job, type JobOutcome } from './job';
 import { driverFor } from './jobDrivers';
+import { maybeBreak } from './mood';
+import { findNeedJob } from './needs';
 import { WORK_GIVERS } from './workGivers';
 
 /**
@@ -68,6 +70,10 @@ export function startJob(pawn: Pawn, job: Job): void {
  */
 export function endJob(world: World, pawn: Pawn, _outcome: JobOutcome): void {
   world.reservations.releaseAll(pawn.id);
+
+  // Ending a sleep job by any route must wake the colonist, or they keep regaining
+  // rest while walking around and the need stops meaning anything.
+  pawn.asleep = false;
 
   if (pawn.carryingItemId !== null) {
     const item = world.items.get(pawn.carryingItemId);
@@ -123,9 +129,55 @@ export function tickJob(world: World, pawn: Pawn): void {
   }
 }
 
-/** Finds work for an idle pawn. Called only on that pawn's think tick. */
+/** How far a colonist in a mental break wanders in one hop. */
+const WANDER_RADIUS = 6;
+
+function wanderTarget(world: World, pawn: Pawn): Job {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const x = pawn.pos.x + world.rng.range(-WANDER_RADIUS, WANDER_RADIUS + 1);
+    const y = pawn.pos.y + world.rng.range(-WANDER_RADIUS, WANDER_RADIUS + 1);
+    if (!world.map.isPassable(x, y, pawn.pos.z)) continue;
+    const to = { x, y, z: pawn.pos.z };
+    if (world.reachability.canReach(pawn.pos, to)) return { kind: 'wander', to };
+  }
+  // Boxed in — stand still rather than fail the job and retry every think tick.
+  return { kind: 'wander', to: { ...pawn.pos } };
+}
+
+/**
+ * Decides what an idle colonist does next. Called only on that pawn's think tick.
+ *
+ * The order is the whole behavioural hierarchy:
+ *
+ *   1. a mental break, which overrides everything
+ *   2. needs — eating and sleeping outrank *all* work, unconditionally
+ *   3. work, by the player's priority grid
+ *
+ * Needs sitting above the grid is deliberate. If eating were just another work type, a
+ * colonist with Haul at priority 1 would starve beside a stockpile, and the player would
+ * rightly read that as a bug rather than a lesson about priorities.
+ */
 export function tickPawnAI(world: World, pawn: Pawn): void {
+  if (pawn.dead) return;
+
+  if (maybeBreak(world, pawn)) {
+    // A break supersedes whatever they were doing, reservations and all.
+    interrupt(world, pawn, 'mental break');
+  }
+
   if (pawn.job) return;
+
+  if (pawn.breakTicks > 0) {
+    startJob(pawn, wanderTarget(world, pawn));
+    return;
+  }
+
+  const need = findNeedJob(world, pawn);
+  if (need) {
+    startJob(pawn, need);
+    return;
+  }
+
   const job = findJob(world, pawn);
   if (job) startJob(pawn, job);
 }

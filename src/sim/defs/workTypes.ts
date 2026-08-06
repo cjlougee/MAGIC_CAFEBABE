@@ -15,8 +15,9 @@
  */
 
 export const WorkType = {
-  Mine: 0,
-  Haul: 1,
+  Harvest: 0,
+  Mine: 1,
+  Haul: 2,
 } as const;
 
 export type WorkTypeId = (typeof WorkType)[keyof typeof WorkType];
@@ -27,8 +28,18 @@ export interface WorkTypeDef {
   readonly description: string;
 }
 
-/** Indexed by WorkTypeId. Display order is the order of this array. */
+/**
+ * Indexed by WorkTypeId. Display order is the order of this array.
+ *
+ * Harvest sits first because food is the work that keeps everyone alive, and the
+ * leftmost column is the one players read as most important.
+ */
 export const WORK_TYPE_DEFS: readonly WorkTypeDef[] = [
+  {
+    id: WorkType.Harvest,
+    label: 'Harvest',
+    description: 'Gather ripe food from plants.',
+  },
   {
     id: WorkType.Mine,
     label: 'Mine',

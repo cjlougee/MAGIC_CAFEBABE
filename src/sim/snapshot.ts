@@ -11,12 +11,29 @@
  * only the cadence differs.
  */
 
+import { activeThoughts, moodOf } from './ai/mood';
+import { buildAlerts, type Alert } from './alerts';
+import { NEED_DEFS } from './defs/needs';
+import { thoughtDef } from './defs/thoughts';
 import { isOnGround } from './entities/item';
 import { pawnActivity } from './entities/pawn';
+import { isRipe } from './entities/plant';
 import { ITEM_DEFS, type ItemDefId } from './defs/items';
 import { Designation } from './world/designations';
 import { daylight, formatTime, timeOfDay } from './world/time';
 import type { World } from './world/world';
+
+export interface NeedSummary {
+  readonly label: string;
+  /** 0–1. */
+  readonly value: number;
+  readonly low: boolean;
+}
+
+export interface ThoughtSummary {
+  readonly label: string;
+  readonly mood: number;
+}
 
 export interface PawnSummary {
   readonly id: number;
@@ -29,6 +46,12 @@ export interface PawnSummary {
   /** Indexed by WorkTypeId. */
   readonly priorities: readonly number[];
   readonly carrying: string | null;
+  readonly needs: readonly NeedSummary[];
+  readonly mood: number;
+  /** Every reason for the mood, so the UI can explain it rather than just show it. */
+  readonly thoughts: readonly ThoughtSummary[];
+  readonly health: number;
+  readonly dead: boolean;
 }
 
 export interface ResourceSummary {
@@ -52,6 +75,8 @@ export interface SimSnapshot {
   readonly resources: readonly ResourceSummary[];
   readonly mineDesignations: number;
   readonly stockpileCells: number;
+  readonly alerts: readonly Alert[];
+  readonly ripePlants: number;
 }
 
 export function buildSnapshot(world: World): SimSnapshot {
@@ -74,7 +99,24 @@ export function buildSnapshot(world: World): SimSnapshot {
       activity: pawnActivity(pawn),
       priorities: [...pawn.priorities],
       carrying: carried ? `${ITEM_DEFS[carried.def].name} x${carried.count}` : null,
+      needs: NEED_DEFS.map((def) => ({
+        label: def.label,
+        value: pawn.needs[def.id],
+        low: pawn.needs[def.id] < def.seekBelow,
+      })),
+      mood: moodOf(pawn),
+      thoughts: activeThoughts(pawn).map((id) => ({
+        label: thoughtDef(id).label,
+        mood: thoughtDef(id).mood,
+      })),
+      health: pawn.health,
+      dead: pawn.dead,
     });
+  }
+
+  let ripePlants = 0;
+  for (const plant of world.plants.values()) {
+    if (isRipe(plant)) ripePlants++;
   }
 
   return {
@@ -95,6 +137,8 @@ export function buildSnapshot(world: World): SimSnapshot {
     })),
     mineDesignations: world.designations.count(Designation.Mine),
     stockpileCells: world.zones.stockpileCount,
+    alerts: buildAlerts(world),
+    ripePlants,
   };
 }
 

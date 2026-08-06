@@ -95,6 +95,37 @@ export function hashWorld(world: World): string {
       h = mixInt32(h, pawn.job.workDone);
       h = mixInt32(h, pawn.job.attempts);
     }
+
+    // Needs are floats; quantised to a fixed grid so the hash compares exactly without
+    // depending on the last bits of a value that drifts by a millionth per tick.
+    for (const need of pawn.needs) h = mixInt32(h, Math.round(need * 1e6));
+    h = mixInt32(h, Math.round(pawn.health * 1e6));
+    h = mixInt32(h, pawn.dead ? 1 : 0);
+    h = mixInt32(h, pawn.asleep ? 1 : 0);
+    h = mixInt32(h, pawn.breakTicks);
+    h = mixInt32(h, pawn.memories.length);
+    for (const memory of pawn.memories) {
+      h = mixInt32(h, memory.def);
+      h = mixInt32(h, memory.age);
+    }
+  }
+
+  h = mixInt32(h, world.plants.size);
+  for (const plant of world.plants.values()) {
+    h = mixInt32(h, plant.id);
+    h = mixInt32(h, plant.def);
+    h = mixInt32(h, plant.pos.x);
+    h = mixInt32(h, plant.pos.y);
+    h = mixInt32(h, plant.growth);
+  }
+
+  h = mixInt32(h, world.buildings.size);
+  for (const building of world.buildings.values()) {
+    h = mixInt32(h, building.id);
+    h = mixInt32(h, building.def);
+    h = mixInt32(h, building.pos.x);
+    h = mixInt32(h, building.pos.y);
+    h = mixInt32(h, building.owner ?? -1);
   }
 
   h = mixInt32(h, world.items.size);

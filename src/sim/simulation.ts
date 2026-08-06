@@ -10,7 +10,10 @@
  */
 
 import { tickMovement } from './ai/movement';
+import { tickBreak, tickMood } from './ai/mood';
+import { tickNeeds } from './ai/needs';
 import { interrupt, isThinkTick, tickJob, tickPawnAI } from './ai/think';
+import { growPlants } from './world/growth';
 import {
   CommandQueue,
   type Command,
@@ -62,15 +65,25 @@ export class Simulation {
     const world = this.worldState;
     this.applyCommands();
 
+    growPlants(world);
+
     // Insertion order, which is stable — pawns must not act in a different sequence
     // between runs or determinism breaks.
     for (const pawn of world.pawns.values()) {
+      if (pawn.dead) continue;
+
+      // Needs and mood advance before decisions, so a colonist decides using the state
+      // they are actually in rather than last tick's.
+      tickNeeds(pawn);
+      tickMood(pawn);
+      tickBreak(pawn);
+
       if (pawn.job) tickJob(world, pawn);
       else if (isThinkTick(world, pawn)) tickPawnAI(world, pawn);
     }
 
     for (const pawn of world.pawns.values()) {
-      tickMovement(world.map, pawn);
+      if (!pawn.dead && !pawn.asleep) tickMovement(world.map, pawn);
     }
 
     world.tick++;

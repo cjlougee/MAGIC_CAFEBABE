@@ -15,6 +15,8 @@
 import type { ActiveJob } from '../ai/job';
 import type { EntityId } from '../core/entityStore';
 import { GROUND_LEVEL, type TilePos } from '../core/position';
+import { startingNeeds } from '../defs/needs';
+import type { ThoughtId } from '../defs/thoughts';
 import { defaultPriorities } from '../defs/workTypes';
 
 /** Ticks per unit of move cost, as hundredths. 130 puts open ground at 13 ticks/tile. */
@@ -55,6 +57,24 @@ export interface Pawn {
    * has over an autonomous colony.
    */
   priorities: number[];
+
+  /** Indexed by NeedId. 1 is satisfied, 0 is desperate. */
+  needs: number[];
+  /** Fading reasons this colonist feels how they do. Situational thoughts aren't stored. */
+  memories: Memory[];
+  /** 1 is unhurt, 0 is dead. Starvation is the only thing that touches it so far. */
+  health: number;
+  dead: boolean;
+  /** Ticks remaining in a mental break. Zero means coping. */
+  breakTicks: number;
+  /** True while asleep, so needs and rendering can treat them differently. */
+  asleep: boolean;
+}
+
+export interface Memory {
+  readonly def: ThoughtId;
+  /** Ticks since it happened. Compared against the thought's duration. */
+  age: number;
 }
 
 export function createPawn(
@@ -76,6 +96,12 @@ export function createPawn(
     job: null,
     carryingItemId: null,
     priorities: defaultPriorities(),
+    needs: startingNeeds(),
+    memories: [],
+    health: 1,
+    dead: false,
+    breakTicks: 0,
+    asleep: false,
   };
 }
 
@@ -87,9 +113,21 @@ export function isMoving(pawn: Pawn): boolean {
   return pawn.moveTarget !== null || pawn.pathIndex < pawn.path.length;
 }
 
+const ACTIVITY_LABELS: Record<string, string> = {
+  mine: 'mining',
+  haul: 'hauling',
+  harvest: 'harvesting',
+  eat: 'eating',
+  sleep: 'sleeping',
+  wander: 'wandering',
+};
+
 /** Short label for the UI. Not for logic — nothing should branch on a display string. */
 export function pawnActivity(pawn: Pawn): string {
-  if (pawn.job) return pawn.job.job.kind === 'mine' ? 'mining' : 'hauling';
+  if (pawn.dead) return 'dead';
+  if (pawn.asleep) return 'asleep';
+  if (pawn.breakTicks > 0) return 'breaking down';
+  if (pawn.job) return ACTIVITY_LABELS[pawn.job.job.kind] ?? pawn.job.job.kind;
   return isMoving(pawn) ? 'walking' : 'idle';
 }
 

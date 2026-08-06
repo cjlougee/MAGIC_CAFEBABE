@@ -8,11 +8,14 @@
  */
 
 import { Graphics, Texture, type Renderer } from 'pixi.js';
+import type { BuildingId } from '../../sim/defs/buildings';
 import type { ItemDefId } from '../../sim/defs/items';
 import { TERRAIN_DEFS, type TerrainId } from '../../sim/defs/terrain';
 import type { PawnAppearance } from '../../sim/entities/pawn';
 import { HALF_TILE_H, HALF_TILE_W } from '../constants';
+import { buildBuildingGraphics } from './buildingArt';
 import { buildItemGraphics } from './itemArt';
+import { buildPlantGraphics } from './plantArt';
 import {
   buildMineMarkerGraphics,
   buildPreviewGraphics,
@@ -54,6 +57,15 @@ export class ArtProvider {
   /** Texture for a pile of one kind of item. */
   item(def: ItemDefId): Texture {
     return this.cached(`item:${def}`, () => buildItemGraphics(def));
+  }
+
+  /** Texture for a plant at a given growth stage. */
+  plant(stage: number): Texture {
+    return this.cached(`plant:${stage}`, () => buildPlantGraphics(stage));
+  }
+
+  building(def: BuildingId): Texture {
+    return this.cached(`building:${def}`, () => buildBuildingGraphics(def));
   }
 
   stockpileTile(): Texture {

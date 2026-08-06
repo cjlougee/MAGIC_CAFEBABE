@@ -12,13 +12,16 @@ import { DEFAULT_MAP_SIZE, STARTING_TICK } from '../core/constants';
 import { EntityStore } from '../core/entityStore';
 import type { TilePos } from '../core/position';
 import { Rng } from '../core/rng';
+import { STARTING_BEDROLLS_PER_COLONIST } from '../defs/buildings';
 import { STARTING_COLONISTS } from '../defs/pawnKind';
+import type { Building } from '../entities/building';
 import type { Pawn } from '../entities/pawn';
+import type { Plant } from '../entities/plant';
 import { Pathfinder } from '../pathfind/pathfinder';
 import { ReachabilityMap } from '../pathfind/reachability';
 import { Designations } from './designations';
 import { ItemStore } from './itemStore';
-import { spawnColonists } from './spawn';
+import { placeBedrolls, scatterPlants, spawnColonists } from './spawn';
 import type { TileMap } from './tilemap';
 import { generateMap } from './worldgen';
 import { Zones } from './zones';
@@ -34,6 +37,8 @@ export interface World {
   readonly map: TileMap;
   readonly pawns: EntityStore<Pawn>;
   readonly items: ItemStore;
+  readonly plants: EntityStore<Plant>;
+  readonly buildings: EntityStore<Building>;
   /** Cells the player has marked for work. */
   readonly designations: Designations;
   /** Player-painted areas — stockpiles, for now. */
@@ -61,11 +66,15 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
 
   const map = generateMap(width, height, seed);
   const pawns = new EntityStore<Pawn>();
+  const plants = new EntityStore<Plant>();
+  const buildings = new EntityStore<Building>();
 
   // Offset so the simulation's random stream is independent of the noise fields
   // worldgen consumed — otherwise gameplay randomness would correlate with terrain.
   const rng = new Rng(seed ^ 0x9e3779b9);
   const landingSite = spawnColonists(map, pawns, rng, colonists);
+  placeBedrolls(map, buildings, landingSite, colonists * STARTING_BEDROLLS_PER_COLONIST);
+  scatterPlants(map, plants, rng);
 
   return {
     seed,
@@ -73,6 +82,8 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
     rng,
     map,
     pawns,
+    plants,
+    buildings,
     items: new ItemStore(),
     designations: new Designations(),
     zones: new Zones(),

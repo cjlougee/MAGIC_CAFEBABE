@@ -10,9 +10,14 @@
 import type { EntityStore } from '../core/entityStore';
 import { GROUND_LEVEL, type TilePos } from '../core/position';
 import type { Rng } from '../core/rng';
+import { Building } from '../defs/buildings';
 import { FIRST_NAMES, SURNAMES } from '../defs/names';
 import { APPEARANCE_VARIANTS } from '../defs/pawnKind';
+import { BUSH_DENSITY, Plant as PlantKind, plantDef } from '../defs/plants';
+import { Terrain } from '../defs/terrain';
+import { createBuilding, type Building as BuildingEntity } from '../entities/building';
 import { createPawn, type Pawn, type PawnAppearance } from '../entities/pawn';
+import { createPlant, type Plant } from '../entities/plant';
 import type { TileMap } from '../world/tilemap';
 
 /** Radius of the openness sample around a candidate site. */
@@ -100,15 +105,68 @@ export function spawnColonists(
 ): TilePos {
   const site = findLandingSite(map);
   const cells = nearbyOpenCells(map, site, count);
+  const used = new Set<string>();
 
   for (let i = 0; i < count; i++) {
     // If the map is so hostile there aren't even `count` open cells, stack the
     // remainder on the site rather than failing to start.
     const cell = cells[i] ?? site;
-    const name = `${rng.pick(FIRST_NAMES)} ${rng.pick(SURNAMES)}`;
-    const appearance = rollAppearance(rng);
-    pawns.add((id) => createPawn(id, name, cell, appearance));
+    pawns.add((id) => createPawn(id, rollName(rng, used), cell, rollAppearance(rng)));
   }
 
   return site;
+}
+
+/**
+ * A name nobody in the party already has.
+ *
+ * Two colonists called "Fen Stave" makes the roster unreadable and every story about
+ * them ambiguous. Bounded retries so an unlucky seed can't spin.
+ */
+function rollName(rng: Rng, used: Set<string>): string {
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const name = `${rng.pick(FIRST_NAMES)} ${rng.pick(SURNAMES)}`;
+    if (!used.has(name)) {
+      used.add(name);
+      return name;
+    }
+  }
+  return `${rng.pick(FIRST_NAMES)} ${rng.pick(SURNAMES)}`;
+}
+
+/** Bedrolls the party brought with them, laid out around the landing site. */
+export function placeBedrolls(
+  map: TileMap,
+  buildings: EntityStore<BuildingEntity>,
+  site: TilePos,
+  count: number,
+): void {
+  const cells = nearbyOpenCells(map, site, count + 2).filter((cell) =>
+    map.isStorable(cell.x, cell.y, cell.z),
+  );
+
+  for (let i = 0; i < count && i < cells.length; i++) {
+    buildings.add((id) => createBuilding(id, Building.Bedroll, cells[i]));
+  }
+}
+
+/**
+ * Scatters berry bushes across vegetated ground.
+ *
+ * Growth starts randomised rather than at zero, so the colony doesn't face a synchronised
+ * famine followed by a synchronised glut — food arriving in a steady trickle is what
+ * makes it a supply rather than an event.
+ */
+export function scatterPlants(map: TileMap, plants: EntityStore<Plant>, rng: Rng): void {
+  const ripeAt = plantDef(PlantKind.BerryBush).growTicks;
+
+  for (let y = 0; y < map.height; y++) {
+    for (let x = 0; x < map.width; x++) {
+      if (map.getTerrain(x, y) !== Terrain.Grass) continue;
+      if (!rng.chance(BUSH_DENSITY)) continue;
+
+      const growth = rng.int(ripeAt);
+      plants.add((id) => createPlant(id, PlantKind.BerryBush, { x, y, z: GROUND_LEVEL }, growth));
+    }
+  }
 }

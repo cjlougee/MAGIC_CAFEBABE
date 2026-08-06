@@ -100,6 +100,13 @@ tests rather than by structure:
   each; `render/art/palette.ts` must have at least that many.
 - Changing terrain must call `reachability.markDirty()`. `TileMap.revision` bumps automatically and
   is what keeps render caches honest — without it, mining leaves a hole where the rock was.
+- **Need jobs outrank all work, unconditionally.** Eating and sleeping never enter the priority
+  grid and can't be switched off — otherwise a colonist with Haul at priority 1 starves beside a
+  stockpile. The hierarchy lives in `tickPawnAI`: break → needs → work. See ADR-free notes in
+  `docs/design/04-needs-and-mood.md`.
+- **Mood is never assigned, only computed** as `BASE_MOOD + sum(active thoughts)`. Any mood change
+  that can't be stated as a thought doesn't belong in the system — that rule is what lets the UI
+  explain a mood instead of just showing it.
 - **`passable` is not `storable`.** A colonist can wade a shallow ford but must not leave goods in
   it. Anything placing items on the ground filters on `storable`; only movement uses `passable`. The
   rules live once in `sim/world/placement.ts`, consulted by both the command handlers and the drag

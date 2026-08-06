@@ -15,6 +15,7 @@ import type { WorkTypeId } from '../defs/workTypes';
 import { WorkType } from '../defs/workTypes';
 import { isOnGround, type Item } from '../entities/item';
 import type { Pawn } from '../entities/pawn';
+import { isRipe, type Plant } from '../entities/plant';
 import { Designation } from '../world/designations';
 import type { World } from '../world/world';
 import type { Job } from './job';
@@ -98,7 +99,7 @@ const HaulGiver: WorkGiver = {
 
     for (const item of world.items.values()) {
       if (!isOnGround(item) || !item.pos) continue;
-      if (!world.reservations.canReserveItem(item.id, pawn.id)) continue;
+      if (!world.reservations.canReserveEntity(item.id, pawn.id)) continue;
 
       // Already where it belongs.
       const index = world.map.idx(item.pos.x, item.pos.y, item.pos.z);
@@ -122,5 +123,32 @@ const HaulGiver: WorkGiver = {
   },
 };
 
+const HarvestGiver: WorkGiver = {
+  id: 'harvest',
+  workType: WorkType.Harvest,
+
+  tryGiveJob(world, pawn) {
+    let best: Plant | null = null;
+    let bestDistance = Infinity;
+
+    for (const plant of world.plants.values()) {
+      if (!isRipe(plant)) continue;
+      if (!world.reservations.canReserveEntity(plant.id, pawn.id)) continue;
+
+      const distance = roughDistance(pawn.pos, plant.pos);
+      if (distance >= bestDistance) continue;
+
+      // Reachability last: the most expensive check, so only pay it for a candidate
+      // that would actually win.
+      if (!bestAdjacentCell(world, plant.pos, pawn.pos)) continue;
+
+      bestDistance = distance;
+      best = plant;
+    }
+
+    return best ? { kind: 'harvest', plant: best.id } : null;
+  },
+};
+
 /** Consulted in this order within a priority band, so order here is a tiebreak. */
-export const WORK_GIVERS: readonly WorkGiver[] = [MineGiver, HaulGiver];
+export const WORK_GIVERS: readonly WorkGiver[] = [HarvestGiver, MineGiver, HaulGiver];

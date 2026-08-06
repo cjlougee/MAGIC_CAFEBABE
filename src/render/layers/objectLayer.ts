@@ -17,10 +17,12 @@ import type { EntityId } from '../../sim/core/entityStore';
 import { TERRAIN_DEFS } from '../../sim/defs/terrain';
 import { isOnGround } from '../../sim/entities/item';
 import { pawnVisualPos, type Pawn, type PawnAppearance } from '../../sim/entities/pawn';
+import { ripeness } from '../../sim/entities/plant';
 import type { World } from '../../sim/world/world';
 import type { ArtProvider } from '../art/artProvider';
 import { ITEM_GROUND_Y, ITEM_H, ITEM_W } from '../art/itemArt';
 import { PAWN_GROUND_Y, PAWN_H } from '../art/pawnArt';
+import { PLANT_GROUND_Y, PLANT_H, PLANT_W, stageFor } from '../art/plantArt';
 import { terrainHeight, variantForCell } from '../art/terrainArt';
 import type { TerrainTintField } from '../art/terrainTint';
 import type { TileRect, WorldRect } from '../camera/camera';
@@ -37,11 +39,15 @@ const OCCLUDED_ALPHA = 0.32;
  * A pawn at tile depth d sorts at `d * DEPTH_SCALE + ENTITY_BIAS` — after the tile it
  * stands on, before the tile in front of it.
  */
+/**
+ * Within one tile's depth, things stack in the order they physically sit:
+ * floor structures, then piles on the floor, then plants, then people.
+ */
 const DEPTH_SCALE = 16;
-/** Pawns draw after the tile they stand on, and after any pile on it. */
-const ENTITY_BIAS = 8;
-/** Item piles sit on the floor, so they draw between the tile and anyone standing there. */
+const BUILDING_BIAS = 2;
 const ITEM_BIAS = 4;
+const PLANT_BIAS = 6;
+const ENTITY_BIAS = 8;
 
 interface PawnVisual {
   readonly pawn: Pawn;
@@ -53,6 +59,8 @@ export class ObjectLayer {
 
   private readonly tilePool: Sprite[] = [];
   private readonly itemPool: Sprite[] = [];
+  private readonly plantPool: Sprite[] = [];
+  private readonly buildingPool: Sprite[] = [];
   private readonly pawnSprites = new Map<EntityId, Sprite>();
   private readonly facing = new Map<EntityId, number>();
   private readonly occluders = new Set<number>();
@@ -84,8 +92,46 @@ export class ObjectLayer {
     );
 
     this.updateTiles(world, view, visible);
+    this.updateBuildings(world, visible);
+    this.updatePlants(world, visible);
     this.updateItems(world, visible);
     this.updatePawns(visuals, selectedId);
+  }
+
+  private updateBuildings(world: World, visible: WorldRect): void {
+    let used = 0;
+
+    for (const building of world.buildings.values()) {
+      const at = tileToWorld(building.pos.x, building.pos.y, building.pos.z);
+      if (at.x + HALF_TILE_W < visible.x0 || at.x - HALF_TILE_W > visible.x1) continue;
+      if (at.y + HALF_TILE_H < visible.y0 || at.y - HALF_TILE_H > visible.y1) continue;
+
+      const sprite = this.fromPool(this.buildingPool, used++, 0, 0);
+      sprite.texture = this.art.building(building.def);
+      sprite.position.set(at.x - HALF_TILE_W, at.y - HALF_TILE_H);
+      sprite.zIndex = (building.pos.x + building.pos.y) * DEPTH_SCALE + BUILDING_BIAS;
+      sprite.visible = true;
+    }
+
+    this.hideRest(this.buildingPool, used);
+  }
+
+  private updatePlants(world: World, visible: WorldRect): void {
+    let used = 0;
+
+    for (const plant of world.plants.values()) {
+      const at = tileToWorld(plant.pos.x, plant.pos.y, plant.pos.z);
+      if (at.x + PLANT_W < visible.x0 || at.x - PLANT_W > visible.x1) continue;
+      if (at.y + PLANT_H < visible.y0 || at.y - PLANT_H > visible.y1) continue;
+
+      const sprite = this.fromPool(this.plantPool, used++, 0.5, PLANT_GROUND_Y / PLANT_H);
+      sprite.texture = this.art.plant(stageFor(ripeness(plant)));
+      sprite.position.set(at.x, at.y);
+      sprite.zIndex = (plant.pos.x + plant.pos.y) * DEPTH_SCALE + PLANT_BIAS;
+      sprite.visible = true;
+    }
+
+    this.hideRest(this.plantPool, used);
   }
 
   /** Piles lying on the ground. Carried stacks travel with their pawn instead. */
@@ -106,9 +152,7 @@ export class ObjectLayer {
       sprite.visible = true;
     }
 
-    for (let i = used; i < this.itemPool.length; i++) {
-      this.itemPool[i].visible = false;
-    }
+    this.hideRest(this.itemPool, used);
   }
 
   private updateTiles(world: World, view: TileRect, visible: WorldRect): void {
@@ -199,16 +243,24 @@ export class ObjectLayer {
   }
 
   private itemAt(index: number): Sprite {
-    let sprite = this.itemPool[index];
+    return this.fromPool(this.itemPool, index, 0.5, ITEM_GROUND_Y / ITEM_H);
+  }
+
+  /** Shared pool machinery. Anchor is fixed when the sprite is first created. */
+  private fromPool(pool: Sprite[], index: number, anchorX: number, anchorY: number): Sprite {
+    let sprite = pool[index];
     if (!sprite) {
       sprite = new Sprite();
-      // Anchored where the pile meets the floor, like a pawn's feet.
-      sprite.anchor.set(0.5, ITEM_GROUND_Y / ITEM_H);
+      sprite.anchor.set(anchorX, anchorY);
       sprite.eventMode = 'none';
-      this.itemPool[index] = sprite;
+      pool[index] = sprite;
       this.container.addChild(sprite);
     }
     return sprite;
+  }
+
+  private hideRest(pool: Sprite[], used: number): void {
+    for (let i = used; i < pool.length; i++) pool[i].visible = false;
   }
 
   private tileAt(index: number): Sprite {
@@ -240,6 +292,8 @@ export class ObjectLayer {
     this.container.destroy({ children: true });
     this.tilePool.length = 0;
     this.itemPool.length = 0;
+    this.plantPool.length = 0;
+    this.buildingPool.length = 0;
     this.pawnSprites.clear();
     this.facing.clear();
   }

@@ -16,12 +16,12 @@ import type { EntityId } from '../core/entityStore';
 
 interface Held {
   readonly cells: Set<number>;
-  readonly items: Set<EntityId>;
+  readonly entities: Set<EntityId>;
 }
 
 export class Reservations {
   private readonly cellOwner = new Map<number, EntityId>();
-  private readonly itemOwner = new Map<EntityId, EntityId>();
+  private readonly entityOwner = new Map<EntityId, EntityId>();
   private readonly held = new Map<EntityId, Held>();
 
   /** True when `pawn` may claim this cell — free, or already theirs. */
@@ -37,15 +37,20 @@ export class Reservations {
     return true;
   }
 
-  canReserveItem(item: EntityId, pawn: EntityId): boolean {
-    const owner = this.itemOwner.get(item);
+  /**
+   * Entity-keyed, not item-keyed: colonists claim plants, beds, and stacks through the
+   * same map, because "nobody else take this" is one idea however many kinds of thing
+   * it applies to.
+   */
+  canReserveEntity(entity: EntityId, pawn: EntityId): boolean {
+    const owner = this.entityOwner.get(entity);
     return owner === undefined || owner === pawn;
   }
 
-  reserveItem(item: EntityId, pawn: EntityId): boolean {
-    if (!this.canReserveItem(item, pawn)) return false;
-    this.itemOwner.set(item, pawn);
-    this.heldBy(pawn).items.add(item);
+  reserveEntity(entity: EntityId, pawn: EntityId): boolean {
+    if (!this.canReserveEntity(entity, pawn)) return false;
+    this.entityOwner.set(entity, pawn);
+    this.heldBy(pawn).entities.add(entity);
     return true;
   }
 
@@ -61,23 +66,23 @@ export class Reservations {
     for (const cell of holdings.cells) {
       if (this.cellOwner.get(cell) === pawn) this.cellOwner.delete(cell);
     }
-    for (const item of holdings.items) {
-      if (this.itemOwner.get(item) === pawn) this.itemOwner.delete(item);
+    for (const entity of holdings.entities) {
+      if (this.entityOwner.get(entity) === pawn) this.entityOwner.delete(entity);
     }
     this.held.delete(pawn);
   }
 
   /** Total outstanding claims. Used by tests to prove nothing leaks. */
   get activeCount(): number {
-    return this.cellOwner.size + this.itemOwner.size;
+    return this.cellOwner.size + this.entityOwner.size;
   }
 
   private heldBy(pawn: EntityId): Held {
-    let holdings = this.held.get(pawn);
-    if (!holdings) {
-      holdings = { cells: new Set<number>(), items: new Set<EntityId>() };
-      this.held.set(pawn, holdings);
-    }
+    const existing = this.held.get(pawn);
+    if (existing) return existing;
+
+    const holdings: Held = { cells: new Set<number>(), entities: new Set<EntityId>() };
+    this.held.set(pawn, holdings);
     return holdings;
   }
 }
