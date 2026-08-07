@@ -37,21 +37,38 @@ export const Edge = {
 
 export const EDGE_COMBINATIONS = 16;
 
-/** How far the shading reaches in from an edge, in pixels. */
-const DEPTH = 15;
+/**
+ * How far the shading reaches in from an edge, in pixels.
+ *
+ * The diamond's inradius is only about 14px, so this has to stay well under that or the
+ * band spans the whole half-tile and stops reading as a join at all.
+ */
+const DEPTH = 9;
 
 /** Darkness right at the join. Subtle on purpose — this should be felt, not seen. */
-const STRENGTH = 0.42;
+const STRENGTH = 0.34;
 
 /** Stops across the falloff, for the same reason the light glow needs them. */
 const STOPS = 12;
 
-/** Midpoint of each edge, and the inward unit vector from it toward the tile centre. */
+/**
+ * Each edge's midpoint, its inward *normal*, and how strongly it shades.
+ *
+ * The normal is perpendicular to the edge — **not** the direction to the tile centre.
+ * Those coincide on a square and differ on a 2:1 diamond, and using the latter was the
+ * first version's bug: a canvas gradient holds its colour along lines perpendicular to
+ * its axis, so an axis that wasn't the edge normal ran the bands diagonally across the
+ * tile and piled them into one corner as a dark wedge.
+ *
+ * Weights follow the same light-from-the-upper-right that `LEFT_FACE_SHADE` and
+ * `RIGHT_FACE_SHADE` assume: something rising to the up-right throws a real shadow, and
+ * something rising to the up-left only darkens by contact.
+ */
 const EDGES = [
-  { bit: Edge.NW, mx: HALF_TILE_W / 2, my: HALF_TILE_H / 2, ix: 0.894, iy: 0.447 },
-  { bit: Edge.NE, mx: HALF_TILE_W * 1.5, my: HALF_TILE_H / 2, ix: -0.894, iy: 0.447 },
-  { bit: Edge.SE, mx: HALF_TILE_W * 1.5, my: HALF_TILE_H * 1.5, ix: -0.894, iy: -0.447 },
-  { bit: Edge.SW, mx: HALF_TILE_W / 2, my: HALF_TILE_H * 1.5, ix: 0.894, iy: -0.447 },
+  { bit: Edge.NW, mx: HALF_TILE_W / 2, my: HALF_TILE_H / 2, nx: 0.447, ny: 0.894, weight: 0.55 },
+  { bit: Edge.NE, mx: HALF_TILE_W * 1.5, my: HALF_TILE_H / 2, nx: -0.447, ny: 0.894, weight: 1 },
+  { bit: Edge.SE, mx: HALF_TILE_W * 1.5, my: HALF_TILE_H * 1.5, nx: -0.447, ny: -0.894, weight: 1 },
+  { bit: Edge.SW, mx: HALF_TILE_W / 2, my: HALF_TILE_H * 1.5, nx: 0.447, ny: -0.894, weight: 1 },
 ];
 
 /**
@@ -84,14 +101,14 @@ export function buildContactShadow(mask: number): Texture {
     const gradient = ctx.createLinearGradient(
       edge.mx,
       edge.my,
-      edge.mx + edge.ix * DEPTH,
-      edge.my + edge.iy * DEPTH,
+      edge.mx + edge.nx * DEPTH,
+      edge.my + edge.ny * DEPTH,
     );
 
     for (let i = 0; i <= STOPS; i++) {
       const t = i / STOPS;
       // Squared, so the darkness clings to the join instead of washing the whole tile.
-      const alpha = (1 - t) ** 2 * STRENGTH;
+      const alpha = (1 - t) ** 2 * STRENGTH * edge.weight;
       gradient.addColorStop(t, `rgba(0, 0, 0, ${alpha.toFixed(4)})`);
     }
 

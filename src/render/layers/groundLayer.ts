@@ -34,7 +34,13 @@ function isRaised(map: TileMap, x: number, y: number): boolean {
 }
 
 /**
- * Which of this tile's edges abut something raised.
+ * Which of this tile's edges abut something raised — and should therefore be shaded.
+ *
+ * **Only the two edges that rise *behind* the tile on screen.** Shading all four made a
+ * wall look sunk into a pit: the ground was darkened on its near sides too, and a ring of
+ * shadow around a standing object reads as a hole around it rather than a shadow beside
+ * it. The near neighbours are drawn in front of this tile anyway, so shading against them
+ * was decorating ground the block already covers.
  *
  * Buildings count as well as terrain, so a stone wall beds into the floor exactly the way
  * a cliff does — otherwise the thing the player *built* is the one thing in the scene
@@ -44,8 +50,6 @@ function contactMask(map: TileMap, x: number, y: number): number {
   let mask = 0;
   if (isRaised(map, x - 1, y)) mask |= Edge.NW;
   if (isRaised(map, x, y - 1)) mask |= Edge.NE;
-  if (isRaised(map, x + 1, y)) mask |= Edge.SE;
-  if (isRaised(map, x, y + 1)) mask |= Edge.SW;
   return mask;
 }
 
