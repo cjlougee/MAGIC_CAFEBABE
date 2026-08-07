@@ -26,23 +26,40 @@ const OPENNESS_RADIUS = 4;
 /** How far from the map centre we are willing to look for somewhere decent. */
 const SEARCH_RADIUS = 28;
 
-function opennessAt(map: TileMap, x: number, y: number, z: number): number {
+/** Whether a cell qualifies for some purpose. Passed down so the rule is stated once. */
+type CellTest = (map: TileMap, x: number, y: number, z: number) => boolean;
+
+const isPassableCell: CellTest = (map, x, y, z) => map.isPassable(x, y, z);
+
+/**
+ * Ground the colony can actually use: walkable *and* able to hold what is set on it.
+ *
+ * Deliberately not `isPassable` alone. Shallow water is passable, so an open lake reads
+ * as flawlessly unobstructed ground — which made the site chooser prefer the middle of a
+ * lake to every meadow on the map. See docs/decisions/0004-water.md.
+ */
+const isUsableGround: CellTest = (map, x, y, z) =>
+  map.isPassable(x, y, z) && map.isStorable(x, y, z);
+
+function opennessAt(map: TileMap, x: number, y: number, z: number, accept: CellTest): number {
   let open = 0;
   for (let dy = -OPENNESS_RADIUS; dy <= OPENNESS_RADIUS; dy++) {
     for (let dx = -OPENNESS_RADIUS; dx <= OPENNESS_RADIUS; dx++) {
-      if (map.isPassable(x + dx, y + dy, z)) open++;
+      if (accept(map, x + dx, y + dy, z)) open++;
     }
   }
   return open;
 }
 
 /**
- * The most open passable cell near the map centre.
- *
  * Scans outward in a deterministic order and keeps the best score, so the same seed
- * always lands in the same place.
+ * always lands in the same place. Returns a negative score when nothing qualified.
  */
-export function findLandingSite(map: TileMap, z: number = GROUND_LEVEL): TilePos {
+function bestSiteBy(
+  map: TileMap,
+  z: number,
+  accept: CellTest,
+): { site: TilePos; score: number } {
   const centreX = Math.floor(map.width / 2);
   const centreY = Math.floor(map.height / 2);
 
@@ -53,11 +70,11 @@ export function findLandingSite(map: TileMap, z: number = GROUND_LEVEL): TilePos
     for (let dx = -SEARCH_RADIUS; dx <= SEARCH_RADIUS; dx++) {
       const x = centreX + dx;
       const y = centreY + dy;
-      if (!map.isPassable(x, y, z)) continue;
+      if (!accept(map, x, y, z)) continue;
 
       // Nudge toward the centre so ties don't drift to a map edge.
       const distance = Math.abs(dx) + Math.abs(dy);
-      const score = opennessAt(map, x, y, z) * 4 - distance;
+      const score = opennessAt(map, x, y, z, accept) * 4 - distance;
       if (score > bestScore) {
         bestScore = score;
         best = { x, y, z };
@@ -65,11 +82,41 @@ export function findLandingSite(map: TileMap, z: number = GROUND_LEVEL): TilePos
     }
   }
 
-  return best;
+  return { site: best, score: bestScore };
 }
 
-/** Passable cells nearest a site, in rings, so colonists land clustered but not stacked. */
-function nearbyOpenCells(map: TileMap, site: TilePos, count: number): TilePos[] {
+/**
+ * The best patch of dry, open ground near the map centre.
+ *
+ * The site matters more than it looks in *both* directions: land the party on a ledge
+ * walled in by rock and the colony is unplayable, but land them in a lake and they have
+ * nowhere to set down the bedrolls they carried, so everyone sleeps rough forever with a
+ * permanent mood penalty and nothing on screen to explain it.
+ */
+export function findLandingSite(map: TileMap, z: number = GROUND_LEVEL): TilePos {
+  const dry = bestSiteBy(map, z, isUsableGround);
+  if (dry.score >= 0) return dry.site;
+
+  // No dry ground within reach at all — degenerate, but a wet landing still beats
+  // returning the map centre without having looked at what is there.
+  return bestSiteBy(map, z, isPassableCell).site;
+}
+
+/**
+ * Cells nearest a site that pass `accept`, in rings, so colonists land clustered but
+ * not stacked.
+ *
+ * The test is applied *during* the search, never to its result. Taking the nearest N
+ * passable cells and filtering afterwards quietly returns fewer than were asked for
+ * instead of looking further out — which is how a party landing beside a pond lost the
+ * bedrolls it arrived with.
+ */
+function nearbyCells(
+  map: TileMap,
+  site: TilePos,
+  count: number,
+  accept: CellTest,
+): TilePos[] {
   const z = site.z ?? GROUND_LEVEL;
   const found: TilePos[] = [];
 
@@ -80,7 +127,7 @@ function nearbyOpenCells(map: TileMap, site: TilePos, count: number): TilePos[] 
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
         const x = site.x + dx;
         const y = site.y + dy;
-        if (map.isPassable(x, y, z)) found.push({ x, y, z });
+        if (accept(map, x, y, z)) found.push({ x, y, z });
       }
     }
   }
@@ -104,7 +151,9 @@ export function spawnColonists(
   count: number,
 ): TilePos {
   const site = findLandingSite(map);
-  const cells = nearbyOpenCells(map, site, count);
+  // Colonists only need somewhere to stand, so wading is allowed here — it is putting
+  // things *down* that needs dry ground.
+  const cells = nearbyCells(map, site, count, isPassableCell);
   const used = new Set<string>();
 
   for (let i = 0; i < count; i++) {
@@ -141,9 +190,7 @@ export function placeBedrolls(
   site: TilePos,
   count: number,
 ): void {
-  const cells = nearbyOpenCells(map, site, count + 2).filter((cell) =>
-    map.isStorable(cell.x, cell.y, cell.z),
-  );
+  const cells = nearbyCells(map, site, count, (m, x, y, z) => m.isStorable(x, y, z));
 
   for (let i = 0; i < count && i < cells.length; i++) {
     buildings.add((id) => createBuilding(id, Building.Bedroll, cells[i]));

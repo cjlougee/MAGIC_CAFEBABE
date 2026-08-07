@@ -11,6 +11,7 @@
 import { describe, expect, it } from 'vitest';
 import { endJob } from '../src/sim/ai/think';
 import { pos } from '../src/sim/core/position';
+import { Building } from '../src/sim/defs/buildings';
 import { ItemDef } from '../src/sim/defs/items';
 import { Terrain, terrainDef } from '../src/sim/defs/terrain';
 import { Simulation } from '../src/sim/simulation';
@@ -168,5 +169,52 @@ describe('movement and water', () => {
     world.reachability.markDirty();
 
     expect(world.reachability.canReach(pos(10, 10), pos(30, 10))).toBe(false);
+  });
+});
+
+describe('landing and water', () => {
+  /*
+   * The most expensive version of this confusion, and the last to be found.
+   *
+   * The site is scored by how much *open* ground surrounds it, to avoid dropping the
+   * party on a ledge walled in by rock. But "open" was measured with `isPassable`, and a
+   * lake is the most obstruction-free surface on the map — so the heuristic written to
+   * avoid the worst site actively sought out the second worst. Every seed that generated
+   * a big central lake landed the colony in it: nothing storable, so the bedrolls the
+   * party carried were silently never placed, and everyone slept rough for the rest of
+   * the game with a permanent mood penalty and no visible cause.
+   *
+   * Both tests sweep seeds rather than pinning one, because a single lucky seed passing
+   * is exactly how this survived a green suite in the first place.
+   */
+  const SEEDS = Array.from({ length: 24 }, (_, i) => i + 1);
+
+  it('never lands the party in water', () => {
+    for (const seed of SEEDS) {
+      const { world } = new Simulation({ seed, width: 48, height: 48, colonists: 3 });
+      const site = world.landingSite;
+      const terrain = world.map.getTerrain(site.x, site.y);
+
+      expect(
+        terrain,
+        `seed ${seed} landed on ${terrainDef(terrain).name}`,
+      ).not.toBe(Terrain.ShallowWater);
+      expect(world.map.isStorable(site.x, site.y, site.z)).toBe(true);
+    }
+  });
+
+  it('gives every colonist the bedroll they arrived with', () => {
+    // The second half of the bug, and independent of the first: even on a good site,
+    // the search took the nearest passable cells and only *then* discarded the ones
+    // that were water, instead of looking further out for ground that would hold a bed.
+    for (const seed of SEEDS) {
+      const { world } = new Simulation({ seed, width: 48, height: 48, colonists: 3 });
+      const bedrolls = [...world.buildings.values()].filter((b) => b.def === Building.Bedroll);
+
+      expect(bedrolls, `seed ${seed} short of bedrolls`).toHaveLength(3);
+      for (const bed of bedrolls) {
+        expect(world.map.isStorable(bed.pos.x, bed.pos.y, bed.pos.z)).toBe(true);
+      }
+    }
   });
 });
