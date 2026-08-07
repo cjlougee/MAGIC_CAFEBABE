@@ -201,14 +201,6 @@ mood bonus, and nothing to spend materials on. Ranked by what unlocks the most:
   which cell a pawn reserves and walks to, room flood-fill, save shape, and deconstruct all
   currently assume one building occupies exactly one cell. Do the pose first; treat
   footprints as their own milestone rather than a polish item.
-- **Relic-tech bloom looks like it is lit from the bottom corner.** `EmissiveLayer` centres
-  each glow at `pos.y - terrainHeight * 0.5`, but a raised tile draws its top face a full
-  `terrainHeight` above the ground plane — so the glow sits half a block *below* the
-  surface it should be coming from, and with the ellipse foreshortening the bright point
-  lands near the lower edge. Two coherent fixes: centre it on the top face and widen and
-  soften it so the whole surface reads as the emitter, or place it at the *strip* height on
-  the vertical faces, which is where `drawSideDetail` actually paints the lit band. The
-  first is closer to what it looks like it wants to be.
 - **The best landing sites are the furthest from stone.** `findLandingSite` maximises open,
   *storable* ground, and rock is neither passable nor storable — so the chooser actively
   walks away from it. Across several generated maps the nearest rock was a long trip. That

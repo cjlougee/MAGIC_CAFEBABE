@@ -27,8 +27,14 @@ import { tileToWorld } from '../iso';
 
 const GLOW_RADIUS = 64;
 
-/** How wide each emitter's halo is, in tiles. Tight — this is bloom, not illumination. */
-const SPAN_TILES = 1.5;
+/**
+ * How wide each emitter's halo is, in tiles.
+ *
+ * Wide enough to cover the face it comes off rather than sitting on it as a spot. A
+ * halo narrower than its own emitter reads as a bulb bolted to a surface; the surface
+ * itself is what glows here.
+ */
+const SPAN_TILES = 2.1;
 
 /**
  * How much of the bloom survives full daylight.
@@ -69,7 +75,10 @@ export class EmissiveLayer {
     if (key === this.lastKey) return;
     this.lastKey = key;
 
-    this.texture ??= buildGlowTexture({ radius: GLOW_RADIUS, peak: 0.5, falloff: 2.2 });
+    // Softer falloff and a lower peak than the campfire's. A fire is a point and should
+    // look like one; a lit panel is an area, and the moment its glow has a findable
+    // centre the eye reads that centre as the source instead of the panel.
+    this.texture ??= buildGlowTexture({ radius: GLOW_RADIUS, peak: 0.38, falloff: 1.7 });
 
     let used = 0;
 
@@ -88,9 +97,12 @@ export class EmissiveLayer {
         // Foreshortened like the light pools, because this sits on a surface in the
         // world rather than floating in front of the camera.
         sprite.scale.set(scale, scale * 0.6);
-        // Raised terrain wears its strip partway up the face, so the halo rides with it
-        // instead of pooling on the ground the bulkhead is standing on.
-        sprite.position.set(pos.x, pos.y - terrainHeight(terrain) * 0.5);
+        // Centred on the *top face*, which a raised tile draws a full `terrainHeight`
+        // above the ground plane. Offsetting by half of that put the glow inside the
+        // block, and with the ellipse foreshortening the bright point landed near its
+        // lower edge — so a bulkhead looked lit from its bottom corner. Flat terrain has
+        // height 0, so the same expression is simply the tile centre.
+        sprite.position.set(pos.x, pos.y - terrainHeight(terrain));
         sprite.alpha = strength;
         sprite.visible = true;
       }
