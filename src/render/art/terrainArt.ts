@@ -94,11 +94,37 @@ function pointOnFace(rng: Rng, inset: number): { x: number; y: number } {
   };
 }
 
-/** Scatters flat marks across the top face, foreshortened to lie on the ground plane. */
+/**
+ * Scatters flat marks across the top face, foreshortened to lie on the ground plane.
+ *
+ * **Marks must not escape the diamond.** The texture is cropped to the Graphics' bounds,
+ * and anything painted in a bounding-box corner lands outside the tile it belongs to and
+ * over the neighbour drawn there. Both this and `mottle` stay inside by construction:
+ * measured in the diamond's own metric — x over `HALF_TILE_W` plus y over `HALF_TILE_H` —
+ * a mark of half-width `w` placed at inset `i` reaches `i + w / HALF_TILE_W`, so keeping
+ * that under 1 is the whole rule.
+ */
 function speckle(g: Graphics, rng: Rng, base: number, count: number, size: number, spread: number) {
   for (let i = 0; i < count; i++) {
     const p = pointOnFace(rng, 0.82);
     const w = size * rng.rangeFloat(0.6, 1.4);
+    diamond(g, p.x, p.y, w, w / 2).fill({ color: shade(base, rng.rangeFloat(-spread, spread)) });
+  }
+}
+
+/**
+ * Broad, low-contrast patches. What stops a field of tiles reading as one flat colour.
+ *
+ * Speckle alone cannot do this: at any sensible zoom a 2px mark is below the resolution
+ * the eye integrates over, so a hundred of them average back to exactly the base colour
+ * and a sand plain looks like poured plastic. Variation has to exist at a scale you can
+ * actually see — a third of a tile — and it has to be *weak*, or the ground turns into
+ * camouflage. Fine speckle then goes on top for the texture you see close up.
+ */
+function mottle(g: Graphics, rng: Rng, base: number, count: number, size: number, spread: number) {
+  for (let i = 0; i < count; i++) {
+    const p = pointOnFace(rng, 0.5);
+    const w = size * rng.rangeFloat(0.7, 1.25);
     diamond(g, p.x, p.y, w, w / 2).fill({ color: shade(base, rng.rangeFloat(-spread, spread)) });
   }
 }
@@ -123,14 +149,19 @@ function drawTopDetail(g: Graphics, id: TerrainId, base: number, rng: Rng): void
       break;
 
     case Terrain.Sand:
-      speckle(g, rng, base, 26, 2, 0.11);
+      // The flattest terrain in the game and the one that covers the most ground, so it
+      // needs the mid-scale variation most.
+      mottle(g, rng, base, 5, 12, 0.05);
+      speckle(g, rng, base, 26, 2, 0.13);
       break;
 
     case Terrain.Dirt:
-      speckle(g, rng, base, 18, 3.5, 0.14);
+      mottle(g, rng, base, 5, 12, 0.065);
+      speckle(g, rng, base, 18, 3.5, 0.16);
       break;
 
     case Terrain.Grass:
+      mottle(g, rng, base, 4, 12, 0.055);
       speckle(g, rng, base, 10, 5, 0.1);
       // Blades stand upright, so they stay vertical rather than being foreshortened.
       for (let i = 0; i < 14; i++) {
@@ -141,6 +172,7 @@ function drawTopDetail(g: Graphics, id: TerrainId, base: number, rng: Rng): void
       break;
 
     case Terrain.Gravel:
+      mottle(g, rng, base, 4, 11, 0.06);
       for (let i = 0; i < 20; i++) {
         const p = pointOnFace(rng, 0.78);
         const w = rng.rangeFloat(2, 4.5);
