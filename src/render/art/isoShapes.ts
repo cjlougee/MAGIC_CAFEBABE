@@ -64,3 +64,57 @@ export function rightFace(g: Graphics, top: number, depth: number): Graphics {
  */
 export const LEFT_FACE_SHADE = -0.3;
 export const RIGHT_FACE_SHADE = -0.14;
+
+/**
+ * The same sun, for things that are not built from isometric faces.
+ *
+ * Pawns, item piles and plants are drawn from ellipses and rectangles, not from top and
+ * side faces — but they stand in the same world and must be lit from the same place.
+ * Sharing the *direction* rather than the geometry is what makes procedurally drawn art
+ * look like one art style instead of a collection of separate ideas.
+ *
+ * **Only for discrete objects.** Anything that tiles must get its form from face shading
+ * and mottling instead: a lit edge on every rock would draw a bright line between
+ * adjacent rocks in the same mass, which is a seam grid over the whole mountain and
+ * exactly what docs/decisions/0002-isometric-projection.md exists to prevent.
+ */
+export const LIT_SHIFT = 0.16;
+export const SHADED_SHIFT = -0.22;
+
+/**
+ * A thin band just inside a diamond's sunward (upper-right) edge.
+ *
+ * The safe way to light something that tiles. A highlight drawn on the tile's *own* edge
+ * would meet its neighbour's edge and draw a bright line down every join — a grid across
+ * a wall run or a rock face. Applied to an already-inset shape, such as a wall's cap,
+ * the highlight is separated from the next tile by unlit border on both sides, so it
+ * gives the surface a direction without ever touching a seam.
+ *
+ * `thickness` is a fraction of the shape's radius, not a pixel count, so it scales with
+ * whatever it is drawn on.
+ */
+export function sunwardBand(
+  g: Graphics,
+  cx: number,
+  cy: number,
+  halfW: number,
+  halfH: number,
+  thickness: number,
+): Graphics {
+  const inner = 1 - thickness;
+  const topX = cx;
+  const topY = cy - halfH;
+  const rightX = cx + halfW;
+  const rightY = cy;
+
+  return g.poly([
+    topX,
+    topY,
+    rightX,
+    rightY,
+    cx + (rightX - cx) * inner,
+    cy + (rightY - cy) * inner,
+    cx + (topX - cx) * inner,
+    cy + (topY - cy) * inner,
+  ]);
+}

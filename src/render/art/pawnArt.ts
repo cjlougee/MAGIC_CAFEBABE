@@ -14,6 +14,7 @@
 
 import { Graphics } from 'pixi.js';
 import type { PawnAppearance } from '../../sim/entities/pawn';
+import { LIT_SHIFT, SHADED_SHIFT } from './isoShapes';
 import { Palette, PawnPalette, shade } from './palette';
 
 /** Sprite box. Roughly a third of a tile wide, so pawns read as people on the grid. */
@@ -31,15 +32,7 @@ export const PAWN_GROUND_Y = 40;
 
 const CENTRE = PAWN_W / 2;
 
-/**
- * How far a surface shifts toward or away from the light.
- *
- * The sun sits in the upper right for every drawn thing in the game; sharing the
- * *direction* is what makes procedural art look like one art style, even where the
- * geometry has nothing to do with isometric faces.
- */
-const LIT = 0.16;
-const SHADED = -0.22;
+
 
 function drawHair(g: Graphics, style: number, colour: number, headY: number): void {
   const dark = shade(colour, -0.25);
@@ -94,9 +87,9 @@ export function buildPawnGraphics(appearance: PawnAppearance): Graphics {
   // LEFT_FACE_SHADE / RIGHT_FACE_SHADE in isoShapes. Colonists were previously shaded
   // symmetrically, which is what made them read as flat tokens on a lit map.
   g.roundRect(CENTRE + 4.5, PAWN_GROUND_Y - 21, 2.5, 14, 1.25).fill({
-    color: shade(apparel, LIT),
+    color: shade(apparel, LIT_SHIFT),
   });
-  g.roundRect(CENTRE - 7, PAWN_GROUND_Y - 21, 2, 14, 1).fill({ color: shade(apparel, SHADED) });
+  g.roundRect(CENTRE - 7, PAWN_GROUND_Y - 21, 2, 14, 1).fill({ color: shade(apparel, SHADED_SHIFT) });
 
   // Arms, lit by side rather than as a matched pair.
   g.roundRect(CENTRE - 9.5, PAWN_GROUND_Y - 20, 3.5, 11, 1.75).fill({
@@ -112,7 +105,7 @@ export function buildPawnGraphics(appearance: PawnAppearance): Graphics {
   g.ellipse(CENTRE, headY, 5.5, 6).fill({ color: skin });
   // A crescent, not a full pass: drawn slightly up-and-right and then cut back by the
   // skin tone, so the highlight survives only along the sunward rim.
-  g.ellipse(CENTRE + 1, headY - 1, 5, 5.4).fill({ color: shade(skin, LIT) });
+  g.ellipse(CENTRE + 1, headY - 1, 5, 5.4).fill({ color: shade(skin, LIT_SHIFT) });
   g.ellipse(CENTRE - 0.5, headY - 0.4, 4.8, 5.2).fill({ color: skin });
 
   drawHair(g, appearance.hairStyle, hair, headY);

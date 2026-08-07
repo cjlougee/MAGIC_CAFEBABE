@@ -8,6 +8,7 @@
 
 import { Graphics } from 'pixi.js';
 import { Rng } from '../../sim/core/rng';
+import { LIT_SHIFT, SHADED_SHIFT } from './isoShapes';
 import { Palette, shade } from './palette';
 
 export const PLANT_W = 30;
@@ -38,9 +39,19 @@ export function buildPlantGraphics(stage: number): Graphics {
   for (let i = 0; i < clumps; i++) {
     const x = CENTRE + rng.rangeFloat(-5, 5);
     const y = PLANT_GROUND_Y - 4 - rng.rangeFloat(0, 7) * size;
-    g.ellipse(x, y, 4.4 * size, 3.4 * size).fill({
-      color: shade(LEAF, rng.rangeFloat(-0.18, 0.18)),
+    const w = 4.4 * size;
+    const h = 3.4 * size;
+    const tone = shade(LEAF, rng.rangeFloat(-0.12, 0.12));
+
+    g.ellipse(x, y, w, h).fill({ color: shade(tone, SHADED_SHIFT * 0.6) });
+    // A crescent, not a second full clump: the lit ellipse is nudged up and right and
+    // then cut back by the base tone, leaving light only along the sunward rim. The
+    // same trick the pawn's head uses, because a bush and a face are the same problem —
+    // a rounded mass that needs a direction.
+    g.ellipse(x + w * 0.16, y - h * 0.22, w * 0.92, h * 0.92).fill({
+      color: shade(tone, LIT_SHIFT),
     });
+    g.ellipse(x - w * 0.1, y + h * 0.12, w * 0.84, h * 0.84).fill({ color: tone });
   }
 
   // Only a ripe bush shows fruit, which is the whole point of the staging.
@@ -48,7 +59,11 @@ export function buildPlantGraphics(stage: number): Graphics {
     for (let i = 0; i < 7; i++) {
       const x = CENTRE + rng.rangeFloat(-5.5, 5.5);
       const y = PLANT_GROUND_Y - 5 - rng.rangeFloat(0, 8);
-      g.circle(x, y, 1.9).fill({ color: shade(BERRY, rng.rangeFloat(-0.08, 0.22)) });
+      const tone = shade(BERRY, rng.rangeFloat(-0.08, 0.16));
+      g.circle(x, y, 1.9).fill({ color: shade(tone, SHADED_SHIFT * 0.5) });
+      // A single specular pip. Berries are the one thing here small enough that a
+      // crescent would be mush, so the highlight is a dot in the sunward corner.
+      g.circle(x + 0.5, y - 0.5, 1).fill({ color: shade(tone, LIT_SHIFT * 1.4) });
     }
   }
 

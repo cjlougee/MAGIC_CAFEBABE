@@ -13,8 +13,11 @@ import {
   diamond,
   leftFace,
   LEFT_FACE_SHADE,
+  LIT_SHIFT,
   rightFace,
   RIGHT_FACE_SHADE,
+  SHADED_SHIFT,
+  sunwardBand,
   topFace,
 } from './isoShapes';
 import { Palette, shade } from './palette';
@@ -50,10 +53,18 @@ function drawBedroll(g: Graphics): void {
   const cx = HALF_TILE_W;
   const cy = HALF_TILE_H;
 
-  diamond(g, cx, cy, HALF_TILE_W - 6, HALF_TILE_H - 3).fill({ color: BEDROLL });
+  diamond(g, cx, cy, HALF_TILE_W - 6, HALF_TILE_H - 3).fill({
+    color: shade(BEDROLL, SHADED_SHIFT * 0.5),
+  });
   diamond(g, cx, cy, HALF_TILE_W - 8, HALF_TILE_H - 4).fill({ color: shade(BEDROLL, 0.12) });
+  // A bedroll is discrete rather than tiled, so it can take the highlight on its own
+  // edge — nothing abuts it to draw a line against.
+  sunwardBand(g, cx, cy, HALF_TILE_W - 6, HALF_TILE_H - 3, 0.22).fill({
+    color: shade(BEDROLL, LIT_SHIFT),
+  });
   // A pillow at the head end, so the bedroll has an orientation and doesn't read as a rug.
   diamond(g, cx - 8, cy - 4, 6, 3).fill({ color: shade(Palette.text, -0.25) });
+  diamond(g, cx - 8, cy - 5, 5, 2.2).fill({ color: shade(Palette.text, -0.1) });
 }
 
 function drawRaised(g: Graphics, base: number, height: number, cap: number): void {
@@ -61,7 +72,15 @@ function drawRaised(g: Graphics, base: number, height: number, cap: number): voi
   leftFace(g, 0, height).fill({ color: shade(base, LEFT_FACE_SHADE) });
   rightFace(g, 0, height).fill({ color: shade(base, RIGHT_FACE_SHADE) });
   topFace(g).fill({ color: base });
-  diamond(g, HALF_TILE_W, HALF_TILE_H, HALF_TILE_W - 4, HALF_TILE_H - 2).fill({ color: cap });
+
+  const capW = HALF_TILE_W - 4;
+  const capH = HALF_TILE_H - 2;
+  diamond(g, HALF_TILE_W, HALF_TILE_H, capW, capH).fill({ color: cap });
+  // Drawn on the *cap*, which is already inset, so a run of walls never gets a lit line
+  // down the joins between segments. See sunwardBand.
+  sunwardBand(g, HALF_TILE_W, HALF_TILE_H, capW, capH, 0.26).fill({
+    color: shade(cap, LIT_SHIFT),
+  });
 }
 
 function drawWall(g: Graphics): void {

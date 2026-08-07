@@ -171,6 +171,9 @@ tests rather than by structure:
 - **`add-work-type`** — adding a kind of colonist work (Construct, Cook, Clean…). Walks the
   `WorkGiver → Job → JobDriver → toils` pipeline and the invariants above that fail *silently*.
   Written after M2, once the pattern was real rather than predicted.
+- **`art-pass`** — drawing or improving a procedural sprite. The shared shape language, the one
+  light direction, and the geometry rules that break tile alignment without an error. Written
+  after the M6 art pass, from the mistakes it actually made.
 
 **Data flow is a one-way loop.** UI never mutates sim state. Input dispatches `Command` objects onto a
 queue the sim drains at the start of each tick. The sim publishes a read-only `SimSnapshot` at ~10Hz

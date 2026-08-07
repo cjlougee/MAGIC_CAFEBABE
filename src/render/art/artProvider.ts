@@ -25,7 +25,7 @@ import {
 } from './overlayArt';
 import { Palette } from './palette';
 import { appearanceKey, buildPawnGraphics } from './pawnArt';
-import { buildTerrainGraphics } from './terrainArt';
+import { buildTerrainGraphics, terrainHeight } from './terrainArt';
 
 const SELECTION_KEY = 'ui:selection';
 
@@ -34,9 +34,20 @@ export class ArtProvider {
 
   constructor(private readonly renderer: Renderer) {}
 
-  /** Texture for one terrain variant. Generated on first request, then cached. */
+  /**
+   * Texture for one terrain variant. Generated on first request, then cached.
+   *
+   * The frame is stated, not inferred. Cropping to the Graphics' bounds means any mark
+   * that strays outside the tile silently makes the texture bigger, and since the layers
+   * position tiles assuming an exact `TILE_W x (TILE_H + height)`, a bigger texture draws
+   * the tile *offset* — which shows up as dark seams between tiles rather than as
+   * anything resembling its cause. Grass shipped exactly that: its blades are the only
+   * marks that extend upward, they overshot the top vertex by a pixel or two, and every
+   * grass tile drew low enough to leave a gap above it.
+   */
   terrain(id: TerrainId, variant: number): Texture {
-    return this.cached(`terrain:${id}:${variant}`, () => buildTerrainGraphics(id, variant));
+    const frame = new Rectangle(0, 0, TILE_W, TILE_H + terrainHeight(id));
+    return this.cached(`terrain:${id}:${variant}`, () => buildTerrainGraphics(id, variant), frame);
   }
 
   /** Texture for a colonist. Keyed by appearance, so identical pawns share one. */

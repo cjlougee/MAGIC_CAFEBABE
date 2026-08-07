@@ -129,6 +129,45 @@ function mottle(g: Graphics, rng: Rng, base: number, count: number, size: number
   }
 }
 
+/**
+ * Grass, as a few clumps rather than a field of loose strands.
+ *
+ * Fourteen single-pixel blades scattered evenly across a tile is the right *amount* of
+ * detail and the wrong *distribution*. Zoomed out each blade collapses to one stray
+ * pixel with nothing near it, and a screen of them reads as static or falling rain —
+ * noise, not vegetation. Clumping the same marks into three tufts gives the eye
+ * something the size of an object to latch onto, and the gaps between tufts do as much
+ * work as the tufts themselves.
+ *
+ * Blades are the only marks in the terrain set that stand *up* rather than lying flat,
+ * so they are also the only ones that can escape the top of the tile. Their base inset
+ * is kept low enough that even the tallest cannot reach y = 0.
+ */
+function drawTufts(g: Graphics, rng: Rng, base: number): void {
+  const TUFTS = 4;
+  const PER_TUFT = 5;
+
+  for (let t = 0; t < TUFTS; t++) {
+    // 0.62 rather than 0.82: a tuft is wider than a blade, and this keeps the whole
+    // clump clear of the tile edge where a neighbour's grass begins.
+    const origin = pointOnFace(rng, 0.62);
+
+    for (let i = 0; i < PER_TUFT; i++) {
+      const dx = rng.rangeFloat(-3, 3);
+      // Blades further from the clump's centre are shorter, so a tuft has a silhouette
+      // instead of being a bundle of equal sticks.
+      const falloff = 1 - Math.abs(dx) / 5;
+      const h = rng.rangeFloat(3, 6) * falloff;
+      if (h < 1) continue;
+
+      // Toned down from the old +0.12..+0.32: bright strands are what made the noise
+      // read as sparkle rather than as grass.
+      const tone = shade(base, rng.rangeFloat(0.1, 0.26));
+      g.rect(origin.x + dx, origin.y - h, 1, h).fill({ color: tone });
+    }
+  }
+}
+
 // ── Detail passes ───────────────────────────────────────────────────────────────
 
 function drawTopDetail(g: Graphics, id: TerrainId, base: number, rng: Rng): void {
@@ -163,12 +202,7 @@ function drawTopDetail(g: Graphics, id: TerrainId, base: number, rng: Rng): void
     case Terrain.Grass:
       mottle(g, rng, base, 4, 12, 0.055);
       speckle(g, rng, base, 10, 5, 0.1);
-      // Blades stand upright, so they stay vertical rather than being foreshortened.
-      for (let i = 0; i < 14; i++) {
-        const p = pointOnFace(rng, 0.8);
-        const h = rng.rangeFloat(2, 5);
-        g.rect(p.x, p.y - h, 1, h).fill({ color: shade(base, rng.rangeFloat(0.12, 0.32)) });
-      }
+      drawTufts(g, rng, base);
       break;
 
     case Terrain.Gravel:

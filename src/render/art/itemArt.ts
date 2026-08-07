@@ -10,6 +10,7 @@
 import { Graphics } from 'pixi.js';
 import { Rng } from '../../sim/core/rng';
 import { ItemDef, type ItemDefId } from '../../sim/defs/items';
+import { LIT_SHIFT, SHADED_SHIFT } from './isoShapes';
 import { Palette, shade } from './palette';
 
 export const ITEM_W = 26;
@@ -29,9 +30,21 @@ const ITEM_BASE: Record<ItemDefId, number> = {
   [ItemDef.Meal]: 0xc79a5c,
 };
 
+/**
+ * One lump in a pile.
+ *
+ * Split along its own axis into a lit upper-right half and a shaded lower-left one,
+ * rather than filled flat. A heap of evenly-coloured diamonds reads as confetti; the
+ * same heap with two tones per lump reads as things with volume, and it costs one extra
+ * polygon. Foreshortened like everything else lying flat on the ground plane.
+ */
 function chunk(g: Graphics, x: number, y: number, size: number, colour: number): void {
-  // Foreshortened like everything else lying flat on the ground plane.
-  g.poly([x, y - size / 2, x + size, y, x, y + size / 2, x - size, y]).fill({ color: colour });
+  const half = size / 2;
+  g.poly([x, y - half, x + size, y, x, y + half, x - size, y]).fill({
+    color: shade(colour, SHADED_SHIFT * 0.5),
+  });
+  // The sunward facet: top vertex, right vertex, centre.
+  g.poly([x, y - half, x + size, y, x, y]).fill({ color: shade(colour, LIT_SHIFT) });
 }
 
 export function buildItemGraphics(def: ItemDefId): Graphics {
@@ -43,8 +56,12 @@ export function buildItemGraphics(def: ItemDefId): Graphics {
 
   for (let i = 0; i < 5; i++) {
     const x = CENTRE + rng.rangeFloat(-6, 6);
-    const y = ITEM_GROUND_Y - rng.rangeFloat(0, 6);
-    chunk(g, x, y, rng.rangeFloat(2.5, 4.5), shade(base, rng.rangeFloat(-0.2, 0.2)));
+    const lift = rng.rangeFloat(0, 6);
+    const y = ITEM_GROUND_Y - lift;
+    // Lumps higher up the heap catch more light, so a pile has a top rather than being
+    // an evenly-lit scatter at five different heights.
+    const height = shade(base, (lift / 6) * 0.1);
+    chunk(g, x, y, rng.rangeFloat(2.5, 4.5), shade(height, rng.rangeFloat(-0.12, 0.12)));
   }
 
   // Scrap carries a dim relic glint — the first hint of the tier you can't craft.
