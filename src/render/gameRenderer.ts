@@ -22,6 +22,7 @@ import { Camera } from './camera/camera';
 import { CameraController } from './camera/cameraController';
 import { DEFAULT_ZOOM } from './constants';
 import { GroundLayer } from './layers/groundLayer';
+import { EmissiveLayer } from './layers/emissiveLayer';
 import { LightingLayer } from './layers/lightingLayer';
 import { ObjectLayer } from './layers/objectLayer';
 import { OverlayLayer, type DragPreview } from './layers/overlayLayer';
@@ -35,6 +36,7 @@ export class GameRenderer {
   private readonly overlays: OverlayLayer;
   private readonly objects: ObjectLayer;
   private readonly lighting = new LightingLayer();
+  private readonly emissive = new EmissiveLayer();
   private readonly controller: CameraController;
 
   private constructor(
@@ -55,7 +57,10 @@ export class GameRenderer {
     // Lighting sits outside the world container so it stays screen-aligned rather
     // than scaling and panning with the map.
     this.app.stage.addChild(this.lighting.sprite);
-    // Above the wash, so fires give the darkness back rather than being dimmed by it.
+    // Both above the wash, so light gives the darkness back rather than being dimmed by
+    // it. Emissive first, then fires — a campfire beside a bulkhead should read as the
+    // brighter of the two.
+    this.app.stage.addChild(this.emissive.container);
     this.app.stage.addChild(this.lighting.glow);
 
     this.controller = new CameraController(this.camera, this.app.canvas, shouldPan);
@@ -127,6 +132,11 @@ export class GameRenderer {
     this.lighting.glow.scale.copyFrom(this.worldContainer.scale);
     this.lighting.updateEmitters(world, light);
 
+    this.emissive.container.position.copyFrom(this.worldContainer.position);
+    this.emissive.container.scale.copyFrom(this.worldContainer.scale);
+    this.emissive.update(world.map, view, visible);
+    this.emissive.setDaylight(light);
+
     this.app.renderer.render(this.app.stage);
   }
 
@@ -138,7 +148,10 @@ export class GameRenderer {
    * match, leaving the old map on screen.
    */
   onWorldReplaced(): void {
+    // Both cache on map revision, which restarts from zero in a loaded world and so can
+    // read as unchanged when in fact everything has.
     this.ground.invalidate();
+    this.emissive.invalidate();
   }
 
   /** Centres the view on a tile. Used when the player picks a colonist from the HUD. */
@@ -161,6 +174,7 @@ export class GameRenderer {
     this.overlays.destroy();
     this.objects.destroy();
     this.lighting.destroy();
+    this.emissive.destroy();
     this.art.destroy();
     this.app.destroy(true, { children: true });
   }

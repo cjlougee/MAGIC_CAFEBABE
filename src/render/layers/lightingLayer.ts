@@ -19,6 +19,7 @@ import { Container, Sprite, Texture } from 'pixi.js';
 import { buildingDef } from '../../sim/defs/buildings';
 import { BUILDING_LIGHT } from '../art/buildingArt';
 import type { World } from '../../sim/world/world';
+import { buildGlowTexture } from '../art/glow';
 import { mixColors, Palette } from '../art/palette';
 import { TILE_W } from '../constants';
 import { tileToWorld } from '../iso';
@@ -28,66 +29,6 @@ const MAX_NIGHT_STRENGTH = 0.72;
 
 /** Radius of the glow texture in pixels. Scaled per-emitter to its own light radius. */
 const GLOW_TEXTURE_RADIUS = 128;
-
-/** Stops in the falloff. Enough that the curve is sampled, not stepped. */
-const GLOW_STOPS = 32;
-
-/**
- * Brightness at the very centre.
- *
- * Below 1 on purpose. Additive blending at full strength saturates the core to white,
- * which hides the thing that is emitting the light — a campfire disappearing inside its
- * own glow. Light should reveal its source, not erase it.
- */
-const GLOW_PEAK = 0.72;
-
-/**
- * A soft radial falloff, built once.
- *
- * A real canvas gradient rather than concentric rings. The first version stacked 24
- * translucent circles, and every ring boundary was visible as a contour line — stacked
- * alpha quantises, and the eye finds edges in it immediately. A gradient interpolates in
- * the canvas at 8-bit precision, which for a soft glow is smooth.
- *
- * The curve is `(1 - t)^3`, not linear. Linear falloff reads as a flat disc with a hard
- * rim; a cubic keeps a bright core and lets the edge disappear into the dark instead of
- * ending. Sampled across many stops so the shape survives interpolation between them.
- *
- * Generated white, and tinted per-emitter — one texture serves every colour of light.
- */
-function buildGlowTexture(): Texture {
-  const size = GLOW_TEXTURE_RADIUS * 2;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return Texture.WHITE;
-
-  const gradient = ctx.createRadialGradient(
-    GLOW_TEXTURE_RADIUS,
-    GLOW_TEXTURE_RADIUS,
-    0,
-    GLOW_TEXTURE_RADIUS,
-    GLOW_TEXTURE_RADIUS,
-    GLOW_TEXTURE_RADIUS,
-  );
-
-  for (let i = 0; i <= GLOW_STOPS; i++) {
-    const t = i / GLOW_STOPS;
-    const falloff = (1 - t) ** 3 * GLOW_PEAK;
-    gradient.addColorStop(t, `rgba(255, 255, 255, ${falloff.toFixed(4)})`);
-  }
-
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, size, size);
-
-  const texture = Texture.from(canvas);
-  // Linear, unlike every other texture in the game: this one *is* a smooth gradient, and
-  // the nearest-neighbour sampling that keeps the pixel art crisp would band it again.
-  texture.source.scaleMode = 'linear';
-  return texture;
-}
 
 export class LightingLayer {
   readonly sprite: Sprite;
@@ -125,7 +66,13 @@ export class LightingLayer {
       return;
     }
 
-    this.glowTexture ??= buildGlowTexture();
+    this.glowTexture ??= buildGlowTexture({
+      radius: GLOW_TEXTURE_RADIUS,
+      // Below 1: additive light at full strength saturates the core to white and hides
+      // the campfire inside its own glow. Light should reveal its source, not erase it.
+      peak: 0.72,
+      falloff: 3,
+    });
 
     let used = 0;
     for (const building of world.buildings.values()) {
