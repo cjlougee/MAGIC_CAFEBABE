@@ -47,10 +47,10 @@ const DAYLIGHT_FLOOR = 0.28;
 /** Per-terrain emissive strength. Anything absent does not glow. */
 const EMISSIVE: Partial<Record<TerrainId, number>> = {
   // The lit strip wraps the whole bulkhead, so it earns the strong one.
-  [Terrain.RuinWall]: 1,
+  [Terrain.RuinWall]: 0.7,
   // Only some plating tiles carry a panel light, so the field as a whole stays faint
   // rather than turning a ruin floor into a lightbox.
-  [Terrain.RuinFloor]: 0.32,
+  [Terrain.RuinFloor]: 0.2,
 };
 
 export class EmissiveLayer {
@@ -78,7 +78,7 @@ export class EmissiveLayer {
     // Softer falloff and a lower peak than the campfire's. A fire is a point and should
     // look like one; a lit panel is an area, and the moment its glow has a findable
     // centre the eye reads that centre as the source instead of the panel.
-    this.texture ??= buildGlowTexture({ radius: GLOW_RADIUS, peak: 0.38, falloff: 1.7 });
+    this.texture ??= buildGlowTexture({ radius: GLOW_RADIUS, peak: 0.24, falloff: 1.7 });
 
     let used = 0;
 
@@ -124,7 +124,7 @@ export class EmissiveLayer {
       // Additive, so a dense ruin reads as brighter rather than as one flat wash.
       sprite.blendMode = 'add';
       sprite.eventMode = 'none';
-      sprite.tint = Palette.relic;
+      sprite.tint = Palette.relicGlow;
       this.pool[index] = sprite;
       this.container.addChild(sprite);
     }

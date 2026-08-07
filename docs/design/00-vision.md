@@ -31,6 +31,18 @@ This is a load-bearing choice, not flavour. It makes every pillar feed the other
   in isometric it sits on the *vertical* faces of standing structures — so intact relic-tech reads
   as lit panels from across the map.
 
+## Relic tech is dim, not powered
+
+The ruins still emit, and that is the hook — but they are **weathered panels that have
+stood in the open for centuries and merely failed to go out**, not equipment somebody
+services. Run the relic cyan at full saturation and the wreckage reads as maintained,
+which quietly contradicts the whole premise: nobody has maintained anything here in a very
+long time, and that is why the top of the crafting ladder can only be *found*.
+
+Concretely, in `render/art/palette.ts`: `relic` is the colour of the material, `relicGlow`
+is the dimmer, less saturated thing it gives off. Ruins should still pull the eye across a
+dark map — findable is the point — but as something guttering rather than something on.
+
 ## Pillars
 
 1. **Emergent labour.** Pawns decide what to do from a priority grid, and it's legible why.

@@ -270,14 +270,16 @@ function drawTopDetail(g: Graphics, id: TerrainId, base: number, rng: Rng): void
 /** Detail on the two vertical faces. Only runs for terrain with height. */
 function drawSideDetail(g: Graphics, id: TerrainId, base: number, depth: number, rng: Rng): void {
   if (id === Terrain.RuinWall) {
-    // The relic strip wraps both faces at a constant height. This is the strongest
-    // saturation anywhere in the terrain set, so intact structures pull the eye across
-    // the whole map — and on a vertical face it finally reads as a lit panel.
+    // The relic strip wraps both faces at a constant height, and is still the most
+    // saturated thing in the terrain set — intact structures should pull the eye across
+    // the map. But *dim*: these are weathered panels that have stood in the open for
+    // centuries and merely failed to go out. Run at full saturation they read as
+    // maintained, and nobody has maintained anything here in a very long time.
     const y = Math.round(depth * 0.45);
-    leftFace(g, y, 3).fill({ color: shade(Palette.relic, -0.28) });
-    rightFace(g, y, 3).fill({ color: Palette.relic });
-    leftFace(g, y + 3, 1).fill({ color: shade(Palette.relic, -0.65) });
-    rightFace(g, y + 3, 1).fill({ color: shade(Palette.relic, -0.55) });
+    leftFace(g, y, 3).fill({ color: shade(Palette.relic, -0.48) });
+    rightFace(g, y, 3).fill({ color: shade(Palette.relic, -0.24) });
+    leftFace(g, y + 3, 1).fill({ color: shade(Palette.relic, -0.72) });
+    rightFace(g, y + 3, 1).fill({ color: shade(Palette.relic, -0.62) });
     return;
   }
 

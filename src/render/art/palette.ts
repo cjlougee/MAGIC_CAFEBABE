@@ -55,6 +55,17 @@ export const Palette = {
   firelight: 0xffb765,
 
   /**
+   * What relic tech still gives off.
+   *
+   * Dimmer and less saturated than `relic`, which is the colour of the *material*. These
+   * are weathered panels that have stood in the open for centuries and somehow have not
+   * gone out — the reading should be "still running", not "switched on this morning". A
+   * bright cyan glow makes ruins look maintained, which is the opposite of the setting:
+   * nobody has maintained anything here in a very long time.
+   */
+  relicGlow: 0x3f9e92,
+
+  /**
    * Multiplied over a structure standing on a cell marked for demolition.
    *
    * A *tint*, not an overlay marker, because designation marks are drawn on the floor
