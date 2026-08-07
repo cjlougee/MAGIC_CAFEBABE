@@ -30,6 +30,34 @@ full colony saves in about 20KB.
 
 Hand-rolled rather than base64 so the format stays readable and depends on nothing.
 
+## Slots
+
+Saves are named, and there can be as many as storage allows. Each occupies **two keys**:
+
+```
+magic-cafebabe:slot:<id>:info    small — name, day, colonists, timestamp
+magic-cafebabe:slot:<id>:data    the colony itself
+```
+
+Split because listing has to read every save's name and day, and parsing a 20KB world to
+render one line would make the menu slower the more you play.
+
+**There is no index key.** The list is derived by scanning for `:info` suffixes, so it
+cannot drift out of step with what is actually stored — an index that disagrees with
+reality is worse than no index. A slot whose data went missing is hidden rather than
+offered, because a save that loads nothing is worse than one that isn't there.
+
+Writes go **data first, then info**: a half-written slot with no info is invisible, where
+info with no data would advertise a save that cannot be loaded. A failed write rolls both
+back.
+
+Saving defaults to creating a *new* slot named after the day, because the common mistake
+is overwriting a colony you wanted to keep. Overwrite is available per-row, where the
+thing being replaced is visible. Deleting takes two clicks — there is no undo.
+
+The pre-naming single-slot key is migrated into a named slot on first listing, so nobody
+loses a colony to an update.
+
 ## Versioning
 
 `SAVE_VERSION` is 1. `migrate.ts` holds a chain of steps, each upgrading by exactly one

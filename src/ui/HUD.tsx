@@ -162,9 +162,10 @@ export function HUD({ store, engine }: HUDProps) {
 
       {showMenu && engine && (
         <MainMenu
+          stats={engine.saveStats()}
           onClose={() => store.update({ showMenu: false })}
-          onSave={() => engine.saveGame()}
-          onLoad={() => engine.loadGame()}
+          onSave={(id, saveName) => engine.saveGame(id, saveName)}
+          onLoad={(id) => engine.loadGame(id)}
           onNewWorld={() => {
             engine.regenerate(Math.floor(Math.random() * 1_000_000));
             store.update({ showMenu: false });

@@ -13,7 +13,7 @@ import type { BuildableId } from '../sim/defs/buildables';
 import type { WorkTypeId } from '../sim/defs/workTypes';
 import { Simulation } from '../sim/simulation';
 import { GameLoop, type GameSpeed } from './gameLoop';
-import { readSave, writeSave } from './saveStorage';
+import { readSave, suggestedName, writeSave, type SaveStats } from './saveStorage';
 import type { UiStore } from './uiStore';
 
 /** How often UI state is republished. 10Hz is imperceptible for a clock readout. */
@@ -135,19 +135,28 @@ export class Engine {
     this.store.update({ snapshot: this.sim.snapshot() });
   }
 
-  /** Writes the colony to storage. Returns false if storage refused it. */
-  saveGame(): boolean {
+  /** Day and headcount, for naming and listing saves. */
+  saveStats(): SaveStats {
     const snapshot = this.sim.snapshot();
-    return writeSave(this.sim.save(), {
+    return {
       day: snapshot.day + 1,
       colonists: snapshot.pawns.filter((pawn) => !pawn.dead).length,
-      savedAt: Date.now(),
-    });
+    };
   }
 
-  /** Restores a colony. Returns false if there was nothing readable to restore. */
-  loadGame(): boolean {
-    const save = readSave();
+  /**
+   * Writes the colony to a slot. Returns false if storage refused it.
+   *
+   * Passing an existing id overwrites that slot; a fresh one from `newSlotId()` creates
+   * a new save. The engine doesn't decide which — the menu does.
+   */
+  saveGame(id: string, name: string): boolean {
+    return writeSave(id, name.trim() || suggestedName(this.saveStats()), this.sim.save(), this.saveStats());
+  }
+
+  /** Restores a colony. Returns false if the slot was missing or unreadable. */
+  loadGame(id: string): boolean {
+    const save = readSave(id);
     if (!save) return false;
 
     this.sim.load(save);

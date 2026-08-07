@@ -99,8 +99,9 @@ See [`design/05-construction-and-rooms.md`](design/05-construction-and-rooms.md)
 ### M5 — Save/load & the survival test
 - [x] Serialization to plain JSON, RLE-compressed terrain (~20KB per colony)
 - [x] Version field and a migration chain that upgrades one step at a time
-- [x] `localStorage` slot, owned by `app/` because `sim/` must stay headless
-- [x] Pause menu: resume / save / load / start over, on `Esc`
+- [x] Named save slots in `localStorage`, owned by `app/` because `sim/` must stay headless
+- [x] Pause menu with a save browser: name and create, load, overwrite, delete; the
+      pre-naming single-slot save is migrated rather than lost
 - [x] Headless **survive-a-week** regression test
 - [x] Save mid-week, reload, finish the week — bit-identical to an uninterrupted run
 - **Playable check:** ✅ save, play on, load, and the colony is exactly as you left it.
@@ -157,7 +158,7 @@ mood bonus, and nothing to spend materials on. Ranked by what unlocks the most:
   weather would need real roofs.
 - **`lookup.ts` scans linearly** over buildings and sites. Fine at dozens, not at
   thousands — when it matters, put the index *inside* the store so it cannot desync.
-- **One save slot.** Multiple slots are a UI change, not a technical one.
+- **No save thumbnails or autosave.** Saving is manual and the list shows text only.
 - **Verticality is reserved, not built.** See ADR 0003; the data model takes a `z` today.
 - **No sound, no main-menu-before-game, no settings.**
 

@@ -660,6 +660,122 @@ body {
   color: var(--c-textDim);
 }
 
+.menu__button--compact {
+  padding: 7px 11px;
+  white-space: nowrap;
+}
+
+.menu__save-row {
+  display: flex;
+  gap: 6px;
+}
+
+.menu__input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-void) 45%, transparent);
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 5px;
+}
+
+.menu__input:focus {
+  outline: none;
+  border-color: var(--c-relic);
+}
+
+.menu__subhead {
+  margin: 10px 0 2px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-textDim);
+}
+
+.menu__footer {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.menu__footer .menu__button {
+  flex: 1;
+  text-align: center;
+}
+
+.slots {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.slot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  background: color-mix(in srgb, var(--c-panelEdge) 40%, transparent);
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 5px;
+}
+
+.slot__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.slot__name {
+  font-size: 12px;
+  color: var(--c-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slot__detail {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--c-textDim);
+}
+
+.slot__actions {
+  display: flex;
+  gap: 3px;
+}
+
+.slot__action {
+  padding: 4px 7px;
+  font-size: 10px;
+  color: var(--c-textDim);
+  background: transparent;
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.slot__action:hover {
+  color: var(--c-text);
+  border-color: var(--c-relic);
+}
+
+.slot__action--danger:hover,
+.slot__action.is-confirming {
+  color: var(--c-danger);
+  border-color: var(--c-danger);
+}
+
 /* ── Footer hint ──────────────────────────────────────────────────────────── */
 
 .controls-hint {
