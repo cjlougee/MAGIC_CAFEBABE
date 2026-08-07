@@ -120,6 +120,9 @@ const ACTIVITY_LABELS: Record<string, string> = {
   eat: 'eating',
   sleep: 'sleeping',
   wander: 'wandering',
+  deliver: 'hauling materials',
+  construct: 'building',
+  deconstruct: 'deconstructing',
 };
 
 /** Short label for the UI. Not for logic — nothing should branch on a display string. */

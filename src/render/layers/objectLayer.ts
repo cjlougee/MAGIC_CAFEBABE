@@ -18,8 +18,10 @@ import { TERRAIN_DEFS } from '../../sim/defs/terrain';
 import { isOnGround } from '../../sim/entities/item';
 import { pawnVisualPos, type Pawn, type PawnAppearance } from '../../sim/entities/pawn';
 import { ripeness } from '../../sim/entities/plant';
+import { Designation } from '../../sim/world/designations';
 import type { World } from '../../sim/world/world';
 import type { ArtProvider } from '../art/artProvider';
+import { Palette } from '../art/palette';
 import { buildProgress } from '../../sim/entities/constructionSite';
 import { BUILDING_HEIGHT, siteStageFor } from '../art/buildingArt';
 import { ITEM_GROUND_Y, ITEM_H, ITEM_W } from '../art/itemArt';
@@ -113,6 +115,21 @@ export class ObjectLayer {
 
       const sprite = this.fromPool(this.buildingPool, used++, 0, 0);
       sprite.texture = this.art.building(building.def);
+
+      /*
+       * Marked-for-demolition is shown *on the structure*, because it cannot be shown
+       * under it. Designation marks belong to OverlayLayer, which sits below objects so
+       * that pawns and walls cover the floor — which meant a wall completely hid its own
+       * mark, and marking one gave the player no feedback whatsoever. Floors, being flat,
+       * were fine; buildings are what the tool is mostly aimed at.
+       *
+       * Assigned on both branches, never just the marked one: these sprites are pooled
+       * and recycled, so an unmarked building would inherit the last tenant's red.
+       */
+      const index = world.map.idx(building.pos.x, building.pos.y, building.pos.z);
+      sprite.tint = world.designations.has(Designation.Deconstruct, index)
+        ? Palette.markedForDeconstruct
+        : 0xffffff;
       // Same offset rule as raised terrain: the texture's base diamond sits `height`
       // pixels down from its top edge, so the footprint lands on the ground plane.
       sprite.position.set(at.x - HALF_TILE_W, at.y - HALF_TILE_H - height);

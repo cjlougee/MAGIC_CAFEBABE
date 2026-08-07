@@ -19,6 +19,11 @@ interface ToolOption {
 const TOOLS: readonly ToolOption[] = [
   { tool: 'select', label: 'Select', hint: 'Click a colonist, right-click to send them (Esc)' },
   { tool: 'mine', label: 'Mine', hint: 'Drag over rock or bulkheads to mark them for mining' },
+  {
+    tool: 'deconstruct',
+    label: 'Deconstruct',
+    hint: 'Drag over finished walls, doors, or floors to have them taken down for half their materials',
+  },
   { tool: 'stockpile', label: 'Stockpile', hint: 'Drag to mark where loose items should be stored' },
   { tool: 'erase', label: 'Erase', hint: 'Drag to clear designations, stockpiles, and blueprints' },
 ];

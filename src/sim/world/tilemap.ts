@@ -32,6 +32,20 @@ export class TileMap {
 
   /** TerrainId per cell. */
   readonly terrain: Uint8Array;
+
+  /**
+   * The ground underneath any surface the colony has laid down.
+   *
+   * Equal to `terrain` everywhere except where a floor has been built. It exists so
+   * deconstruction can put back what was there instead of *guessing* — the same reason
+   * `buildingBlocks` is kept out of `walkCost`. Without it, lifting a floor laid on sand
+   * would have to invent an answer, and "invent an answer" is how a map slowly stops
+   * matching the world it was generated from.
+   *
+   * Not derivable, so it is saved. A stone floor tells you nothing about what it covers.
+   */
+  readonly naturalTerrain: Uint8Array;
+
   /** Movement cost per cell; IMPASSABLE (0) means blocked. Derived from terrain. */
   readonly walkCost: Uint8Array;
 
@@ -67,10 +81,12 @@ export class TileMap {
     this.size = this.layerSize * levels;
 
     this.terrain = new Uint8Array(this.size);
+    this.naturalTerrain = new Uint8Array(this.size);
     this.walkCost = new Uint8Array(this.size);
     this.buildingBlocks = new Uint8Array(this.size);
     this.buildingSealsRoom = new Uint8Array(this.size);
     this.terrain.fill(Terrain.Dirt);
+    this.naturalTerrain.fill(Terrain.Dirt);
     this.walkCost.fill(TERRAIN_DEFS[Terrain.Dirt].walkCost);
   }
 
@@ -138,6 +154,11 @@ export class TileMap {
     this.setTerrainAt(this.idx(x, y, z), id);
   }
 
+  /** What lies under any constructed surface. Equals `terrainAt` on untouched ground. */
+  naturalTerrainAt(index: number): TerrainId {
+    return this.naturalTerrain[index] as TerrainId;
+  }
+
   /**
    * Terrain by flat index. Exists so callers that already computed an index (render
    * layers walking a viewport, pathfinding walking neighbours) don't pay for idx()
@@ -148,7 +169,25 @@ export class TileMap {
     return this.terrain[index] as TerrainId;
   }
 
+  /**
+   * The ground itself changed — worldgen deciding it, or mining cutting through it.
+   *
+   * Updates the remembered natural ground with it, because mined-out rock does not come
+   * back. Contrast `setSurfaceAt`, which lays something *over* the ground.
+   */
   setTerrainAt(index: number, id: TerrainId): void {
+    this.naturalTerrain[index] = id;
+    this.setSurfaceAt(index, id);
+  }
+
+  /**
+   * A constructed surface laid over the natural ground, or lifted back off it.
+   *
+   * Leaves `naturalTerrain` alone, which is the whole point: building a floor on sand
+   * and then deconstructing it must give sand back, not whatever default we'd otherwise
+   * have had to pick.
+   */
+  setSurfaceAt(index: number, id: TerrainId): void {
     if (this.terrain[index] === id) return;
     this.terrain[index] = id;
     this.walkCost[index] = TERRAIN_DEFS[id].walkCost;

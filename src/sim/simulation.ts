@@ -32,7 +32,12 @@ import { PRIORITY_DISABLED, PRIORITY_LOWEST, WORK_TYPE_COUNT } from './defs/work
 import { deserializeWorld, serializeWorld, type SaveData } from './save/serialize';
 import { buildSnapshot, type SimSnapshot } from './snapshot';
 import { Designation } from './world/designations';
-import { canDesignateMine, canPlaceBlueprint, canPlaceStockpile } from './world/placement';
+import {
+  canDesignateDeconstruct,
+  canDesignateMine,
+  canPlaceBlueprint,
+  canPlaceStockpile,
+} from './world/placement';
 import { createWorld, type World, type WorldOptions } from './world/world';
 
 export interface SimulationOptions extends WorldOptions {
@@ -207,12 +212,24 @@ export class Simulation {
     this.forEachCell(command.area, (index) => {
       if (command.action === 'cancel') {
         world.designations.remove(Designation.Mine, index);
+        // Clearing a demolition mark is undoing a mark, so it belongs here. Erase never
+        // takes down anything finished — a standing wall is not a mark.
+        world.designations.remove(Designation.Deconstruct, index);
         // Erasing should undo whatever the player put here, including a blueprint they
         // no longer want — with the delivered materials handed back.
         const site = siteAt(world, index);
         if (site) cancelConstruction(world, site);
         return;
       }
+
+      if (command.action === 'deconstruct') {
+        // Marking natural rock or an empty field would create work no colonist can do
+        // and a mark the player can't explain.
+        if (!canDesignateDeconstruct(world, index)) return;
+        world.designations.add(Designation.Deconstruct, index);
+        return;
+      }
+
       // Marking open ground would create work that can never be completed and a
       // designation the player can't explain.
       if (!canDesignateMine(world.map, index)) return;

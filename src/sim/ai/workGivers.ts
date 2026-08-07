@@ -22,7 +22,9 @@ import {
 import { isOnGround, type Item } from '../entities/item';
 import type { Pawn } from '../entities/pawn';
 import { isRipe, type Plant } from '../entities/plant';
+import { builtHere } from '../world/construction';
 import { Designation } from '../world/designations';
+import { buildingAt } from '../world/lookup';
 import type { World } from '../world/world';
 import type { Job } from './job';
 import { bestAdjacentCell } from './toils';
@@ -213,6 +215,48 @@ const ConstructGiver: WorkGiver = {
 };
 
 /**
+ * Taking down what the colony put up.
+ *
+ * A second giver under **Construct**: the player schedules "who builds things", and
+ * unbuilding is that same skill. Listed after ConstructGiver so a colony with both
+ * queued finishes what it started before tearing anything down — a half-built wall left
+ * standing while colonists demolish elsewhere looks like the orders were ignored.
+ */
+const DeconstructGiver: WorkGiver = {
+  id: 'deconstruct',
+  workType: WorkType.Construct,
+
+  tryGiveJob(world, pawn) {
+    let best: TilePos | null = null;
+    let bestDistance = Infinity;
+
+    for (const index of world.designations.cells(Designation.Deconstruct)) {
+      if (!world.reservations.canReserveCell(index, pawn.id)) continue;
+
+      // The designation may outlive the structure — someone else may have taken it down
+      // already, or an unfinished site may have been erased out from under the mark.
+      if (builtHere(world, index) === undefined) continue;
+
+      const building = buildingAt(world, index);
+      if (building && !world.reservations.canReserveEntity(building.id, pawn.id)) continue;
+
+      const cell = cellOf(world, index);
+      const distance = roughDistance(pawn.pos, cell);
+      if (distance >= bestDistance) continue;
+
+      // Reachability last: the most expensive check, so only pay it for a candidate
+      // that would actually win.
+      if (!bestAdjacentCell(world, cell, pawn.pos)) continue;
+
+      bestDistance = distance;
+      best = cell;
+    }
+
+    return best ? { kind: 'deconstruct', cell: best } : null;
+  },
+};
+
+/**
  * Materials to blueprints.
  *
  * A second giver under **Haul**, not a work type of its own: the player schedules "who
@@ -260,6 +304,7 @@ const DeliverGiver: WorkGiver = {
 export const WORK_GIVERS: readonly WorkGiver[] = [
   HarvestGiver,
   ConstructGiver,
+  DeconstructGiver,
   DeliverGiver,
   MineGiver,
   HaulGiver,

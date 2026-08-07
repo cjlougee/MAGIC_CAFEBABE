@@ -41,10 +41,16 @@ export interface TileRectangle {
   readonly z: number;
 }
 
-/** Marks cells for mining, or clears existing marks. */
+/**
+ * Marks cells for work, or clears existing marks.
+ *
+ * `cancel` removes *marks* — including a blueprint, which is only a mark until someone
+ * builds it. It never takes down anything finished; that is what `deconstruct` marks a
+ * colonist to go and do.
+ */
 export interface DesignateCommand {
   readonly type: 'designate';
-  readonly action: 'mine' | 'cancel';
+  readonly action: 'mine' | 'deconstruct' | 'cancel';
   readonly area: TileRectangle;
 }
 

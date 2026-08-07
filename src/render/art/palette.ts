@@ -43,6 +43,16 @@ export const Palette = {
 
   /** Colour the world is tinted toward at full night. */
   nightTint: 0x2a3f66,
+
+  /**
+   * Multiplied over a structure standing on a cell marked for demolition.
+   *
+   * A *tint*, not an overlay marker, because designation marks are drawn on the floor
+   * and objects cover them — so a wall hid its own mark completely and the player got no
+   * answer at all to "did that order take?". Kept pale enough to stay recognisably a
+   * wall, and pushed toward `danger` so it reads as the same warning the floor mark uses.
+   */
+  markedForDeconstruct: 0xe09b96,
 } as const;
 
 export type PaletteColor = (typeof Palette)[keyof typeof Palette];

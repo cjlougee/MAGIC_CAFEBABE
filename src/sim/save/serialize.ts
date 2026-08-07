@@ -37,7 +37,7 @@ import type { World } from '../world/world';
 import { Zones } from '../world/zones';
 
 /** Bumped whenever the save shape changes. See migrate.ts. */
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 // ── Run-length encoding for the map grids ───────────────────────────────────────
 // Terrain is enormously repetitive — long runs of the same value — so RLE turns tens of
@@ -113,6 +113,11 @@ export interface SaveData {
     readonly height: number;
     readonly levels: number;
     readonly terrain: number[];
+    /**
+     * The ground under any constructed floor. Not derivable from `terrain` — a stone
+     * floor says nothing about what it covers — so unlike walkCost it has to be stored.
+     */
+    readonly natural: number[];
     readonly blocks: number[];
     readonly seals: number[];
   };
@@ -140,6 +145,7 @@ export interface SaveData {
   }[];
   readonly nextSiteId: number;
   readonly mineDesignations: number[];
+  readonly deconstructDesignations: number[];
   readonly stockpiles: number[];
   readonly reservations: ReservationSave;
 }
@@ -157,6 +163,7 @@ export function serializeWorld(world: World): SaveData {
       height: world.map.height,
       levels: world.map.levels,
       terrain: encodeRle(world.map.terrain),
+      natural: encodeRle(world.map.naturalTerrain),
       blocks: encodeRle(world.map.buildingBlocks),
       seals: encodeRle(world.map.buildingSealsRoom),
     },
@@ -213,6 +220,7 @@ export function serializeWorld(world: World): SaveData {
     })),
     nextSiteId: world.sites.nextIdForSave,
     mineDesignations: [...world.designations.cells(Designation.Mine)],
+    deconstructDesignations: [...world.designations.cells(Designation.Deconstruct)],
     stockpiles: [...world.zones.stockpiles],
     reservations: world.reservations.save(),
   };
@@ -221,6 +229,7 @@ export function serializeWorld(world: World): SaveData {
 export function deserializeWorld(save: SaveData): World {
   const map = new TileMap(save.map.width, save.map.height, save.map.levels);
   map.terrain.set(decodeRle(save.map.terrain, map.size));
+  map.naturalTerrain.set(decodeRle(save.map.natural, map.size));
   map.buildingBlocks.set(decodeRle(save.map.blocks, map.size));
   map.buildingSealsRoom.set(decodeRle(save.map.seals, map.size));
   // walkCost is derived, so rebuild it rather than trusting a saved copy to agree.
@@ -282,6 +291,9 @@ export function deserializeWorld(save: SaveData): World {
 
   const designations = new Designations();
   for (const cell of save.mineDesignations) designations.add(Designation.Mine, cell);
+  for (const cell of save.deconstructDesignations) {
+    designations.add(Designation.Deconstruct, cell);
+  }
 
   const zones = new Zones();
   for (const cell of save.stockpiles) zones.addStockpile(cell);

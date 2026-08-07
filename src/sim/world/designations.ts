@@ -9,6 +9,8 @@
 
 export const Designation = {
   Mine: 0,
+  /** Take down something the colony built, salvaging part of what it cost. */
+  Deconstruct: 1,
 } as const;
 
 export type DesignationKind = (typeof Designation)[keyof typeof Designation];

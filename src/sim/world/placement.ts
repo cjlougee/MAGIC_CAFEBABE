@@ -10,6 +10,7 @@
  * shallow ford but must not leave a crate in it. See docs/decisions/0004-water.md.
  */
 
+import { buildableProducing, buildableProducingTerrain } from '../defs/buildables';
 import { isMineable } from '../defs/terrain';
 import { buildingAt, siteAt } from './lookup';
 import type { TileMap } from './tilemap';
@@ -18,6 +19,26 @@ import type { World } from './world';
 /** Rock and bulkheads can be cut; open ground and water cannot. */
 export function canDesignateMine(map: TileMap, cellIndex: number): boolean {
   return isMineable(map.terrainAt(cellIndex));
+}
+
+/**
+ * You may take down what the colony put up, and nothing else.
+ *
+ * The rule is "something a blueprint produced", not "something solid", which settles
+ * three questions at once. Natural rock is mined, not deconstructed — it has no
+ * blueprint and so no cost to refund. Bedrolls came with the landing party, so they
+ * aren't in the list either. And a finished wall and a half-built one are different
+ * tools: an unbuilt site is a *mark*, cleared instantly by Erase, while a standing wall
+ * is real and costs labour to remove.
+ */
+export function canDesignateDeconstruct(world: World, cellIndex: number): boolean {
+  // A site here means the structure isn't finished yet — that's Erase's job, not this.
+  if (siteAt(world, cellIndex)) return false;
+
+  const building = buildingAt(world, cellIndex);
+  if (building) return buildableProducing(building.def) !== undefined;
+
+  return buildableProducingTerrain(world.map.terrainAt(cellIndex)) !== undefined;
 }
 
 /**

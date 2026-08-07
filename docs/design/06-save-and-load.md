@@ -60,13 +60,21 @@ loses a colony to an update.
 
 ## Versioning
 
-`SAVE_VERSION` is 1. `migrate.ts` holds a chain of steps, each upgrading by exactly one
+`SAVE_VERSION` is 2. `migrate.ts` holds a chain of steps, each upgrading by exactly one
 version and never skipping — a sequence of small, individually-obvious transforms stays
 reviewable where one "handle any old shape" function does not.
 
-There is nothing to migrate yet. The machinery exists anyway, because the alternative is
-discovering you need it *after* shipping a format, when every existing colony is already
-unreadable.
+**v1 → v2** adds the `naturalTerrain` grid that deconstruction needs (see
+[design/05](05-construction-and-rooms.md)). v1 never recorded what a floor was laid over,
+so for those saves it has to be guessed: everything reverts to itself except a stone floor,
+which becomes dirt. The guess is made exactly once, in the step, rather than at every call
+site forever after — and making it at all is what lets an old floor actually come up
+instead of silently refusing to move.
+
+**A step must never import a live definition** — no `Terrain.StoneFloor`, no
+`ITEM_DEFS.length`. Those describe the game as it is *now*; a migration describes a file as
+it was *then*. Renumber the terrain table and every step that reached for a live constant
+starts quietly misreading old saves. Freeze the literal in the step and say what it was.
 
 A save from a **newer** build is refused rather than guessed at. Loading one
 half-understood would corrupt a colony instead of declining it.

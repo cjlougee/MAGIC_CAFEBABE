@@ -17,6 +17,7 @@ import { buildBuildingGraphics, buildSiteGraphics } from './buildingArt';
 import { buildItemGraphics } from './itemArt';
 import { buildPlantGraphics } from './plantArt';
 import {
+  buildDeconstructMarkerGraphics,
   buildMineMarkerGraphics,
   buildPreviewGraphics,
   buildStockpileGraphics,
@@ -79,6 +80,10 @@ export class ArtProvider {
 
   mineMarker(): Texture {
     return this.cached('ui:mine', buildMineMarkerGraphics);
+  }
+
+  deconstructMarker(): Texture {
+    return this.cached('ui:deconstruct', buildDeconstructMarkerGraphics);
   }
 
   previewTile(): Texture {

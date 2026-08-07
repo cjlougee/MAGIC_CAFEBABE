@@ -61,6 +61,9 @@ export function hashWorld(world: World): string {
   h = mixInt32(h, world.map.height);
   h = mixInt32(h, world.map.levels);
   h = mixBytes(h, world.map.terrain);
+  // Saved, so hashed. It cannot be derived from terrain — that is the whole reason it
+  // exists — so leaving it out would let a floor's foundation change unnoticed.
+  h = mixBytes(h, world.map.naturalTerrain);
 
   // Pawns, in the entity store's insertion order — which is stable, and part of what
   // determinism means here. Derived indices (pathfinder scratch, reachability
@@ -155,6 +158,7 @@ export function hashWorld(world: World): string {
   }
 
   for (const cell of world.designations.cells(Designation.Mine)) h = mixInt32(h, cell);
+  for (const cell of world.designations.cells(Designation.Deconstruct)) h = mixInt32(h, cell);
   for (const cell of world.zones.stockpiles) h = mixInt32(h, cell);
 
   h = mixInt32(h, world.landingSite.x);

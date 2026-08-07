@@ -39,6 +39,65 @@ mean deconstructing it had to *guess* what the ground underneath used to be. And
 is separate from sealing because **a door is walkable and still seals a room** — without
 that split, a house with a door has no interior, which is the whole point of building one.
 
+## Taking it back down
+
+`Erase` clears *marks* — a designation, a stockpile, an unbuilt blueprint. It never
+touches anything finished, or a drag across the base to tidy up zones would quietly
+demolish the base. Removing a standing structure is real work with a real cost, so it gets
+its own designation, its own giver under **Construct**, and a driver that ends by
+salvaging part of what it cost.
+
+```
+mark for deconstruct  →  Construct does the labour  →  it is gone, half the cost back
+```
+
+**Half, rounded down.** Rounding *up* would let a player build and deconstruct in a loop
+to manufacture materials out of labour. A one-stone building refunds nothing, which is the
+right answer to "what is half of one".
+
+**The refund reads the original cost list** rather than a separate yield declared on the
+building. One number in one place, so a wall's price and its salvage cannot drift apart
+when the price changes.
+
+**You may only take down what the colony put up.** The rule is "something a blueprint
+produced", not "something solid", and it settles three questions at once: natural rock is
+*mined* (no blueprint, so no cost to refund), bedrolls arrived with the landing party, and
+a half-built wall is a mark rather than a structure — that is Erase's job, and it is
+instant.
+
+The giver is listed *after* `ConstructGiver`, so a colony with both queued finishes what it
+started before tearing anything down. A half-built wall left standing while colonists
+demolish elsewhere looks like the build order was ignored.
+
+### Floors remember what they were laid on
+
+A floor overwrites the surface, so `TileMap` carries a fourth grid:
+
+| Grid | Question |
+|---|---|
+| `naturalTerrain` | What is the ground *under* any surface we laid? |
+
+Without it, lifting a floor would have to invent an answer, and the map would slowly stop
+matching the world it was generated from — lay a floor on sand, remove it, get dirt. The
+distinction is carried by two setters that are easy to confuse and must not be:
+
+- `setTerrainAt` — **the ground itself changed.** Worldgen deciding it, or mining cutting
+  through it. Updates `naturalTerrain` as well, because mined-out rock does not come back.
+- `setSurfaceAt` — **something laid over the ground, or lifted back off it.** Leaves
+  `naturalTerrain` untouched.
+
+It is not derivable from `terrain` — a stone floor says nothing about what it covers — so
+unlike `walkCost` it has to be saved, and it is why the save format went to version 2.
+
+### A mark on a wall has to be drawn on the wall
+
+Designation marks live in `OverlayLayer`, which sits *below* objects so pawns and walls
+cover the floor. That is right for mining and stockpiles and exactly wrong here: a wall hid
+its own mark completely, so marking one gave the player no feedback at all — the order had
+registered, and nothing on screen said so. Buildings marked for demolition are therefore
+**tinted**, in the object layer, where nothing can cover them. Floors, being flat, keep the
+ordinary floor marker.
+
 ## Rooms
 
 A flood fill over open ground, stopping at anything that seals. A space is a room when

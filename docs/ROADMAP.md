@@ -91,8 +91,15 @@ See [`design/04-needs-and-mood.md`](design/04-needs-and-mood.md).
 - [x] Cancelling a blueprint refunds delivered materials
 - [x] Harvest stops at a ~3-day food buffer — without it colonists harvest forever and
       never mine or build anything
+- [x] **Deconstruction** — a designation, a second giver under Construct, and a driver
+      that salvages half the original cost, rounded down. Added after Slice 1 closed,
+      because until it existed a misplaced building was permanent. Brought a
+      `naturalTerrain` grid with it (a floor has to give back the ground it was laid on)
+      and with that the first real link in the save migration chain, v1 → v2.
 - **Playable check:** ✅ order a hut; colonists deliver stone, raise the walls, hang the
   door, and the inside registers as a room — asserted headless in `tests/construction.test.ts`.
+  Then mark it and walk away, and they take it down again for half the stone back —
+  `tests/deconstruction.test.ts`, and watched in-browser.
 
 See [`design/05-construction-and-rooms.md`](design/05-construction-and-rooms.md).
 
@@ -141,21 +148,23 @@ mood bonus, and nothing to spend materials on. Ranked by what unlocks the most:
 
 ### Next, in order
 
-1. **Deconstruction.** The only obvious hole in M4. `Erase` cancels blueprints but cannot
-   remove a finished wall, so a misplaced building is permanent. Small: a designation, a
-   giver under Construct, and a driver that refunds half the cost.
-2. **Slice 2 — production.** The largest unlock. Workbenches with **bills** ("cook until
+1. **Slice 2 — production.** The largest unlock. Workbenches with **bills** ("cook until
    10 meals"), which is the system cooking was deferred for, plus the *scrap → refined →
    relic-tech* ladder that gives mining a point beyond walls. Brings the per-cell light
    grid with campfires.
-3. **Slice 3 — threat.** Raids give walls a reason to exist and the event director gives
+2. **Slice 3 — threat.** Raids give walls a reason to exist and the event director gives
    the colony a shape over time. The `hediff` array on pawns is already there waiting.
+
+*Deconstruction is done* — it was the obvious hole in M4 and is ticked off there.
 
 ### Known gaps, honestly
 
-- **No deconstruction** (above).
 - **No roofs.** "Indoors" means enclosed-by-something-built. Fine now; temperature or
   weather would need real roofs.
+- **A mine mark on rock is nearly invisible.** Designations draw on the ground plane, and
+  rock is raised, so the mark sits at the base of the block it refers to. Deconstruction
+  hit the same wall and solved it for *buildings* by tinting them; mining has no
+  equivalent yet, and the honest fix is probably the same one.
 - **`lookup.ts` scans linearly** over buildings and sites. Fine at dozens, not at
   thousands — when it matters, put the index *inside* the store so it cannot desync.
 - **No save thumbnails or autosave.** Saving is manual and the list shows text only.
@@ -172,15 +181,26 @@ watching the game. Budget for looking at it.
 | Cached ground layer | Mined rock left black holes in the map |
 | Colonists eating one berry per trip | "Eats when hungry" was *technically* true |
 | Deliverers entombed in walls | Seven of sixteen walls silently never built |
+| Landing site scored by `isPassable` | The party landed in the middle of a lake |
+| A deconstruct mark drawn under the wall | Marking a wall showed the player nothing at all |
+
+The landing-site one is the sharpest example so far of a rule being right and applied to
+the wrong question. Openness was measured with `isPassable`, and shallow water is passable
+— so an open lake scored *maximum* openness, and the heuristic written to avoid the worst
+possible site went looking for the second worst. Nothing is storable there, so the bedrolls
+the party carried were silently never placed and everyone slept rough for the rest of the
+game with a permanent mood penalty and no visible cause. Three of thirty-one sampled seeds.
+Both halves are now swept across seeds in `tests/water.test.ts`, because a single lucky
+seed passing is exactly how it survived a green suite the first time.
 
 ### Where the load-bearing knowledge lives
 
 - **`CLAUDE.md`** — the three enforcement rules and the invariants that fail silently.
   Read first.
 - **`.claude/skills/add-work-type`** — the checklist for a new kind of colonist work.
-  Written after M2 from real code, extended by M3 and M4.
-- **`docs/decisions/`** — five ADRs covering the stack, the projection, verticality,
-  water, and controls.
+  Written after M2 from real code, extended by M3, M4, and deconstruction.
+- **`docs/decisions/`** — six ADRs covering the stack, the projection, verticality,
+  water, controls, and deconstruction.
 
 ## Verticality — reserved, not built
 

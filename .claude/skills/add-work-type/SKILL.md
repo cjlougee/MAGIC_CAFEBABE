@@ -60,6 +60,12 @@ Use the `asMine`/`asHaul` narrowing-helper pattern: a driver is only ever run fo
 job kind, so a mismatch is a wiring bug and should throw rather than silently read
 `undefined`.
 
+**Address the job by cell when the target might be either an entity or terrain.**
+Deconstruction removes a wall (an entity) or a floor (terrain), and only a `TilePos`
+describes both. The driver re-resolves what stands there each tick, so the job cannot go
+stale against a world that changed under it — which also means the reservation toil has to
+look the target up rather than read an id out of the job.
+
 ### 5. Wire the command, if the player triggers it
 
 Add to the `Command` union in `src/sim/core/commands.ts` and handle it in
@@ -96,6 +102,12 @@ Add to the `Command` union in `src/sim/core/commands.ts` and handle it in
   command handler. The drag preview reads the same predicates, and if they drift the
   preview promises something the simulation then refuses — which reads to the player as
   the click not registering.
+- **Check that the player can actually see the mark they just made.** Designation markers
+  are drawn by `OverlayLayer`, which sits *below* the object layer so pawns and walls
+  cover the floor. If your work targets something that draws in the object layer, the
+  target hides its own mark and the tool gives no feedback at all — the order registers,
+  work queues, and nothing on screen says so. Deconstruction tints the building instead.
+  This is invisible to tests and takes about ten seconds to catch by looking.
 
 ## If the work serves a need rather than the player
 

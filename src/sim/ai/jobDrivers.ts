@@ -7,16 +7,16 @@
  */
 
 import type { TilePos } from '../core/position';
-import { buildableDef } from '../defs/buildables';
+import { buildableDef, deconstructWork } from '../defs/buildables';
 import { NUTRITION_PER_RAW_FOOD } from '../defs/needs';
 import { plantDef } from '../defs/plants';
 import { terrainDef } from '../defs/terrain';
 import { Thought } from '../defs/thoughts';
 import { hasAllMaterials, outstanding } from '../entities/constructionSite';
 import { isRipe } from '../entities/plant';
-import { completeConstruction } from '../world/construction';
+import { builtHere, completeConstruction, deconstruct } from '../world/construction';
 import { Designation } from '../world/designations';
-import { pawnOccupies } from '../world/lookup';
+import { buildingAt, pawnOccupies } from '../world/lookup';
 import type { Job, JobKind } from './job';
 import { addThought } from './mood';
 import { consumeFood } from './needs';
@@ -74,6 +74,11 @@ function asDeliver(job: Job) {
 
 function asConstruct(job: Job) {
   if (job.kind !== 'construct') throw new Error(`Expected a construct job, got ${job.kind}`);
+  return job;
+}
+
+function asDeconstruct(job: Job) {
+  if (job.kind !== 'deconstruct') throw new Error(`Expected a deconstruct job, got ${job.kind}`);
   return job;
 }
 
@@ -262,6 +267,54 @@ const CONSTRUCT_TOILS: readonly Toil[] = [
   }),
 ];
 
+function deconstructTargetIndex(ctx: ToilContext): number {
+  const cell = asDeconstruct(ctx.job).cell;
+  return ctx.world.map.idx(cell.x, cell.y, cell.z);
+}
+
+/**
+ * Taking a finished structure back down.
+ *
+ * Needs no `canProgress` guard, unlike its opposite number: deconstruction only ever
+ * *adds* passability. A wall's cell opens up, and a floor reverts to the ground beneath
+ * it — which was walkable, or the floor could never have been placed there. So nobody
+ * can be sealed in by this, which is the one failure severe enough that CONSTRUCT_TOILS
+ * has to wait for it.
+ */
+const DECONSTRUCT_TOILS: readonly Toil[] = [
+  toilReserveCell((job) => asDeconstruct(job).cell),
+  // Claims the structure itself as well as its cell. Those are different keys, and a
+  // colonist asleep in a bed holds the *entity* — without this, someone could dismantle
+  // the bed out from under them.
+  toilReserveEntity(
+    (job, world) => {
+      const cell = asDeconstruct(job).cell;
+      return buildingAt(world, world.map.idx(cell.x, cell.y, cell.z))?.id ?? null;
+    },
+    (ctx, id) => ctx.world.buildings.get(id) !== undefined,
+  ),
+  toilWalkAdjacentTo((job) => asDeconstruct(job).cell),
+  toilWork({
+    besides: (job) => asDeconstruct(job).cell,
+    workNeeded: (ctx) => {
+      const buildable = builtHere(ctx.world, deconstructTargetIndex(ctx));
+      return buildable === undefined ? 0 : deconstructWork(buildable);
+    },
+
+    // Re-checked every tick: another colonist may have finished the demolition, or the
+    // player may have cleared the mark while this one was walking over.
+    stillValid: (ctx) => {
+      const index = deconstructTargetIndex(ctx);
+      if (!ctx.world.designations.has(Designation.Deconstruct, index)) return false;
+      return builtHere(ctx.world, index) !== undefined;
+    },
+
+    complete: (ctx) => {
+      deconstruct(ctx.world, deconstructTargetIndex(ctx));
+    },
+  }),
+];
+
 const DRIVERS: Record<JobKind, readonly Toil[]> = {
   mine: MINE_TOILS,
   haul: HAUL_TOILS,
@@ -271,6 +324,7 @@ const DRIVERS: Record<JobKind, readonly Toil[]> = {
   wander: WANDER_TOILS,
   deliver: DELIVER_TOILS,
   construct: CONSTRUCT_TOILS,
+  deconstruct: DECONSTRUCT_TOILS,
 };
 
 export function driverFor(kind: JobKind): readonly Toil[] {

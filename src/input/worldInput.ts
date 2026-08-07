@@ -20,7 +20,7 @@ import { normaliseRect, type Command } from '../sim/core/commands';
 import { GROUND_LEVEL, type TilePos } from '../sim/core/position';
 import type { World } from '../sim/world/world';
 
-export type Tool = 'select' | 'mine' | 'stockpile' | 'erase' | 'build';
+export type Tool = 'select' | 'mine' | 'deconstruct' | 'stockpile' | 'erase' | 'build';
 
 /**
  * Pointer travel, in pixels, above which a press counts as a drag rather than a click.
@@ -159,6 +159,9 @@ export class WorldInput {
     switch (this.tool) {
       case 'mine':
         this.handlers.dispatch({ type: 'designate', action: 'mine', area });
+        break;
+      case 'deconstruct':
+        this.handlers.dispatch({ type: 'designate', action: 'deconstruct', area });
         break;
       case 'stockpile':
         this.handlers.dispatch({ type: 'zone', action: 'stockpile', area });

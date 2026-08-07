@@ -23,7 +23,7 @@ How to find things, and where new writing belongs.
 | [`02-pawns-and-movement.md`](design/02-pawns-and-movement.md) | Pawns, A\*, reachability, occlusion |
 | [`03-work-and-jobs.md`](design/03-work-and-jobs.md) | The job pipeline — the deepest system here |
 | [`04-needs-and-mood.md`](design/04-needs-and-mood.md) | Needs, thoughts, mood, mental breaks |
-| [`05-construction-and-rooms.md`](design/05-construction-and-rooms.md) | Blueprints, walls, room detection |
+| [`05-construction-and-rooms.md`](design/05-construction-and-rooms.md) | Blueprints, walls, deconstruction, room detection |
 | [`06-save-and-load.md`](design/06-save-and-load.md) | Serialization, versioning, migration |
 
 ## Conventions

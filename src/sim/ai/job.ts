@@ -19,7 +19,8 @@ export type JobKind =
   | 'sleep'
   | 'wander'
   | 'deliver'
-  | 'construct';
+  | 'construct'
+  | 'deconstruct';
 
 export interface MineJob {
   readonly kind: 'mine';
@@ -71,6 +72,18 @@ export interface ConstructJob {
   readonly site: EntityId;
 }
 
+/**
+ * Taking a finished structure back down.
+ *
+ * Addressed by **cell**, not by building id, because the same job removes a wall (an
+ * entity) or a floor (terrain), and only the cell describes both. The driver looks up
+ * what is actually there each tick, so the job cannot go stale against the world.
+ */
+export interface DeconstructJob {
+  readonly kind: 'deconstruct';
+  readonly cell: TilePos;
+}
+
 export type Job =
   | MineJob
   | HaulJob
@@ -79,7 +92,8 @@ export type Job =
   | SleepJob
   | WanderJob
   | DeliverJob
-  | ConstructJob;
+  | ConstructJob
+  | DeconstructJob;
 
 export interface ActiveJob {
   readonly job: Job;

@@ -72,3 +72,58 @@ export const BUILDABLE_DEFS: readonly BuildableDef[] = [
 export function buildableDef(id: BuildableId): BuildableDef {
   return BUILDABLE_DEFS[id];
 }
+
+// ── Taking it back down ─────────────────────────────────────────────────────────
+//
+// Deconstruction reads the *same* cost list construction paid, rather than declaring a
+// separate yield on the building. One number, one place: a wall's price and its salvage
+// cannot drift apart when the price changes.
+
+/** Fraction of the original materials salvaged. Half — demolition is not free. */
+export const DECONSTRUCT_REFUND = 0.5;
+
+/** Fraction of the build effort it takes to undo. Pulling down beats putting up. */
+const DECONSTRUCT_WORK_FRACTION = 0.5;
+
+/**
+ * What a finished structure gives back, rounded down.
+ *
+ * A one-stone building refunds nothing, and that is correct: rounding *up* would let a
+ * player build and deconstruct in a loop to manufacture materials out of labour.
+ */
+export function refundFor(id: BuildableId): readonly MaterialCost[] {
+  return buildableDef(id)
+    .cost.map((cost) => ({ def: cost.def, count: Math.floor(cost.count * DECONSTRUCT_REFUND) }))
+    .filter((cost) => cost.count > 0);
+}
+
+/** Ticks of work to take one down. Never zero, or it would finish the tick it started. */
+export function deconstructWork(id: BuildableId): number {
+  return Math.max(1, Math.round(buildableDef(id).work * DECONSTRUCT_WORK_FRACTION));
+}
+
+// Reverse indices, built once. A structure knows what it is; it does not know which
+// blueprint produced it, and asking every buildable on every scan would be a linear
+// search inside a loop that already walks the map.
+const BY_BUILDING = new Map<BuildingId, BuildableId>();
+const BY_TERRAIN = new Map<TerrainId, BuildableId>();
+
+for (const def of BUILDABLE_DEFS) {
+  if (def.result.kind === 'building') BY_BUILDING.set(def.result.building, def.id);
+  else BY_TERRAIN.set(def.result.terrain, def.id);
+}
+
+/**
+ * The blueprint that produces this building, if any.
+ *
+ * `undefined` means nobody built it — bedrolls arrive with the landing party — and that
+ * is what makes "you may only take down what the colony put up" a one-line rule.
+ */
+export function buildableProducing(building: BuildingId): BuildableId | undefined {
+  return BY_BUILDING.get(building);
+}
+
+/** The blueprint that produces this terrain, if any. Floors; bridges later. */
+export function buildableProducingTerrain(terrain: TerrainId): BuildableId | undefined {
+  return BY_TERRAIN.get(terrain);
+}

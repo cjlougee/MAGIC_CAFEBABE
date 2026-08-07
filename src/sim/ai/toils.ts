@@ -117,15 +117,19 @@ export function toilReserveItem(pick: (job: Job) => number): Toil {
  * `exists` is supplied by the caller because only the driver knows which store the id
  * lives in, and a claim on something that has since been destroyed is worse than no
  * claim at all.
+ *
+ * `pick` gets the world because some targets are named by *where* they are rather than
+ * by id — deconstruction addresses a cell and asks what stands on it. Resolving that
+ * each tick beats storing the id in the job, which could then disagree with the world.
  */
 export function toilReserveEntity(
-  pick: (job: Job) => number | null,
+  pick: (job: Job, world: World) => number | null,
   exists: (ctx: ToilContext, id: number) => boolean,
 ): Toil {
   return {
     name: 'reserveEntity',
     tick: (ctx) => {
-      const id = pick(ctx.job);
+      const id = pick(ctx.job, ctx.world);
       // A null target is legitimate for optional claims — sleeping rough has no bed.
       if (id === null) return 'done';
       if (!exists(ctx, id)) return 'failed';

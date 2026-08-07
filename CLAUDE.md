@@ -119,6 +119,19 @@ tests rather than by structure:
   it. Anything placing items on the ground filters on `storable`; only movement uses `passable`. The
   rules live once in `sim/world/placement.ts`, consulted by both the command handlers and the drag
   preview, so the preview can never promise what the sim will refuse. See ADR 0004.
+  **This one keeps coming back in disguise.** The trap is not forgetting the rule, it is applying
+  it to the wrong question: `findLandingSite` scored "openness" with `isPassable`, so an open lake
+  scored maximum and the party landed in the middle of it with nowhere to put their bedrolls. Any
+  time you ask "how good is this ground", the answer involves `storable`, not `passable`.
+- **`setTerrainAt` and `setSurfaceAt` are different questions**, and picking the wrong one corrupts
+  the map slowly enough that nothing catches it. `setTerrainAt` means *the ground itself changed* —
+  worldgen, or mining cutting through — and updates `naturalTerrain` too, because mined-out rock
+  does not come back. `setSurfaceAt` lays something *over* the ground and leaves `naturalTerrain`
+  alone, so lifting a floor gives back the sand it was laid on rather than a default we invented.
+- **A migration step must never import a live definition** — no `Terrain.StoneFloor`, no
+  `ITEM_DEFS.length`. Those describe the game as it is *now*; a step describes a file as it was
+  *then*. Renumber a table and every step that reached for a live constant starts quietly
+  misreading old saves. Freeze the literal in the step and say what it was.
 - Anything added to saved state must be added to **both** `hashWorld()` and
   `save/serialize.ts`. The round-trip test compares hashes, so a field missing from both passes
   silently — the tests stay green while guarding nothing.

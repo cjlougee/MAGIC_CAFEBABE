@@ -51,6 +51,27 @@ export function buildMineMarkerGraphics(): Graphics {
   return g;
 }
 
+/**
+ * A bar struck through a cell marked for demolition.
+ *
+ * Deliberately not the mine marker's diagonal cross: both mean "colonists, remove this",
+ * and the player needs to tell at a glance which of their walls is coming down and which
+ * rock is being cut. Different glyph, different colour — red for undoing your own work,
+ * orange for cutting the landscape.
+ */
+export function buildDeconstructMarkerGraphics(): Graphics {
+  const g = new Graphics();
+  const colour = Palette.danger;
+
+  diamondPath(g, 3).stroke({ width: 2, color: colour, alpha: 0.9 });
+
+  g.moveTo(HALF_TILE_W - 9, HALF_TILE_H)
+    .lineTo(HALF_TILE_W + 9, HALF_TILE_H)
+    .stroke({ width: 3, color: colour });
+
+  return g;
+}
+
 /** Outline shown under the cursor while dragging out an area. */
 export function buildPreviewGraphics(): Graphics {
   const g = new Graphics();
