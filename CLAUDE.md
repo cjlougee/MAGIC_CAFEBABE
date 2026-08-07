@@ -70,6 +70,26 @@ Claude: prefer the `run` skill or `preview_start` (`.claude/launch.json` defines
 launch the dev server, then verify visually with the browser tools. **Look at the running game — test
 output alone is not verification for a rendering change.**
 
+### The debug panel — press `` ` ``
+
+**Use it. It exists so that looking at the game is cheap.** Dev builds only (`import.meta.env.DEV`),
+so it ships nowhere.
+
+- **Skip to** Dawn / Noon / Dusk / Night — moves the clock forward without simulating. For seeing
+  something *at* a time of day.
+- **Simulate** +1h / +6h — actually runs those ticks, so colonists eat, build, and finish jobs. For
+  seeing what a colony *does*.
+- **Give** stone, scrap, raw food, meals — dropped at the landing site.
+- **Place finished** — the Build tool raises completed structures instead of blueprints, free and
+  instantly. **Finish queued** completes every blueprint already placed.
+
+Without it, checking a campfire at night meant mining rock, waiting for a wall to be hauled and
+built, and then waiting out an in-game day. That is not testing the change in front of you.
+
+Instant placement still refuses a blocking structure on an occupied cell — skipping the wait must
+not mean skipping the check, because a pawn sealed into an impassable cell is the worst state in
+the simulation.
+
 ---
 
 ## Layout

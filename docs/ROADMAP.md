@@ -235,6 +235,9 @@ seed passing is exactly how it survived a green suite the first time.
 
 - **`CLAUDE.md`** — the three enforcement rules and the invariants that fail silently.
   Read first.
+- **The debug panel (`` ` `` in a dev build)** — skip to a time of day, hand out resources, place
+  finished structures. Documented in `CLAUDE.md`. Reach for it before spending twenty minutes
+  arranging a situation by hand; that cost is exactly why it was built.
 - **`.claude/skills/add-work-type`** — the checklist for a new kind of colonist work.
   Written after M2 from real code, extended by M3, M4, and deconstruction.
 - **`docs/decisions/`** — six ADRs covering the stack, the projection, verticality,

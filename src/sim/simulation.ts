@@ -9,6 +9,7 @@
  * separation is what keeps the simulation frame-rate independent and deterministic.
  */
 
+import { TICKS_PER_DAY, TICKS_PER_HOUR } from './core/constants';
 import { tickMovement } from './ai/movement';
 import { tickBreak, tickMood } from './ai/mood';
 import { tickNeeds } from './ai/needs';
@@ -19,17 +20,20 @@ import {
   type BillCommand,
   type BuildCommand,
   type Command,
+  type DebugCommand,
   type DesignateCommand,
   type MoveToCommand,
   type SetWorkPriorityCommand,
   type TileRectangle,
   type ZoneCommand,
 } from './core/commands';
-import { createSite } from './entities/constructionSite';
-import { cancelConstruction } from './world/construction';
-import { siteAt } from './world/lookup';
+import { createSite, type ConstructionSite } from './entities/constructionSite';
+import { cancelConstruction, completeConstruction } from './world/construction';
+import { pawnOccupies, siteAt } from './world/lookup';
 import { clearPath } from './entities/pawn';
 import { PRIORITY_DISABLED, PRIORITY_LOWEST, WORK_TYPE_COUNT } from './defs/workTypes';
+import { buildableDef } from './defs/buildables';
+import { buildingDef } from './defs/buildings';
 import { recipeDef, recipesFor } from './defs/recipes';
 import type { Building } from './entities/building';
 import { ledgerContents } from './entities/materials';
@@ -163,6 +167,9 @@ export class Simulation {
         case 'bill':
           this.applyBill(command);
           break;
+        case 'debug':
+          this.applyDebug(command);
+          break;
       }
     }
   }
@@ -229,8 +236,71 @@ export class Simulation {
         y: world.map.yOf(index),
         z: world.map.zOf(index),
       };
-      world.sites.add((id) => createSite(id, command.buildable, pos));
+      const site = world.sites.add((id) => createSite(id, command.buildable, pos));
+      if (command.instant) this.finishSite(site);
     });
+  }
+
+  /**
+   * Completes a site now, if it is safe to.
+   *
+   * Refuses a blocking structure on a cell somebody is standing in. `toilWork` waits for
+   * that rather than failing, and skipping the wait must not mean skipping the check: a
+   * pawn sealed into an impassable cell reports its own position as unreachable, so
+   * `canReach` fails for every target and it idles forever with nothing to show why. The
+   * worst state in the simulation is not one to hand a debug button.
+   */
+  private finishSite(site: ConstructionSite): boolean {
+    const world = this.worldState;
+    const index = world.map.idx(site.pos.x, site.pos.y, site.pos.z);
+    const result = buildableDef(site.def).result;
+
+    if (
+      result.kind === 'building' &&
+      !buildingDef(result.building).passable &&
+      pawnOccupies(world, index)
+    ) {
+      return false;
+    }
+
+    completeConstruction(world, site);
+    return true;
+  }
+
+  /**
+   * Cheats. Everything here changes the world in ways play never would.
+   *
+   * Time only moves *forward*, to the next occurrence of the hour asked for. Winding the
+   * clock back would leave anything that has already happened sitting in the future, and
+   * "skip to nightfall" is what the button is for anyway.
+   */
+  private applyDebug(command: DebugCommand): void {
+    const world = this.worldState;
+
+    switch (command.action) {
+      case 'setHour': {
+        if (command.hour === undefined) return;
+        const target = Math.max(0, Math.min(23, Math.floor(command.hour)));
+        const dayStart = Math.floor(world.tick / TICKS_PER_DAY) * TICKS_PER_DAY;
+        const at = dayStart + target * TICKS_PER_HOUR;
+        world.tick = at > world.tick ? at : at + TICKS_PER_DAY;
+        return;
+      }
+
+      case 'giveItems': {
+        if (command.item === undefined || !command.count) return;
+        // Through the normal spawn path, so it spills onto storable ground and obeys
+        // stack limits exactly as mined stone does.
+        world.items.spawn(world.map, command.item, command.count, world.landingSite);
+        return;
+      }
+
+      case 'finishBlueprints': {
+        // Snapshotted first: finishing mutates the store being iterated.
+        for (const site of [...world.sites.values()]) this.finishSite(site);
+        return;
+      }
+    }
   }
 
   private applyMoveTo(command: MoveToCommand): void {

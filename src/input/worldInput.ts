@@ -62,6 +62,8 @@ export class WorldInput {
   private tool: Tool = 'select';
   /** Which blueprint the build tool places. Meaningless for other tools. */
   private buildable: BuildableId = Buildable.Wall;
+  /** Debug: raise the finished structure instead of a blueprint. */
+  private instantBuild = false;
   private downX = 0;
   private downY = 0;
   private downButton = -1;
@@ -87,6 +89,10 @@ export class WorldInput {
     this.buildable = buildable;
     this.tool = 'build';
     this.cancelDrag();
+  }
+
+  setInstantBuild(instant: boolean): void {
+    this.instantBuild = instant;
   }
 
   /** The rectangle currently being dragged, for the renderer to outline. */
@@ -184,7 +190,12 @@ export class WorldInput {
         this.handlers.dispatch({ type: 'zone', action: 'stockpile', area });
         break;
       case 'build':
-        this.handlers.dispatch({ type: 'build', buildable: this.buildable, area });
+        this.handlers.dispatch({
+          type: 'build',
+          buildable: this.buildable,
+          area,
+          instant: this.instantBuild,
+        });
         break;
       case 'erase':
         // One gesture clears every kind of mark, because the player is expressing

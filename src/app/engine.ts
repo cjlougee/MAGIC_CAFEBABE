@@ -9,7 +9,9 @@ import { WorldInput, type Tool } from '../input/worldInput';
 import { GameRenderer } from '../render/gameRenderer';
 import type { Command } from '../sim/core/commands';
 import type { EntityId } from '../sim/core/entityStore';
+import { TICKS_PER_HOUR } from '../sim/core/constants';
 import type { BuildableId } from '../sim/defs/buildables';
+import type { ItemDefId } from '../sim/defs/items';
 import type { RecipeId } from '../sim/defs/recipes';
 import type { WorkTypeId } from '../sim/defs/workTypes';
 import { Simulation } from '../sim/simulation';
@@ -163,6 +165,43 @@ export class Engine {
   setBillCount(bench: EntityId, recipe: RecipeId, untilCount: number): void {
     this.dispatch({ type: 'bill', action: 'setCount', bench, recipe, untilCount });
     this.store.update({ snapshot: this.sim.snapshot() });
+  }
+
+  // ── Debug ────────────────────────────────────────────────────────────────
+  // Cheats, routed through the command queue like every other change so that the
+  // debug path is the same path the game uses. Each republishes the snapshot, since
+  // these are normally pressed while paused and would otherwise appear to do nothing.
+
+  debugSetHour(hour: number): void {
+    this.dispatch({ type: 'debug', action: 'setHour', hour });
+    this.store.update({ snapshot: this.sim.snapshot() });
+  }
+
+  debugGive(item: ItemDefId, count: number): void {
+    this.dispatch({ type: 'debug', action: 'giveItems', item, count });
+    this.store.update({ snapshot: this.sim.snapshot() });
+  }
+
+  debugFinishBlueprints(): void {
+    this.dispatch({ type: 'debug', action: 'finishBlueprints' });
+    this.store.update({ snapshot: this.sim.snapshot() });
+  }
+
+  /**
+   * Actually simulates `hours`, rather than moving the clock.
+   *
+   * The difference matters: `debugSetHour` skips to nightfall with nothing having
+   * happened, while this lets the colony eat, build and wander its way there. Runs
+   * synchronously — 2,500 ticks costs a few milliseconds headless.
+   */
+  debugAdvanceHours(hours: number): void {
+    this.sim.run(TICKS_PER_HOUR * hours);
+    this.store.update({ snapshot: this.sim.snapshot() });
+  }
+
+  setInstantBuild(instant: boolean): void {
+    this.input.setInstantBuild(instant);
+    this.store.update({ instantBuild: instant });
   }
 
   /** Day and headcount, for naming and listing saves. */

@@ -12,6 +12,7 @@
  */
 
 import type { BuildableId } from '../defs/buildables';
+import type { ItemDefId } from '../defs/items';
 import type { RecipeId } from '../defs/recipes';
 import type { WorkTypeId } from '../defs/workTypes';
 import type { EntityId } from './entityStore';
@@ -75,6 +76,36 @@ export interface BuildCommand {
   readonly type: 'build';
   readonly buildable: BuildableId;
   readonly area: TileRectangle;
+  /**
+   * Skip the blueprint entirely and raise the finished structure.
+   *
+   * A debug affordance, but it lives on the ordinary build command rather than in
+   * `DebugCommand` because it is the *same* placement decision — same legality rules,
+   * same area, same cell filter. Duplicating that just to skip two phases would be a
+   * second definition of where a wall may go, and those drift.
+   */
+  readonly instant?: boolean;
+}
+
+/**
+ * Cheats, for developing against.
+ *
+ * Grouped under one command rather than scattered through the union so that everything
+ * which is *not* real gameplay is visible in one place, and so the whole surface can be
+ * dropped from a release build by not rendering the panel that sends it.
+ *
+ * They still go through the queue like everything else. A debug action that reached into
+ * world state directly would be the one code path that could desync the snapshot or
+ * break determinism, and it would be the least-tested one in the game.
+ */
+export interface DebugCommand {
+  readonly type: 'debug';
+  readonly action: 'setHour' | 'giveItems' | 'finishBlueprints';
+  /** `setHour`: 0–23. Time only ever moves forward, to the next such hour. */
+  readonly hour?: number;
+  /** `giveItems`: what, and how much, dropped at the landing site. */
+  readonly item?: ItemDefId;
+  readonly count?: number;
 }
 
 /**
@@ -100,7 +131,8 @@ export type Command =
   | ZoneCommand
   | SetWorkPriorityCommand
   | BuildCommand
-  | BillCommand;
+  | BillCommand
+  | DebugCommand;
 
 export class CommandQueue {
   private pending: Command[] = [];

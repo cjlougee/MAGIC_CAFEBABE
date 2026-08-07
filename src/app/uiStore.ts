@@ -21,6 +21,9 @@ export interface UiState {
   readonly selectedPawnId: EntityId | null;
   /** The workbench whose bills are open, if any. */
   readonly selectedBenchId: EntityId | null;
+  /** Debug panel visibility, and whether Build raises finished structures. */
+  readonly showDebug: boolean;
+  readonly instantBuild: boolean;
   readonly tool: Tool;
   /** Which blueprint the build tool would place. */
   readonly buildable: BuildableId;
@@ -35,6 +38,8 @@ const INITIAL: UiState = {
   ready: false,
   selectedPawnId: null,
   selectedBenchId: null,
+  showDebug: false,
+  instantBuild: false,
   tool: 'select',
   buildable: Buildable.Wall,
   showWorkPanel: false,

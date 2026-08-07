@@ -15,6 +15,7 @@ import type { PawnSummary, ResourceSummary } from '../sim/snapshot';
 import { AlertsPanel } from './AlertsPanel';
 import { BillPanel } from './BillPanel';
 import { ColonistPanel } from './ColonistPanel';
+import { DebugPanel } from './DebugPanel';
 import { MainMenu } from './MainMenu';
 import { Toolbar } from './Toolbar';
 import { WorkPanel } from './WorkPanel';
@@ -52,6 +53,8 @@ export function HUD({ store, engine }: HUDProps) {
     buildable,
     showWorkPanel,
     showMenu,
+    showDebug,
+    instantBuild,
   } = state;
 
   // The menu is a pause, not a screen: the world should not advance behind it.
@@ -77,6 +80,11 @@ export function HUD({ store, engine }: HUDProps) {
         if (state.tool !== 'select') engine.setTool('select');
         else if (selectedPawnId !== null) engine.select(null);
         else store.update({ showMenu: !state.showMenu });
+        return;
+      }
+
+      if (event.code === 'Backquote' && import.meta.env.DEV) {
+        store.update({ showDebug: !state.showDebug });
         return;
       }
 
@@ -200,6 +208,18 @@ export function HUD({ store, engine }: HUDProps) {
             engine?.setBillCount(selectedBench.id, recipe, untilCount)
           }
           onClose={() => engine?.selectBench(null)}
+        />
+      )}
+
+      {showDebug && engine && import.meta.env.DEV && (
+        <DebugPanel
+          instantBuild={instantBuild}
+          onSetHour={(hour) => engine.debugSetHour(hour)}
+          onAdvanceHours={(hours) => engine.debugAdvanceHours(hours)}
+          onGive={(item, count) => engine.debugGive(item, count)}
+          onFinishBlueprints={() => engine.debugFinishBlueprints()}
+          onToggleInstantBuild={(instant) => engine.setInstantBuild(instant)}
+          onClose={() => store.update({ showDebug: false })}
         />
       )}
 
