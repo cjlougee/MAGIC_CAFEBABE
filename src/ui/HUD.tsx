@@ -14,6 +14,7 @@ import type { EntityId } from '../sim/core/entityStore';
 import type { PawnSummary, ResourceSummary } from '../sim/snapshot';
 import { AlertsPanel } from './AlertsPanel';
 import { ColonistPanel } from './ColonistPanel';
+import { MainMenu } from './MainMenu';
 import { Toolbar } from './Toolbar';
 import { WorkPanel } from './WorkPanel';
 
@@ -39,7 +40,13 @@ interface HUDProps {
 
 export function HUD({ store, engine }: HUDProps) {
   const state = useSyncExternalStore(store.subscribe, store.getState);
-  const { snapshot, speed, fps, ready, selectedPawnId, tool, buildable, showWorkPanel } = state;
+  const { snapshot, speed, fps, ready, selectedPawnId, tool, buildable, showWorkPanel, showMenu } =
+    state;
+
+  // The menu is a pause, not a screen: the world should not advance behind it.
+  useEffect(() => {
+    if (showMenu && engine && engine.loop.speed !== 0) engine.setSpeed(0);
+  }, [showMenu, engine]);
 
   useEffect(() => {
     if (!engine) return;
@@ -54,9 +61,11 @@ export function HUD({ store, engine }: HUDProps) {
         return;
       }
       if (event.code === 'Escape') {
-        // One key backs out of whatever mode you're in, always.
-        engine.setTool('select');
-        engine.select(null);
+        // One key backs out of whatever you're in — a tool, a selection, and finally to
+        // the menu when there is nothing left to back out of.
+        if (state.tool !== 'select') engine.setTool('select');
+        else if (selectedPawnId !== null) engine.select(null);
+        else store.update({ showMenu: !state.showMenu });
         return;
       }
 
@@ -72,7 +81,7 @@ export function HUD({ store, engine }: HUDProps) {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [engine, speed]);
+  }, [engine, speed, state, selectedPawnId, store]);
 
   const selected = snapshot?.pawns.find((pawn) => pawn.id === selectedPawnId) ?? null;
 
@@ -124,10 +133,10 @@ export function HUD({ store, engine }: HUDProps) {
           <button
             type="button"
             className="hud__button"
-            title="Generate a new world"
-            onClick={() => engine?.regenerate(Math.floor(Math.random() * 1_000_000))}
+            title="Save, load, or start over (Esc)"
+            onClick={() => store.update({ showMenu: true })}
           >
-            New world
+            Menu
           </button>
           <span className="hud__label">FPS</span>
           <span className="hud__value">{fps}</span>
@@ -150,6 +159,18 @@ export function HUD({ store, engine }: HUDProps) {
       />
 
       <AlertsPanel alerts={snapshot.alerts} />
+
+      {showMenu && engine && (
+        <MainMenu
+          onClose={() => store.update({ showMenu: false })}
+          onSave={() => engine.saveGame()}
+          onLoad={() => engine.loadGame()}
+          onNewWorld={() => {
+            engine.regenerate(Math.floor(Math.random() * 1_000_000));
+            store.update({ showMenu: false });
+          }}
+        />
+      )}
 
       {selected && !showWorkPanel && (
         <ColonistPanel pawn={selected} onClose={() => engine?.select(null)} />

@@ -28,6 +28,16 @@ export class ItemStore {
     return this.entities.nextIdForSave;
   }
 
+  /** Load only. Reinstates an item and its place in the cell index. */
+  restore(item: Item, map: TileMap): void {
+    this.entities.restore(item);
+    if (item.pos) this.addToCell(map.idx(item.pos.x, item.pos.y, item.pos.z), item.id);
+  }
+
+  restoreNextId(value: number): void {
+    this.entities.restoreNextId(value);
+  }
+
   get(id: EntityId): Item | undefined {
     return this.entities.get(id);
   }

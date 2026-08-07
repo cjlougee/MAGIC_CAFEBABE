@@ -97,10 +97,22 @@ See [`design/04-needs-and-mood.md`](design/04-needs-and-mood.md).
 See [`design/05-construction-and-rooms.md`](design/05-construction-and-rooms.md).
 
 ### M5 — Save/load & the survival test
-- [ ] Serialization with version field + migration hook
-- [ ] Main menu
-- [ ] Headless `survive-a-week` regression test
-- **Playable check:** save mid-game, reload, state hash identical.
+- [x] Serialization to plain JSON, RLE-compressed terrain (~20KB per colony)
+- [x] Version field and a migration chain that upgrades one step at a time
+- [x] `localStorage` slot, owned by `app/` because `sim/` must stay headless
+- [x] Pause menu: resume / save / load / start over, on `Esc`
+- [x] Headless **survive-a-week** regression test
+- [x] Save mid-week, reload, finish the week — bit-identical to an uninterrupted run
+- **Playable check:** ✅ save, play on, load, and the colony is exactly as you left it.
+
+See [`design/06-save-and-load.md`](design/06-save-and-load.md).
+
+---
+
+## Slice 1 is complete
+
+A colony that generates, works, feeds itself, builds, and persists. 328 tests; the
+simulation runs seven in-game days in about a second, headless.
 
 ---
 
@@ -118,6 +130,56 @@ Real, but not designed in detail yet. Each gets its own design pass when we reac
   Where multi-level worldgen and cave dungeons land, since they serve exploration.
 - **Slice 5 — Command.** Squad selection, formations, orders, morale — the Bannerlord layer, riding
   on the preemption support built in M2.
+
+---
+
+## Picking this up next
+
+Slice 1 works. It is not yet a *game* — there is no pressure, no reason to build beyond a
+mood bonus, and nothing to spend materials on. Ranked by what unlocks the most:
+
+### Next, in order
+
+1. **Deconstruction.** The only obvious hole in M4. `Erase` cancels blueprints but cannot
+   remove a finished wall, so a misplaced building is permanent. Small: a designation, a
+   giver under Construct, and a driver that refunds half the cost.
+2. **Slice 2 — production.** The largest unlock. Workbenches with **bills** ("cook until
+   10 meals"), which is the system cooking was deferred for, plus the *scrap → refined →
+   relic-tech* ladder that gives mining a point beyond walls. Brings the per-cell light
+   grid with campfires.
+3. **Slice 3 — threat.** Raids give walls a reason to exist and the event director gives
+   the colony a shape over time. The `hediff` array on pawns is already there waiting.
+
+### Known gaps, honestly
+
+- **No deconstruction** (above).
+- **No roofs.** "Indoors" means enclosed-by-something-built. Fine now; temperature or
+  weather would need real roofs.
+- **`lookup.ts` scans linearly** over buildings and sites. Fine at dozens, not at
+  thousands — when it matters, put the index *inside* the store so it cannot desync.
+- **One save slot.** Multiple slots are a UI change, not a technical one.
+- **Verticality is reserved, not built.** See ADR 0003; the data model takes a `z` today.
+- **No sound, no main-menu-before-game, no settings.**
+
+### The three bugs that were invisible to tests
+
+Every real defect in this project passed a green suite and was obvious within a minute of
+watching the game. Budget for looking at it.
+
+| Bug | Symptom |
+|---|---|
+| Cached ground layer | Mined rock left black holes in the map |
+| Colonists eating one berry per trip | "Eats when hungry" was *technically* true |
+| Deliverers entombed in walls | Seven of sixteen walls silently never built |
+
+### Where the load-bearing knowledge lives
+
+- **`CLAUDE.md`** — the three enforcement rules and the invariants that fail silently.
+  Read first.
+- **`.claude/skills/add-work-type`** — the checklist for a new kind of colonist work.
+  Written after M2 from real code, extended by M3 and M4.
+- **`docs/decisions/`** — five ADRs covering the stack, the projection, verticality,
+  water, and controls.
 
 ## Verticality — reserved, not built
 

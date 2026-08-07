@@ -13,7 +13,18 @@ How to find things, and where new writing belongs.
 1. [`../CLAUDE.md`](../CLAUDE.md) — the three enforcement rules, commands, and conventions. Read first.
 2. [`design/00-vision.md`](design/00-vision.md) — what the game is, its pillars, and what it is not.
 3. [`design/01-architecture.md`](design/01-architecture.md) — layers, data flow, subsystem designs.
-4. [`ROADMAP.md`](ROADMAP.md) — where we are and what's next.
+4. [`ROADMAP.md`](ROADMAP.md) — what's done, what's next, and the known gaps. **Ends with a
+   "picking this up next" section written for whoever arrives cold.**
+
+## The systems, in build order
+
+| Doc | System |
+|---|---|
+| [`02-pawns-and-movement.md`](design/02-pawns-and-movement.md) | Pawns, A\*, reachability, occlusion |
+| [`03-work-and-jobs.md`](design/03-work-and-jobs.md) | The job pipeline — the deepest system here |
+| [`04-needs-and-mood.md`](design/04-needs-and-mood.md) | Needs, thoughts, mood, mental breaks |
+| [`05-construction-and-rooms.md`](design/05-construction-and-rooms.md) | Blueprints, walls, room detection |
+| [`06-save-and-load.md`](design/06-save-and-load.md) | Serialization, versioning, migration |
 
 ## Conventions
 

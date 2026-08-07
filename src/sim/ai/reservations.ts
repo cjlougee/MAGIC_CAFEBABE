@@ -19,6 +19,11 @@ interface Held {
   readonly entities: Set<EntityId>;
 }
 
+export interface ReservationSave {
+  readonly cells: [number, EntityId][];
+  readonly entities: [EntityId, EntityId][];
+}
+
 export class Reservations {
   private readonly cellOwner = new Map<number, EntityId>();
   private readonly entityOwner = new Map<EntityId, EntityId>();
@@ -75,6 +80,27 @@ export class Reservations {
   /** Total outstanding claims. Used by tests to prove nothing leaks. */
   get activeCount(): number {
     return this.cellOwner.size + this.entityOwner.size;
+  }
+
+  /**
+   * Claims, as plain data.
+   *
+   * Saved rather than rebuilt, because a pawn restored mid-job is still holding its
+   * targets. Dropping the claims would let a second colonist take the same rock the
+   * moment the game reloaded.
+   */
+  save(): ReservationSave {
+    return {
+      cells: [...this.cellOwner.entries()],
+      entities: [...this.entityOwner.entries()],
+    };
+  }
+
+  static restore(data: ReservationSave): Reservations {
+    const reservations = new Reservations();
+    for (const [cell, pawn] of data.cells) reservations.reserveCell(cell, pawn);
+    for (const [entity, pawn] of data.entities) reservations.reserveEntity(entity, pawn);
+    return reservations;
   }
 
   private heldBy(pawn: EntityId): Held {

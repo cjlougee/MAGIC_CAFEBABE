@@ -56,4 +56,14 @@ export class EntityStore<T extends Entity> {
   restoreNextId(value: number): void {
     this.nextId = value;
   }
+
+  /**
+   * Reinstates an entity with the id it already had.
+   *
+   * Load only. Ids must survive a save/load cycle intact, because everything else
+   * references entities by id — a bed's owner, a job's target, a reservation.
+   */
+  restore(entity: T): void {
+    this.items.set(entity.id, entity);
+  }
 }

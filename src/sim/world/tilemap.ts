@@ -95,6 +95,20 @@ export class TileMap {
     return this.revisionCount;
   }
 
+  /**
+   * Recomputes walk costs from terrain.
+   *
+   * Used on load, where terrain is restored wholesale. Deriving it beats saving it: a
+   * stored copy could disagree with the terrain it came from, and there would be no way
+   * to tell which one was right.
+   */
+  rebuildWalkCost(): void {
+    for (let i = 0; i < this.size; i++) {
+      this.walkCost[i] = TERRAIN_DEFS[this.terrain[i]].walkCost;
+    }
+    this.revisionCount++;
+  }
+
   idx(x: number, y: number, z: number = GROUND_LEVEL): number {
     return z * this.layerSize + y * this.width + x;
   }

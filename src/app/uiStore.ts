@@ -23,6 +23,7 @@ export interface UiState {
   /** Which blueprint the build tool would place. */
   readonly buildable: BuildableId;
   readonly showWorkPanel: boolean;
+  readonly showMenu: boolean;
 }
 
 const INITIAL: UiState = {
@@ -34,6 +35,7 @@ const INITIAL: UiState = {
   tool: 'select',
   buildable: Buildable.Wall,
   showWorkPanel: false,
+  showMenu: false,
 };
 
 export class UiStore {

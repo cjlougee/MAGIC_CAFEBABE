@@ -13,6 +13,7 @@ import type { BuildableId } from '../sim/defs/buildables';
 import type { WorkTypeId } from '../sim/defs/workTypes';
 import { Simulation } from '../sim/simulation';
 import { GameLoop, type GameSpeed } from './gameLoop';
+import { readSave, writeSave } from './saveStorage';
 import type { UiStore } from './uiStore';
 
 /** How often UI state is republished. 10Hz is imperceptible for a clock readout. */
@@ -134,12 +135,38 @@ export class Engine {
     this.store.update({ snapshot: this.sim.snapshot() });
   }
 
+  /** Writes the colony to storage. Returns false if storage refused it. */
+  saveGame(): boolean {
+    const snapshot = this.sim.snapshot();
+    return writeSave(this.sim.save(), {
+      day: snapshot.day + 1,
+      colonists: snapshot.pawns.filter((pawn) => !pawn.dead).length,
+      savedAt: Date.now(),
+    });
+  }
+
+  /** Restores a colony. Returns false if there was nothing readable to restore. */
+  loadGame(): boolean {
+    const save = readSave();
+    if (!save) return false;
+
+    this.sim.load(save);
+    // Everything the UI was pointing at belonged to the previous world.
+    this.select(null);
+    this.setTool('select');
+    this.renderer.onWorldReplaced();
+    this.renderer.focusOn(this.sim.world.landingSite.x, this.sim.world.landingSite.y);
+    this.store.update({ snapshot: this.sim.snapshot() });
+    return true;
+  }
+
   /** Rebuilds the world from a new seed, through the command queue like any change. */
   regenerate(seed: number): void {
     this.dispatch({ type: 'regenerate', seed });
     // The old colonists no longer exist, so a held selection would dangle.
     this.select(null);
     this.setTool('select');
+    this.renderer.onWorldReplaced();
     this.renderer.focusOn(this.sim.world.landingSite.x, this.sim.world.landingSite.y);
     this.store.update({ snapshot: this.sim.snapshot() });
   }

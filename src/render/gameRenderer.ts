@@ -122,6 +122,17 @@ export class GameRenderer {
     this.app.renderer.render(this.app.stage);
   }
 
+  /**
+   * Drops every cached view of the world.
+   *
+   * Loading or regenerating swaps the whole World object, and the ground layer caches by
+   * seed and terrain revision — both of which a *different* world can coincidentally
+   * match, leaving the old map on screen.
+   */
+  onWorldReplaced(): void {
+    this.ground.invalidate();
+  }
+
   /** Centres the view on a tile. Used when the player picks a colonist from the HUD. */
   focusOn(x: number, y: number): void {
     this.camera.x = x;

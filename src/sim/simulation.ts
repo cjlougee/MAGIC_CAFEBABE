@@ -29,6 +29,7 @@ import { cancelConstruction } from './world/construction';
 import { siteAt } from './world/lookup';
 import { clearPath } from './entities/pawn';
 import { PRIORITY_DISABLED, PRIORITY_LOWEST, WORK_TYPE_COUNT } from './defs/workTypes';
+import { deserializeWorld, serializeWorld, type SaveData } from './save/serialize';
 import { buildSnapshot, type SimSnapshot } from './snapshot';
 import { Designation } from './world/designations';
 import { canDesignateMine, canPlaceBlueprint, canPlaceStockpile } from './world/placement';
@@ -111,6 +112,22 @@ export class Simulation {
 
   snapshot(): SimSnapshot {
     return buildSnapshot(this.worldState);
+  }
+
+  /** A JSON-safe capture of the whole colony. Where it is stored is the app's problem. */
+  save(): SaveData {
+    return serializeWorld(this.worldState);
+  }
+
+  /**
+   * Replaces the world with a saved one.
+   *
+   * Any queued commands are dropped: they were aimed at the world being replaced, and
+   * applying them to a different one would act on entity ids that mean something else.
+   */
+  load(save: SaveData): void {
+    this.commands.drain();
+    this.worldState = deserializeWorld(save);
   }
 
   private applyCommands(): void {

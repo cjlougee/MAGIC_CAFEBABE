@@ -119,8 +119,13 @@ tests rather than by structure:
   it. Anything placing items on the ground filters on `storable`; only movement uses `passable`. The
   rules live once in `sim/world/placement.ts`, consulted by both the command handlers and the drag
   preview, so the preview can never promise what the sim will refuse. See ADR 0004.
-- Anything added to saved state must be added to `hashWorld()`, or the determinism tests go green
-  while guarding nothing.
+- Anything added to saved state must be added to **both** `hashWorld()` and
+  `save/serialize.ts`. The round-trip test compares hashes, so a field missing from both passes
+  silently — the tests stay green while guarding nothing.
+- **Derived state is never saved.** Pathfinder scratch, reachability, rooms, and `walkCost` are
+  rebuilt on load. A stored copy could disagree with what it came from, and nothing could say
+  which was right. Reservations are the exception and *are* saved — a pawn restored mid-job is
+  still holding its targets.
 
 ## Skills
 

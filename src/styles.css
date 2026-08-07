@@ -571,6 +571,95 @@ body {
   color: var(--c-danger);
 }
 
+/* ── Menu ─────────────────────────────────────────────────────────────────── */
+
+.menu-backdrop {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--c-void) 62%, transparent);
+  backdrop-filter: blur(2px);
+  z-index: 10;
+}
+
+.menu {
+  min-width: 300px;
+  background: color-mix(in srgb, var(--c-panel) 97%, transparent);
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 8px;
+  box-shadow: 0 18px 48px rgb(0 0 0 / 45%);
+  user-select: none;
+}
+
+.menu__head {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--c-panelEdge);
+}
+
+.menu__title {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--c-relic);
+}
+
+.menu__subtitle {
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--c-textDim);
+}
+
+.menu__body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px 16px;
+}
+
+.menu__button {
+  padding: 9px 12px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  text-align: left;
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-panelEdge) 55%, transparent);
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 5px;
+  cursor: pointer;
+  transition:
+    border-color 90ms ease,
+    background-color 90ms ease;
+}
+
+.menu__button:hover:not(:disabled) {
+  border-color: var(--c-relic);
+  background: color-mix(in srgb, var(--c-panelEdge) 80%, transparent);
+}
+
+.menu__button:disabled {
+  color: var(--c-textDim);
+  cursor: default;
+  opacity: 0.55;
+}
+
+.menu__button--danger:hover:not(:disabled) {
+  border-color: var(--c-danger);
+  color: var(--c-danger);
+}
+
+.menu__note {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--c-textDim);
+}
+
 /* ── Footer hint ──────────────────────────────────────────────────────────── */
 
 .controls-hint {
