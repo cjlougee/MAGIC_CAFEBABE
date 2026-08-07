@@ -7,6 +7,7 @@
  * *inside* the store so it cannot drift, rather than beside it.
  */
 
+import type { ItemDefId } from '../defs/items';
 import type { Building } from '../entities/building';
 import type { ConstructionSite } from '../entities/constructionSite';
 import type { World } from './world';
@@ -38,4 +39,19 @@ export function siteAt(world: World, cellIndex: number): ConstructionSite | unde
     if (world.map.idx(site.pos.x, site.pos.y, site.pos.z) === cellIndex) return site;
   }
   return undefined;
+}
+
+/**
+ * How many of `def` the colony holds, loose on the ground or carried.
+ *
+ * What a bill's quota is measured against. Counts carried stacks deliberately: a meal in
+ * a colonist's hands on the way to a stockpile still exists, and ignoring it would have
+ * the kitchen cook a replacement for something nobody had eaten.
+ */
+export function countHeld(world: World, def: ItemDefId): number {
+  let held = 0;
+  for (const item of world.items.values()) {
+    if (item.def === def) held += item.count;
+  }
+  return held;
 }

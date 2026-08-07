@@ -10,6 +10,7 @@
 
 import type { EntityId } from '../core/entityStore';
 import type { TilePos } from '../core/position';
+import type { RecipeId } from '../defs/recipes';
 
 export type JobKind =
   | 'mine'
@@ -20,7 +21,9 @@ export type JobKind =
   | 'wander'
   | 'deliver'
   | 'construct'
-  | 'deconstruct';
+  | 'deconstruct'
+  | 'stockBench'
+  | 'craft';
 
 export interface MineJob {
   readonly kind: 'mine';
@@ -84,6 +87,26 @@ export interface DeconstructJob {
   readonly cell: TilePos;
 }
 
+/**
+ * Fetching one ingredient stack to a workbench.
+ *
+ * The same shape as `deliver`, and pointedly *not* the same work type. Delivering to a
+ * blueprint is Haul because the plan is public; stocking a bench is Cook because the
+ * bill is the kitchen's own business. See docs/design/07-production.md.
+ */
+export interface StockBenchJob {
+  readonly kind: 'stockBench';
+  readonly bench: EntityId;
+  readonly item: EntityId;
+}
+
+/** Working a bench that already has everything one of its bills needs. */
+export interface CraftJob {
+  readonly kind: 'craft';
+  readonly bench: EntityId;
+  readonly recipe: RecipeId;
+}
+
 export type Job =
   | MineJob
   | HaulJob
@@ -93,7 +116,9 @@ export type Job =
   | WanderJob
   | DeliverJob
   | ConstructJob
-  | DeconstructJob;
+  | DeconstructJob
+  | StockBenchJob
+  | CraftJob;
 
 export interface ActiveJob {
   readonly job: Job;

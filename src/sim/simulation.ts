@@ -16,6 +16,7 @@ import { interrupt, isThinkTick, tickJob, tickPawnAI } from './ai/think';
 import { growPlants } from './world/growth';
 import {
   CommandQueue,
+  type BillCommand,
   type BuildCommand,
   type Command,
   type DesignateCommand,
@@ -29,6 +30,9 @@ import { cancelConstruction } from './world/construction';
 import { siteAt } from './world/lookup';
 import { clearPath } from './entities/pawn';
 import { PRIORITY_DISABLED, PRIORITY_LOWEST, WORK_TYPE_COUNT } from './defs/workTypes';
+import { recipeDef, recipesFor } from './defs/recipes';
+import type { Building } from './entities/building';
+import { ledgerContents } from './entities/materials';
 import { deserializeWorld, serializeWorld, type SaveData } from './save/serialize';
 import { buildSnapshot, type SimSnapshot } from './snapshot';
 import { Designation } from './world/designations';
@@ -156,7 +160,62 @@ export class Simulation {
         case 'build':
           this.applyBuild(command);
           break;
+        case 'bill':
+          this.applyBill(command);
+          break;
       }
+    }
+  }
+
+  /**
+   * Standing orders on a workbench.
+   *
+   * Removing the last bill empties the bench onto the ground. Ingredients with no bill
+   * left to consume them are invisible and unreachable — the player would see berries
+   * missing from the larder and nothing anywhere to explain where they went.
+   */
+  private applyBill(command: BillCommand): void {
+    const world = this.worldState;
+    const bench = world.buildings.get(command.bench);
+    if (!bench) return;
+
+    const existing = bench.bills.findIndex((bill) => bill.recipe === command.recipe);
+
+    switch (command.action) {
+      case 'add': {
+        // Only what this bench can actually make, and never the same recipe twice —
+        // a second identical bill would be a quota arguing with itself.
+        if (existing >= 0) return;
+        if (!recipesFor(bench.def).some((recipe) => recipe.id === command.recipe)) return;
+        bench.bills.push({
+          recipe: command.recipe,
+          untilCount: recipeDef(command.recipe).defaultUntilCount,
+        });
+        return;
+      }
+
+      case 'remove': {
+        if (existing < 0) return;
+        bench.bills.splice(existing, 1);
+        if (bench.bills.length === 0) this.emptyBench(bench);
+        return;
+      }
+
+      case 'setCount': {
+        if (existing < 0 || command.untilCount === undefined) return;
+        // A negative quota would mean "cook until you have less than nothing".
+        bench.bills[existing].untilCount = Math.max(0, Math.floor(command.untilCount));
+        return;
+      }
+    }
+  }
+
+  /** Puts everything loaded into a bench back on the ground beside it. */
+  private emptyBench(bench: Building): void {
+    const world = this.worldState;
+    for (const held of ledgerContents(bench.loaded)) {
+      world.items.spawn(world.map, held.def, held.count, bench.pos);
+      bench.loaded[held.def] = 0;
     }
   }
 

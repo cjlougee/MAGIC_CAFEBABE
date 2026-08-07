@@ -10,6 +10,7 @@ import { GameRenderer } from '../render/gameRenderer';
 import type { Command } from '../sim/core/commands';
 import type { EntityId } from '../sim/core/entityStore';
 import type { BuildableId } from '../sim/defs/buildables';
+import type { RecipeId } from '../sim/defs/recipes';
 import type { WorkTypeId } from '../sim/defs/workTypes';
 import { Simulation } from '../sim/simulation';
 import { GameLoop, type GameSpeed } from './gameLoop';
@@ -48,6 +49,7 @@ export class Engine {
 
     this.input = new WorldInput(this.renderer.canvas, this.renderer.camera, {
       onSelect: (id) => this.select(id),
+      onSelectBench: (id) => this.selectBench(id),
       onCancelTool: () => this.setTool('select'),
       dispatch: (command) => this.dispatch(command),
       getSelected: () => this.selectedId,
@@ -122,6 +124,16 @@ export class Engine {
     this.store.update({ selectedPawnId: id });
   }
 
+  /**
+   * Opens a workbench's bills, or closes whatever was open.
+   *
+   * Unlike the pawn selection there is no local copy: nothing in the engine or the input
+   * layer asks which bench is open, so the store is the only place it needs to live.
+   */
+  selectBench(id: EntityId | null): void {
+    this.store.update({ selectedBenchId: id });
+  }
+
   /** Selects a colonist and brings them on screen. Used by the HUD's colonist strip. */
   focusPawn(id: EntityId): void {
     const pawn = this.sim.world.pawns.get(id);
@@ -132,6 +144,24 @@ export class Engine {
 
   setWorkPriority(pawnId: EntityId, workType: WorkTypeId, priority: number): void {
     this.dispatch({ type: 'setWorkPriority', pawnId, workType, priority });
+    this.store.update({ snapshot: this.sim.snapshot() });
+  }
+
+  // Bills. Each republishes the snapshot immediately rather than waiting for the next
+  // 10Hz tick, so a click on "+" moves the number now — and so they still work while
+  // the game is paused, which is when a player is most likely to be setting quotas.
+  addBill(bench: EntityId, recipe: RecipeId): void {
+    this.dispatch({ type: 'bill', action: 'add', bench, recipe });
+    this.store.update({ snapshot: this.sim.snapshot() });
+  }
+
+  removeBill(bench: EntityId, recipe: RecipeId): void {
+    this.dispatch({ type: 'bill', action: 'remove', bench, recipe });
+    this.store.update({ snapshot: this.sim.snapshot() });
+  }
+
+  setBillCount(bench: EntityId, recipe: RecipeId, untilCount: number): void {
+    this.dispatch({ type: 'bill', action: 'setCount', bench, recipe, untilCount });
     this.store.update({ snapshot: this.sim.snapshot() });
   }
 
@@ -160,8 +190,10 @@ export class Engine {
     if (!save) return false;
 
     this.sim.load(save);
-    // Everything the UI was pointing at belonged to the previous world.
+    // Everything the UI was pointing at belonged to the previous world — including any
+    // open bench panel, whose id now means a different building or nothing at all.
     this.select(null);
+    this.selectBench(null);
     this.setTool('select');
     this.renderer.onWorldReplaced();
     this.renderer.focusOn(this.sim.world.landingSite.x, this.sim.world.landingSite.y);
@@ -172,8 +204,10 @@ export class Engine {
   /** Rebuilds the world from a new seed, through the command queue like any change. */
   regenerate(seed: number): void {
     this.dispatch({ type: 'regenerate', seed });
-    // The old colonists no longer exist, so a held selection would dangle.
+    // The old colonists no longer exist, so a held selection would dangle. Nor do the
+    // old buildings, so the bench panel goes with them.
     this.select(null);
+    this.selectBench(null);
     this.setTool('select');
     this.renderer.onWorldReplaced();
     this.renderer.focusOn(this.sim.world.landingSite.x, this.sim.world.landingSite.y);

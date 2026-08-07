@@ -10,7 +10,7 @@
  */
 
 import { moodOf } from './ai/mood';
-import { itemDef } from './defs/items';
+import { isEdible } from './defs/items';
 import { Need, needDef } from './defs/needs';
 import { BREAK_THRESHOLD } from './defs/thoughts';
 import { isOnGround } from './entities/item';
@@ -29,7 +29,7 @@ export function buildAlerts(world: World): Alert[] {
 
   let edibleUnits = 0;
   for (const item of world.items.values()) {
-    if (isOnGround(item) && itemDef(item.def).edible) edibleUnits += item.count;
+    if (isOnGround(item) && isEdible(item.def)) edibleUnits += item.count;
   }
 
   const living = [...world.pawns.values()].filter((pawn) => !pawn.dead);

@@ -16,6 +16,7 @@ export const Buildable = {
   Wall: 0,
   Door: 1,
   Floor: 2,
+  Campfire: 3,
 } as const;
 
 export type BuildableId = (typeof Buildable)[keyof typeof Buildable];
@@ -66,6 +67,16 @@ export const BUILDABLE_DEFS: readonly BuildableDef[] = [
     cost: [{ def: ItemDef.Stone, count: 2 }],
     work: 120,
     result: { kind: 'terrain', terrain: Terrain.StoneFloor },
+  },
+  {
+    id: Buildable.Campfire,
+    name: 'Campfire',
+    description: 'Cook meals here. Gives light.',
+    // Cheap and stone-only on purpose: the first bench should be affordable on day one,
+    // from the resource the player already has, or cooking arrives too late to matter.
+    cost: [{ def: ItemDef.Stone, count: 8 }],
+    work: 180,
+    result: { kind: 'building', building: Building.Campfire },
   },
 ];
 

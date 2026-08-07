@@ -129,6 +129,13 @@ export function hashWorld(world: World): string {
     h = mixInt32(h, building.pos.x);
     h = mixInt32(h, building.pos.y);
     h = mixInt32(h, building.owner ?? -1);
+    // Bills and loaded ingredients are saved, so they are hashed. A field in one and not
+    // the other passes the round-trip test while guarding nothing.
+    for (const bill of building.bills) {
+      h = mixInt32(h, bill.recipe);
+      h = mixInt32(h, bill.untilCount);
+    }
+    for (const count of building.loaded) h = mixInt32(h, count);
   }
 
   h = mixInt32(h, world.sites.size);

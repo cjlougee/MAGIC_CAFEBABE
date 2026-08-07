@@ -14,11 +14,18 @@
  * stoves (M3) — a column with no giver behind it would be a lie told to the player.
  */
 
+/**
+ * **Append-only.** Each pawn's priorities are saved as an array indexed by these ids, so
+ * inserting Cook in the middle would silently rewrite every colonist's schedule in every
+ * existing save — a colony's miners quietly becoming its haulers. New work types go on
+ * the end, and display order pays the price.
+ */
 export const WorkType = {
   Harvest: 0,
   Construct: 1,
   Mine: 2,
   Haul: 3,
+  Cook: 4,
 } as const;
 
 export type WorkTypeId = (typeof WorkType)[keyof typeof WorkType];
@@ -57,6 +64,14 @@ export const WORK_TYPE_DEFS: readonly WorkTypeDef[] = [
     // Delivering materials to a blueprint is hauling, so it lives under this column
     // rather than adding a lever the player didn't ask for.
     description: 'Carry loose items to a stockpile, and materials to building sites.',
+  },
+  {
+    id: WorkType.Cook,
+    label: 'Cook',
+    // Fetching ingredients is *Cook*, not Haul, and deliberately so: a blueprint is a
+    // plan the colony can see, but a bill is the kitchen's own business. Under Haul,
+    // placing one bill would pull every hauler off what they were doing.
+    description: 'Fetch ingredients to a workbench and make what its bills ask for.',
   },
 ];
 

@@ -25,6 +25,7 @@ How to find things, and where new writing belongs.
 | [`04-needs-and-mood.md`](design/04-needs-and-mood.md) | Needs, thoughts, mood, mental breaks |
 | [`05-construction-and-rooms.md`](design/05-construction-and-rooms.md) | Blueprints, walls, deconstruction, room detection |
 | [`06-save-and-load.md`](design/06-save-and-load.md) | Serialization, versioning, migration |
+| [`07-production.md`](design/07-production.md) | Recipes, workbenches, bills, cooking, light |
 
 ## Conventions
 

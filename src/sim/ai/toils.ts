@@ -227,8 +227,14 @@ export function toilWork(options: {
   readonly stillValid: (ctx: ToilContext) => boolean;
   readonly complete: (ctx: ToilContext) => void;
   readonly rate?: number;
-  /** Cell the pawn must stay beside. Work stops if they end up somewhere else. */
-  readonly besides?: (job: Job) => TilePos;
+  /**
+   * Cell the pawn must stay beside. Work stops if they end up somewhere else.
+   *
+   * Takes the world for the same reason `toilReserveEntity`'s `pick` does: some targets
+   * are named by id and have to be looked up. `null` means the target is gone, which is
+   * a failure rather than a licence to work next to nothing.
+   */
+  readonly besides?: (job: Job, world: World) => TilePos | null;
   /**
    * Whether work may advance right now.
    *
@@ -246,7 +252,10 @@ export function toilWork(options: {
 
       // Belt and braces against a pawn drifting off its target mid-job. Cheap, and the
       // alternative is mining a rock from across the map with no visible cause.
-      if (options.besides && !isAdjacent(ctx.pawn.pos, options.besides(ctx.job))) return 'failed';
+      if (options.besides) {
+        const beside = options.besides(ctx.job, ctx.world);
+        if (!beside || !isAdjacent(ctx.pawn.pos, beside)) return 'failed';
+      }
 
       ctx.active.workDone += options.rate ?? 1;
       if (ctx.active.workDone < options.workNeeded(ctx)) return 'running';

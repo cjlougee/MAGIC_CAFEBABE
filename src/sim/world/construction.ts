@@ -18,6 +18,7 @@ import { buildingDef } from '../defs/buildings';
 import type { ItemDefId } from '../defs/items';
 import { createBuilding } from '../entities/building';
 import type { ConstructionSite } from '../entities/constructionSite';
+import { ledgerContents } from '../entities/materials';
 import { Designation } from './designations';
 import { buildingAt } from './lookup';
 import type { World } from './world';
@@ -85,6 +86,12 @@ export function deconstruct(world: World, index: number): boolean {
   const pos = { x: world.map.xOf(index), y: world.map.yOf(index), z: world.map.zOf(index) };
 
   const building = buildingAt(world, index);
+  // Read before the structure comes down, dropped after — a workbench may be holding
+  // ingredients somebody carried across the map, and demolishing a stocked campfire must
+  // not quietly eat the colony's dinner. It joins the salvage rather than preceding it so
+  // it obeys the same rule: nothing is placed until the cell is free to receive it.
+  const stranded = building ? ledgerContents(building.loaded) : [];
+
   if (building) {
     world.buildings.remove(building.id);
     world.map.setBuildingAt(index, false, false);
@@ -95,7 +102,7 @@ export function deconstruct(world: World, index: number): boolean {
 
   world.designations.remove(Designation.Deconstruct, index);
 
-  for (const salvage of refundFor(buildable)) {
+  for (const salvage of [...refundFor(buildable), ...stranded]) {
     world.items.spawn(world.map, salvage.def, salvage.count, pos);
   }
 

@@ -12,7 +12,7 @@
  * saved state while leaving art direction entirely to the renderer.
  */
 
-import type { ActiveJob } from '../ai/job';
+import type { ActiveJob, JobKind } from '../ai/job';
 import type { EntityId } from '../core/entityStore';
 import { GROUND_LEVEL, type TilePos } from '../core/position';
 import { startingNeeds } from '../defs/needs';
@@ -113,7 +113,12 @@ export function isMoving(pawn: Pawn): boolean {
   return pawn.moveTarget !== null || pawn.pathIndex < pawn.path.length;
 }
 
-const ACTIVITY_LABELS: Record<string, string> = {
+/*
+ * Keyed by JobKind rather than by string, so adding a job kind without giving it words
+ * is a compile error instead of a colonist reported as "stockBench" in the roster. That
+ * exact leak shipped once and was caught by looking at the game, not the tests.
+ */
+const ACTIVITY_LABELS: Record<JobKind, string> = {
   mine: 'mining',
   haul: 'hauling',
   harvest: 'harvesting',
@@ -123,6 +128,8 @@ const ACTIVITY_LABELS: Record<string, string> = {
   deliver: 'hauling materials',
   construct: 'building',
   deconstruct: 'deconstructing',
+  stockBench: 'fetching ingredients',
+  craft: 'cooking',
 };
 
 /** Short label for the UI. Not for logic — nothing should branch on a display string. */
@@ -130,7 +137,7 @@ export function pawnActivity(pawn: Pawn): string {
   if (pawn.dead) return 'dead';
   if (pawn.asleep) return 'asleep';
   if (pawn.breakTicks > 0) return 'breaking down';
-  if (pawn.job) return ACTIVITY_LABELS[pawn.job.job.kind] ?? pawn.job.job.kind;
+  if (pawn.job) return ACTIVITY_LABELS[pawn.job.job.kind];
   return isMoving(pawn) ? 'walking' : 'idle';
 }
 

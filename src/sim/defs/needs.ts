@@ -66,8 +66,5 @@ export function startingNeeds(): number[] {
 /** Rest regained per tick while asleep. A full night restores a full bar. */
 export const REST_PER_SLEEPING_TICK = 1 / (TICKS_PER_DAY * 0.34);
 
-/** Hunger restored by one unit of raw food. */
-export const NUTRITION_PER_RAW_FOOD = 0.14;
-
 /** Health lost per tick at zero hunger. Slow enough to be a warning, not a guillotine. */
 export const STARVATION_DAMAGE_PER_TICK = 1 / (TICKS_PER_DAY * 2.5);

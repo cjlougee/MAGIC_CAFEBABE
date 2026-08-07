@@ -8,15 +8,17 @@
 
 import type { TilePos } from '../core/position';
 import { buildableDef, deconstructWork } from '../defs/buildables';
-import { NUTRITION_PER_RAW_FOOD } from '../defs/needs';
+import { recipeDef } from '../defs/recipes';
 import { plantDef } from '../defs/plants';
 import { terrainDef } from '../defs/terrain';
 import { Thought } from '../defs/thoughts';
+import { hasIngredientsFor } from '../entities/building';
 import { hasAllMaterials, outstanding } from '../entities/constructionSite';
+import { outstandingOf } from '../entities/materials';
 import { isRipe } from '../entities/plant';
 import { builtHere, completeConstruction, deconstruct } from '../world/construction';
 import { Designation } from '../world/designations';
-import { buildingAt, pawnOccupies } from '../world/lookup';
+import { buildingAt, countHeld, pawnOccupies } from '../world/lookup';
 import type { Job, JobKind } from './job';
 import { addThought } from './mood';
 import { consumeFood } from './needs';
@@ -177,7 +179,7 @@ const EAT_TOILS: readonly Toil[] = [
     stillValid: (ctx) => ctx.world.items.get(asEat(ctx.job).item) !== undefined,
     complete: (ctx) => {
       const item = ctx.world.items.get(asEat(ctx.job).item);
-      if (item) consumeFood(ctx.world, ctx.pawn, item, NUTRITION_PER_RAW_FOOD);
+      if (item) consumeFood(ctx.world, ctx.pawn, item);
     },
   }),
 ];
@@ -315,6 +317,87 @@ const DECONSTRUCT_TOILS: readonly Toil[] = [
   }),
 ];
 
+function asStockBench(job: Job) {
+  if (job.kind !== 'stockBench') throw new Error(`Expected a stockBench job, got ${job.kind}`);
+  return job;
+}
+
+function asCraft(job: Job) {
+  if (job.kind !== 'craft') throw new Error(`Expected a craft job, got ${job.kind}`);
+  return job;
+}
+
+/**
+ * Carrying one ingredient stack to a bench.
+ *
+ * Deliberately does **not** reserve the bench. Several cooks stocking the same fire at
+ * once is the behaviour we want — a kitchen cooperating — and claiming the bench to load
+ * it would serialise them for no reason. Only the crafting is exclusive.
+ */
+const STOCK_BENCH_TOILS: readonly Toil[] = [
+  toilReserveItem((job) => asStockBench(job).item),
+  toilWalkTo((job, world) => world.items.get(asStockBench(job).item)?.pos ?? null),
+  toilPickUp((job) => asStockBench(job).item),
+  // Loaded from beside the bench: a campfire's own cell is impassable, so there is
+  // nowhere to stand on it in the first place.
+  toilWalkAdjacentTo((job, world) => world.buildings.get(asStockBench(job).bench)?.pos ?? null),
+  toilDeposit((ctx, item) => {
+    const bench = ctx.world.buildings.get(asStockBench(ctx.job).bench);
+    if (!bench) return 0;
+
+    // Whatever any of its bills still wants. Asking per-bill would let a second bill's
+    // shortfall go unfilled while the colonist stood there holding exactly it.
+    let wanted = 0;
+    for (const bill of bench.bills) {
+      wanted = Math.max(wanted, outstandingOf(bench.loaded, recipeDef(bill.recipe).ingredients, item.def));
+    }
+
+    const taken = Math.min(wanted, item.count);
+    bench.loaded[item.def] += taken;
+    return taken;
+  }),
+];
+
+/** Working a bench whose bill already has everything it needs. */
+const CRAFT_TOILS: readonly Toil[] = [
+  toilReserveEntity(
+    (job) => asCraft(job).bench,
+    (ctx, id) => ctx.world.buildings.get(id) !== undefined,
+  ),
+  toilWalkAdjacentTo((job, world) => world.buildings.get(asCraft(job).bench)?.pos ?? null),
+  toilWork({
+    besides: (job, world) => world.buildings.get(asCraft(job).bench)?.pos ?? null,
+    workNeeded: (ctx) => recipeDef(asCraft(ctx.job).recipe).work,
+
+    // Re-checked every tick: the player may have deleted the bill, another cook may have
+    // met the quota, or the ingredients may have gone into a different bill entirely.
+    stillValid: (ctx) => {
+      const job = asCraft(ctx.job);
+      const bench = ctx.world.buildings.get(job.bench);
+      if (!bench) return false;
+      const bill = bench.bills.find((b) => b.recipe === job.recipe);
+      if (!bill) return false;
+      if (!hasIngredientsFor(bench, bill)) return false;
+      return countHeld(ctx.world, recipeDef(job.recipe).product.def) < bill.untilCount;
+    },
+
+    complete: (ctx) => {
+      const job = asCraft(ctx.job);
+      const bench = ctx.world.buildings.get(job.bench);
+      if (!bench) return;
+
+      const recipe = recipeDef(job.recipe);
+      for (const ingredient of recipe.ingredients) {
+        bench.loaded[ingredient.def] -= ingredient.count;
+      }
+
+      // Spawned at the bench, which spills to a storable neighbour because the bench's
+      // own cell is blocked. Nothing is ever placed *on* the fire.
+      ctx.world.items.spawn(ctx.world.map, recipe.product.def, recipe.product.count, bench.pos);
+    },
+  }),
+];
+
 const DRIVERS: Record<JobKind, readonly Toil[]> = {
   mine: MINE_TOILS,
   haul: HAUL_TOILS,
@@ -325,6 +408,8 @@ const DRIVERS: Record<JobKind, readonly Toil[]> = {
   deliver: DELIVER_TOILS,
   construct: CONSTRUCT_TOILS,
   deconstruct: DECONSTRUCT_TOILS,
+  stockBench: STOCK_BENCH_TOILS,
+  craft: CRAFT_TOILS,
 };
 
 export function driverFor(kind: JobKind): readonly Toil[] {

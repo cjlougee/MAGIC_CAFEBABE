@@ -24,6 +24,9 @@ const ITEM_BASE: Record<ItemDefId, number> = {
   [ItemDef.Stone]: 0x8c8781,
   [ItemDef.Scrap]: 0x6d7b82,
   [ItemDef.RawFood]: 0x8e5f6b,
+  // Warmer and lighter than the raw berries it came from, so a full larder reads as
+  // cooked at a glance rather than as more of the same.
+  [ItemDef.Meal]: 0xc79a5c,
 };
 
 function chunk(g: Graphics, x: number, y: number, size: number, colour: number): void {
@@ -57,6 +60,13 @@ export function buildItemGraphics(def: ItemDefId): Graphics {
       const y = ITEM_GROUND_Y - rng.rangeFloat(1, 5);
       g.circle(x, y, rng.rangeFloat(1.4, 2.2)).fill({ color: shade(base, 0.28) });
     }
+  }
+
+  // A meal is a stacked, squared-off portion rather than a scatter — prepared food
+  // should not read as another heap of loose material.
+  if (def === ItemDef.Meal) {
+    chunk(g, CENTRE, ITEM_GROUND_Y - 4, 5, shade(base, 0.18));
+    chunk(g, CENTRE, ITEM_GROUND_Y - 7, 3.5, shade(base, 0.34));
   }
 
   return g;

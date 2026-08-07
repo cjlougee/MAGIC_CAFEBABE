@@ -11,6 +11,7 @@ export const Building = {
   Bedroll: 0,
   Wall: 1,
   Door: 2,
+  Campfire: 3,
 } as const;
 
 export type BuildingId = (typeof Building)[keyof typeof Building];
@@ -20,6 +21,13 @@ export interface BuildingDef {
   readonly name: string;
   /** Colonists can sleep here, and sleeping here is better than the ground. */
   readonly isBed: boolean;
+  /**
+   * Radius in cells this lights, or 0 for nothing.
+   *
+   * Content, so it lives here — but only `render/` reads it, because darkness has no
+   * effect on the simulation yet. See docs/design/07-production.md.
+   */
+  readonly lightRadius: number;
   /** Whether colonists can walk through it. */
   readonly passable: boolean;
   /**
@@ -34,9 +42,20 @@ export interface BuildingDef {
 
 /** Indexed by BuildingId — array position must equal `id`. */
 export const BUILDING_DEFS: readonly BuildingDef[] = [
-  { id: Building.Bedroll, name: 'Bedroll', isBed: true, passable: true, blocksRoom: false },
-  { id: Building.Wall, name: 'Wall', isBed: false, passable: false, blocksRoom: true },
-  { id: Building.Door, name: 'Door', isBed: false, passable: true, blocksRoom: true },
+  { id: Building.Bedroll, name: 'Bedroll', isBed: true, lightRadius: 0, passable: true, blocksRoom: false },
+  { id: Building.Wall, name: 'Wall', isBed: false, lightRadius: 0, passable: false, blocksRoom: true },
+  { id: Building.Door, name: 'Door', isBed: false, lightRadius: 0, passable: true, blocksRoom: true },
+  // Impassable but not a room edge: you cannot walk through a fire, and a fire in the
+  // middle of a hut must not cut the hut into two rooms. Exactly the case those two
+  // flags were kept separate for.
+  {
+    id: Building.Campfire,
+    name: 'Campfire',
+    isBed: false,
+    lightRadius: 6,
+    passable: false,
+    blocksRoom: false,
+  },
 ];
 
 export function buildingDef(id: BuildingId): BuildingDef {

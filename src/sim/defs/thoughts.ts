@@ -16,6 +16,12 @@
 
 import { TICKS_PER_HOUR } from '../core/constants';
 
+/**
+ * **This table is append-only.** A pawn's memories are saved as these ids, so renumbering
+ * would silently rewrite every colonist's feelings in every existing save — yesterday's
+ * bad night becoming today's good meal. New entries go on the end even when that breaks
+ * the tidy memories-then-situational grouping below.
+ */
 export const Thought = {
   // Memories.
   AteRawFood: 0,
@@ -26,6 +32,8 @@ export const Thought = {
   Hungry: 4,
   Starving: 5,
   Exhausted: 6,
+  // Appended after the fact — a memory, despite sitting past the situational block.
+  AteMeal: 7,
 } as const;
 
 export type ThoughtId = (typeof Thought)[keyof typeof Thought];
@@ -79,6 +87,16 @@ export const THOUGHT_DEFS: readonly ThoughtDef[] = [
   { id: Thought.Hungry, label: 'Hungry', mood: -0.1, durationTicks: 0, situational: true },
   { id: Thought.Starving, label: 'Starving', mood: -0.28, durationTicks: 0, situational: true },
   { id: Thought.Exhausted, label: 'Exhausted', mood: -0.12, durationTicks: 0, situational: true },
+  {
+    id: Thought.AteMeal,
+    label: 'Ate a proper meal',
+    // Deliberately a swing rather than a cancellation: cooking turns a -0.05 into a
+    // +0.06, so the first campfire is worth about a tenth of a colonist's mood and the
+    // player feels the decision to build it.
+    mood: +0.06,
+    durationTicks: hours(6),
+    situational: false,
+  },
 ];
 
 export function thoughtDef(id: ThoughtId): ThoughtDef {

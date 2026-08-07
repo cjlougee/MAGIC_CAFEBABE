@@ -13,6 +13,7 @@ import type { Tool } from '../input/worldInput';
 import type { EntityId } from '../sim/core/entityStore';
 import type { PawnSummary, ResourceSummary } from '../sim/snapshot';
 import { AlertsPanel } from './AlertsPanel';
+import { BillPanel } from './BillPanel';
 import { ColonistPanel } from './ColonistPanel';
 import { MainMenu } from './MainMenu';
 import { Toolbar } from './Toolbar';
@@ -40,8 +41,18 @@ interface HUDProps {
 
 export function HUD({ store, engine }: HUDProps) {
   const state = useSyncExternalStore(store.subscribe, store.getState);
-  const { snapshot, speed, fps, ready, selectedPawnId, tool, buildable, showWorkPanel, showMenu } =
-    state;
+  const {
+    snapshot,
+    speed,
+    fps,
+    ready,
+    selectedPawnId,
+    selectedBenchId,
+    tool,
+    buildable,
+    showWorkPanel,
+    showMenu,
+  } = state;
 
   // The menu is a pause, not a screen: the world should not advance behind it.
   useEffect(() => {
@@ -84,6 +95,9 @@ export function HUD({ store, engine }: HUDProps) {
   }, [engine, speed, state, selectedPawnId, store]);
 
   const selected = snapshot?.pawns.find((pawn) => pawn.id === selectedPawnId) ?? null;
+  // Looked up fresh each snapshot rather than held, so a bench that is deconstructed
+  // while its panel is open simply closes instead of describing something gone.
+  const selectedBench = snapshot?.benches.find((bench) => bench.id === selectedBenchId) ?? null;
 
   if (!ready || !snapshot) {
     return (
@@ -175,6 +189,18 @@ export function HUD({ store, engine }: HUDProps) {
 
       {selected && !showWorkPanel && (
         <ColonistPanel pawn={selected} onClose={() => engine?.select(null)} />
+      )}
+
+      {selectedBench && !showWorkPanel && (
+        <BillPanel
+          bench={selectedBench}
+          onAdd={(recipe) => engine?.addBill(selectedBench.id, recipe)}
+          onRemove={(recipe) => engine?.removeBill(selectedBench.id, recipe)}
+          onSetCount={(recipe, untilCount) =>
+            engine?.setBillCount(selectedBench.id, recipe, untilCount)
+          }
+          onClose={() => engine?.selectBench(null)}
+        />
       )}
 
       {showWorkPanel && (

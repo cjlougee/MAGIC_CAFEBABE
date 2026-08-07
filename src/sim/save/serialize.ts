@@ -20,6 +20,7 @@ import type { BuildableId } from '../defs/buildables';
 import type { BuildingId } from '../defs/buildings';
 import type { ItemDefId } from '../defs/items';
 import type { PlantId } from '../defs/plants';
+import type { RecipeId } from '../defs/recipes';
 import { createBuilding, type Building } from '../entities/building';
 import { createSite, type ConstructionSite } from '../entities/constructionSite';
 import { createItem, type Item } from '../entities/item';
@@ -37,7 +38,7 @@ import type { World } from '../world/world';
 import { Zones } from '../world/zones';
 
 /** Bumped whenever the save shape changes. See migrate.ts. */
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 // ── Run-length encoding for the map grids ───────────────────────────────────────
 // Terrain is enormously repetitive — long runs of the same value — so RLE turns tens of
@@ -134,7 +135,16 @@ export interface SaveData {
   readonly nextItemId: number;
   readonly plants: { id: number; def: number; pos: SavedPos; growth: number }[];
   readonly nextPlantId: number;
-  readonly buildings: { id: number; def: number; pos: SavedPos; owner: number | null }[];
+  readonly buildings: {
+    id: number;
+    def: number;
+    pos: SavedPos;
+    owner: number | null;
+    /** Standing orders. Empty for anything that isn't a workbench. */
+    bills: { recipe: number; untilCount: number }[];
+    /** Ingredients loaded in, indexed by ItemDefId. */
+    loaded: number[];
+  }[];
   readonly nextBuildingId: number;
   readonly sites: {
     id: number;
@@ -209,6 +219,8 @@ export function serializeWorld(world: World): SaveData {
       def: b.def,
       pos: at(b.pos),
       owner: b.owner,
+      bills: b.bills.map((bill) => ({ recipe: bill.recipe, untilCount: bill.untilCount })),
+      loaded: [...b.loaded],
     })),
     nextBuildingId: world.buildings.nextIdForSave,
     sites: [...world.sites.values()].map((s) => ({
@@ -274,6 +286,14 @@ export function deserializeWorld(save: SaveData): World {
   for (const saved of save.buildings) {
     const building = createBuilding(saved.id, saved.def as BuildingId, saved.pos);
     building.owner = saved.owner;
+    for (const bill of saved.bills) {
+      building.bills.push({ recipe: bill.recipe as RecipeId, untilCount: bill.untilCount });
+    }
+    // Copied in rather than assigned, so a short array from an older save leaves the
+    // remaining item types at zero instead of shrinking the ledger.
+    for (let def = 0; def < saved.loaded.length && def < building.loaded.length; def++) {
+      building.loaded[def] = saved.loaded[def];
+    }
     buildings.restore(building);
   }
   buildings.restoreNextId(save.nextBuildingId);

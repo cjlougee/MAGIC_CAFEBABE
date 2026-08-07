@@ -55,6 +55,8 @@ export class GameRenderer {
     // Lighting sits outside the world container so it stays screen-aligned rather
     // than scaling and panning with the map.
     this.app.stage.addChild(this.lighting.sprite);
+    // Above the wash, so fires give the darkness back rather than being dimmed by it.
+    this.app.stage.addChild(this.lighting.glow);
 
     this.controller = new CameraController(this.camera, this.app.canvas, shouldPan);
     this.controller.attach();
@@ -117,7 +119,13 @@ export class GameRenderer {
     this.ground.update(world.map, world.seed, view, visible);
     this.overlays.update(world, view, visible, preview);
     this.objects.update(world, view, visible, selectedId);
-    this.lighting.update(daylight(world.tick), width, height);
+    const light = daylight(world.tick);
+    this.lighting.update(light, width, height);
+    // Screen-space like the wash, but its children are positioned in world coordinates,
+    // so it borrows the world transform rather than converting every emitter itself.
+    this.lighting.glow.position.copyFrom(this.worldContainer.position);
+    this.lighting.glow.scale.copyFrom(this.worldContainer.scale);
+    this.lighting.updateEmitters(world, light, this.app.renderer);
 
     this.app.renderer.render(this.app.stage);
   }

@@ -69,11 +69,12 @@ See [`design/03-work-and-jobs.md`](design/03-work-and-jobs.md).
 - [x] Mental break ("sad wander"), preempting whatever they were doing
 - [x] Alerts panel and colonist inspector (needs, health, mood, thoughts)
 - [x] Unique colonist names (a duplicate roster entry made every story ambiguous)
-- [~] **Cooking moved to Slice 2.** Cooking is production, and production is Slice 2 with the
-      bill system; a one-off campfire recipe here would be rewritten immediately. Raw food
-      carries a mood penalty instead, which motivates cooking rather than pre-empting it.
-- [~] **Light grid follows cooking to Slice 2.** It was deferred here because campfires would be
-      the first light source. No campfires, so still nothing to light.
+- [x] **Cooking moved to Slice 2** — and *landed* there, in M6. Cooking is production, and a
+      one-off campfire recipe here would have been rewritten the moment bills existed. Raw
+      food carried a mood penalty in the meantime, which is what made cooking worth building.
+- [x] **Light grid followed cooking to Slice 2**, for the same reason: campfires are the
+      first light source, and a light grid with nothing to light is the flat wash with extra
+      machinery. Delivered in M6.
 - **Playable check:** ✅ a colony feeds and beds itself unattended for 3 in-game days — asserted
   headless in `tests/survival.test.ts`, 180,000 ticks in under a second.
 
@@ -124,14 +125,46 @@ simulation runs seven in-game days in about a second, headless.
 
 ---
 
+## Slice 2 — Production
+
+### M6 — Cooking, and the first bills
+- [x] **Recipes** in `defs/recipes.ts`, shaped like buildables — a cost list, labour, a
+      result — so `outstanding` / `hasAllMaterials` / `missingMaterials` generalise over
+      `(delivered, cost)` in `entities/materials.ts` and serve sites and benches alike
+- [x] **Workbenches are buildings that carry bills and a ledger**, not a separate entity
+      type with its own reservations, save section, and answer to "what is on this cell"
+- [x] **Bills are suspended by arithmetic**, not a flag: the giver counts the product in
+      the world and skips the bill when the colony has enough, so a bench idles when
+      stocked and restarts when supplies drop with no state to keep in sync
+- [x] Quotas come with a sensible default and are the player's to change — what counts as
+      "enough" is a decision they own, per bench
+- [x] **Cook** work type: one giver returning `stockBench` or `craft` depending on what the
+      bench needs next. Stocking claims only the ingredients, crafting claims the bench, so
+      several cooks can load one fire while only one consumes it
+- [x] Campfire, Meal, and `nutrition`/`eatThought` moved onto `ItemDefinition` — colonists
+      prefer the best food available and remember it accordingly
+- [x] Per-cell light: campfires push back the night wash. Lives in `render/` and is derived,
+      because darkness does not affect the simulation *yet*
+- [x] Save v3: bills, bench ledgers, and a fifth work-type column, with a migration that
+      pads old priority arrays rather than leaving `priorities[Cook]` undefined
+- **Playable check:** ✅ build a fire, place one bill, walk away — colonists fetch berries,
+  cook, and *stop at the quota*. Watched in-browser at nightfall; asserted headless in
+  `tests/cooking.test.ts`.
+
+See [`design/07-production.md`](design/07-production.md).
+
+**Still to come in Slice 2:** the *scrap → refined → relic-tech* ladder (a second and third
+recipe now that the bill system exists), quality tiers, and power — deferred until something
+needs it, exactly as the light grid and cooking were.
+
+---
+
 ## Later slices
 
 Real, but not designed in detail yet. Each gets its own design pass when we reach it.
 
-- **Slice 2 — Production.** Workbenches and bills, recipe chains, quality tiers, power grid.
-  Delivers the *scrap → refined → relic-tech* ladder. Also picks up **cooking** (the first real
-  bill) and the **per-cell light grid** (campfires being the first light source), both deferred
-  from M3 for want of the systems they depend on.
+- **Slice 2 — Production.** *Started — see M6 above.* Recipe chains, quality tiers, and a power
+  grid remain; the *scrap → refined → relic-tech* ladder is the next content on top of bills.
 - **Slice 3 — Threat.** Combat, body-part injury model (`hediffs`), raids, an event director that
   paces pressure. Where high-ground and cover modifiers land, since they need combat to modify.
 - **Slice 4 — The world outside.** World map, caravans, exploration of ruins, factions, trade.
@@ -148,10 +181,9 @@ mood bonus, and nothing to spend materials on. Ranked by what unlocks the most:
 
 ### Next, in order
 
-1. **Slice 2 — production.** The largest unlock. Workbenches with **bills** ("cook until
-   10 meals"), which is the system cooking was deferred for, plus the *scrap → refined →
-   relic-tech* ladder that gives mining a point beyond walls. Brings the per-cell light
-   grid with campfires.
+1. **The rest of Slice 2.** Bills exist and cooking proves them, so the *scrap → refined →
+   relic-tech* ladder is now a second and third recipe rather than a new system. Quality
+   tiers after that. Power stays deferred until something needs it.
 2. **Slice 3 — threat.** Raids give walls a reason to exist and the event director gives
    the colony a shape over time. The `hediff` array on pawns is already there waiting.
 
@@ -161,6 +193,12 @@ mood bonus, and nothing to spend materials on. Ranked by what unlocks the most:
 
 - **No roofs.** "Indoors" means enclosed-by-something-built. Fine now; temperature or
   weather would need real roofs.
+- **The best landing sites are the furthest from stone.** `findLandingSite` maximises open,
+  *storable* ground, and rock is neither passable nor storable — so the chooser actively
+  walks away from it. Across several generated maps the nearest rock was a long trip. That
+  is correct behaviour for choosing somewhere to live and mildly awkward for the first
+  campfire, which costs 8 stone. Not a bug; worth watching once there is a tutorial or a
+  first-hour pacing pass.
 - **A mine mark on rock is nearly invisible.** Designations draw on the ground plane, and
   rock is raised, so the mark sits at the base of the block it refers to. Deconstruction
   hit the same wall and solved it for *buildings* by tinting them; mining has no

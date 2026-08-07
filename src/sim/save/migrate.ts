@@ -56,9 +56,45 @@ function addNaturalTerrain(save: Record<string, unknown>): Record<string, unknow
   };
 }
 
+// Frozen as they stood at save version 2. Deliberately literals, not `WORK_TYPE_COUNT`
+// or `DEFAULT_PRIORITY`: those describe the game now, and this step describes a file as
+// it was then. If a work type is ever added again, this must still pad to *four*.
+const V2_WORK_TYPE_COUNT = 4;
+const V2_DEFAULT_PRIORITY = 3;
+
+/**
+ * v2 → v3: workbenches arrive, and with them a fifth work type.
+ *
+ * Two independent changes that happen to land together. Buildings gain bills and a
+ * ledger of loaded ingredients, which for an old save are simply empty — nothing was a
+ * workbench before this version. And every pawn's priority array grows by one, because
+ * `WorkType.Cook` was appended; an un-padded array would leave `priorities[Cook]`
+ * undefined, which compares false against every threshold and reads as "never cook"
+ * rather than as the default it should be.
+ *
+ * Padded from whatever length the file has rather than assuming four, so a save written
+ * by a build mid-way through this change still comes out the right shape.
+ */
+function addWorkbenchesAndCook(save: Record<string, unknown>): Record<string, unknown> {
+  const buildings = save.buildings as Record<string, unknown>[];
+  const pawns = save.pawns as Record<string, unknown>[];
+
+  return {
+    ...save,
+    version: 3,
+    buildings: buildings.map((building) => ({ ...building, bills: [], loaded: [] })),
+    pawns: pawns.map((pawn) => {
+      const priorities = [...((pawn.priorities as number[]) ?? [])];
+      while (priorities.length < V2_WORK_TYPE_COUNT + 1) priorities.push(V2_DEFAULT_PRIORITY);
+      return { ...pawn, priorities };
+    }),
+  };
+}
+
 /** Keyed by the version being upgraded *from*. */
 const STEPS: Record<number, MigrationStep> = {
   1: addNaturalTerrain,
+  2: addWorkbenchesAndCook,
 };
 
 /**

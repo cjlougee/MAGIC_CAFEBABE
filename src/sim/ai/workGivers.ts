@@ -11,7 +11,6 @@
  */
 
 import type { TilePos } from '../core/position';
-import { itemDef } from '../defs/items';
 import type { WorkTypeId } from '../defs/workTypes';
 import { WorkType } from '../defs/workTypes';
 import {
@@ -19,12 +18,15 @@ import {
   missingMaterials,
   type ConstructionSite,
 } from '../entities/constructionSite';
+import { isEdible } from '../defs/items';
+import { recipeDef } from '../defs/recipes';
+import { hasIngredientsFor, missingIngredientsFor } from '../entities/building';
 import { isOnGround, type Item } from '../entities/item';
 import type { Pawn } from '../entities/pawn';
 import { isRipe, type Plant } from '../entities/plant';
 import { builtHere } from '../world/construction';
 import { Designation } from '../world/designations';
-import { buildingAt } from '../world/lookup';
+import { buildingAt, countHeld } from '../world/lookup';
 import type { World } from '../world/world';
 import type { Job } from './job';
 import { bestAdjacentCell } from './toils';
@@ -153,7 +155,7 @@ function colonyHasEnoughFood(world: World): boolean {
 
   let stored = 0;
   for (const item of world.items.values()) {
-    if (isOnGround(item) && itemDef(item.def).edible) stored += item.count;
+    if (isOnGround(item) && isEdible(item.def)) stored += item.count;
   }
 
   return stored >= living * FOOD_PER_COLONIST_DAY * FOOD_BUFFER_DAYS;
@@ -301,8 +303,69 @@ const DeliverGiver: WorkGiver = {
 };
 
 /** Consulted in this order within a priority band, so order here is a tiebreak. */
+/**
+ * Working the benches: fetching what a bill needs, then making it.
+ *
+ * One giver returning two kinds of job, because "what should a cook do next" has one
+ * answer and splitting it across two givers would mean two places that could disagree
+ * about whether a bench is ready.
+ *
+ * **Stocking does not reserve the bench; crafting does.** That asymmetry is the point:
+ * several cooks should be able to carry ingredients to the same fire at once — a kitchen
+ * cooperating — while only one may consume them and produce the result. Reserving the
+ * bench to stock it would serialise the fetching and make a second cook useless.
+ */
+const CookGiver: WorkGiver = {
+  id: 'cook',
+  workType: WorkType.Cook,
+
+  tryGiveJob(world, pawn) {
+    for (const bench of world.buildings.values()) {
+      if (bench.bills.length === 0) continue;
+
+      for (const bill of bench.bills) {
+        const recipe = recipeDef(bill.recipe);
+        // Suspended by arithmetic: no flag to keep in step with how much exists.
+        if (countHeld(world, recipe.product.def) >= bill.untilCount) continue;
+
+        if (hasIngredientsFor(bench, bill)) {
+          // Only the crafting is exclusive.
+          if (!world.reservations.canReserveEntity(bench.id, pawn.id)) continue;
+          if (!bestAdjacentCell(world, bench.pos, pawn.pos)) continue;
+          return { kind: 'craft', bench: bench.id, recipe: bill.recipe };
+        }
+
+        const wanted = missingIngredientsFor(bench, bill);
+        let best: Item | null = null;
+        let bestDistance = Infinity;
+
+        for (const item of world.items.values()) {
+          if (!isOnGround(item) || !item.pos) continue;
+          if (!wanted.includes(item.def)) continue;
+          if (!world.reservations.canReserveEntity(item.id, pawn.id)) continue;
+
+          const distance = roughDistance(pawn.pos, item.pos);
+          if (distance >= bestDistance) continue;
+          if (!world.reachability.canReach(pawn.pos, item.pos)) continue;
+
+          bestDistance = distance;
+          best = item;
+        }
+
+        if (!best) continue;
+        if (!bestAdjacentCell(world, bench.pos, pawn.pos)) continue;
+
+        return { kind: 'stockBench', bench: bench.id, item: best.id };
+      }
+    }
+
+    return null;
+  },
+};
+
 export const WORK_GIVERS: readonly WorkGiver[] = [
   HarvestGiver,
+  CookGiver,
   ConstructGiver,
   DeconstructGiver,
   DeliverGiver,

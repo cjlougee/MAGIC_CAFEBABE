@@ -28,6 +28,9 @@ export const BUILDING_HEIGHT: Record<BuildingId, number> = {
   [Building.Wall]: 22,
   // Shorter than a wall so a doorway reads as a gap in the run, not another wall.
   [Building.Door]: 16,
+  // Low: a fire is something you stand around, and a tall one would occlude the
+  // colonists working at it — which is exactly what you want to watch.
+  [Building.Campfire]: 7,
 };
 
 const BEDROLL = 0x6f5a48;
@@ -73,6 +76,38 @@ function drawDoor(g: Graphics): void {
   rightFace(g, y, 3).fill({ color: shade(Palette.relic, -0.12) });
 }
 
+function drawCampfire(g: Graphics): void {
+  const cx = HALF_TILE_W;
+  const cy = HALF_TILE_H;
+  const height = BUILDING_HEIGHT[Building.Campfire];
+
+  // A ring of stones, then the fire sitting inside it. Drawn back-to-front so the near
+  // stones overlap the flame and it reads as *in* the ring rather than on top of it.
+  const stone = Palette.gravel;
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2;
+    const sx = cx + Math.cos(angle) * (HALF_TILE_W - 7);
+    const sy = cy + Math.sin(angle) * (HALF_TILE_H - 4);
+    if (Math.sin(angle) > 0) continue;
+    diamond(g, sx, sy, 4, 2).fill({ color: shade(stone, -0.1) });
+  }
+
+  diamond(g, cx, cy, 7, 3.5).fill({ color: shade(Palette.void, 0.25) });
+
+  // Flame: three stacked diamonds, hottest at the base, so it glows without animating.
+  diamond(g, cx, cy - height * 0.35, 6, 3).fill({ color: Palette.hazard });
+  diamond(g, cx, cy - height * 0.7, 4, 2.2).fill({ color: shade(Palette.gold, 0.1) });
+  diamond(g, cx, cy - height, 2.2, 1.3).fill({ color: shade(Palette.gold, 0.35) });
+
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2;
+    const sx = cx + Math.cos(angle) * (HALF_TILE_W - 7);
+    const sy = cy + Math.sin(angle) * (HALF_TILE_H - 4);
+    if (Math.sin(angle) <= 0) continue;
+    diamond(g, sx, sy, 4, 2).fill({ color: stone });
+  }
+}
+
 export function buildBuildingGraphics(def: BuildingId): Graphics {
   const g = new Graphics();
   switch (def) {
@@ -84,6 +119,9 @@ export function buildBuildingGraphics(def: BuildingId): Graphics {
       break;
     case Building.Door:
       drawDoor(g);
+      break;
+    case Building.Campfire:
+      drawCampfire(g);
       break;
   }
   return g;

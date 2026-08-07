@@ -41,6 +41,12 @@ every time, on every machine.
 carried, and hands the pawn back to the AI. Combat lands in Slice 3 and squad command in Slice 5,
 but both depend on this existing in the core.
 
+**Work is a pool, not an assignment**, and that is what makes this rule load-bearing *today* rather
+than in Slice 3. Any pawn allowed to do a job can join it, leave the moment something outranks it,
+and rejoin later with no memory of having been pulled away — two colonists stocking one workbench
+is the ordinary case, not a race. Being pulled off work is normal, not an error path, so a job must
+come apart cleanly at *any* point. See `docs/design/07-production.md`.
+
 **`endJob()` is the single exit.** Completion, failure, and preemption all route through it, so
 cleanup cannot be remembered on one path and forgotten on another. Never release a reservation
 anywhere else.

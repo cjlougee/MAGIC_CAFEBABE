@@ -12,7 +12,11 @@
  */
 
 import { activeThoughts, moodOf } from './ai/mood';
+import { isWorkbench, missingIngredientsFor } from './entities/building';
+import { recipeDef, recipesFor, type RecipeId } from './defs/recipes';
+import { countHeld } from './world/lookup';
 import { buildAlerts, type Alert } from './alerts';
+import { buildingDef } from './defs/buildings';
 import { NEED_DEFS } from './defs/needs';
 import { thoughtDef } from './defs/thoughts';
 import { isOnGround } from './entities/item';
@@ -61,6 +65,27 @@ export interface ResourceSummary {
   readonly count: number;
 }
 
+export interface BillSummary {
+  readonly recipe: RecipeId;
+  readonly name: string;
+  /** What the colony should end up with. The player's number. */
+  readonly untilCount: number;
+  /** How many exist right now, so the panel can say *why* the bench is idle. */
+  readonly held: number;
+  /** Ingredients still to be fetched, already worded for display. */
+  readonly waitingFor: readonly string[];
+}
+
+export interface BenchSummary {
+  readonly id: number;
+  readonly name: string;
+  readonly x: number;
+  readonly y: number;
+  readonly bills: readonly BillSummary[];
+  /** Recipes this bench could make that have no bill yet. */
+  readonly available: readonly { readonly recipe: RecipeId; readonly name: string }[];
+}
+
 export interface SimSnapshot {
   readonly tick: number;
   readonly seed: number;
@@ -80,6 +105,45 @@ export interface SimSnapshot {
   /** Genuinely enclosed rooms — the ones the player built. */
   readonly rooms: number;
   readonly constructionSites: number;
+  /** Every workbench, with its standing orders. Small — there are never many. */
+  readonly benches: readonly BenchSummary[];
+}
+
+/**
+ * Workbenches and their bills, already worded.
+ *
+ * `held` and `waitingFor` are computed here rather than in the component, so the panel
+ * can explain an idle bench — "10 of 10" reads very differently from "waiting for Raw
+ * Food", and a UI that can only show the bill leaves the player guessing which it is.
+ */
+function benchSummaries(world: World): BenchSummary[] {
+  const benches: BenchSummary[] = [];
+
+  for (const building of world.buildings.values()) {
+    if (!isWorkbench(building)) continue;
+
+    benches.push({
+      id: building.id,
+      name: buildingDef(building.def).name,
+      x: building.pos.x,
+      y: building.pos.y,
+      bills: building.bills.map((bill) => {
+        const recipe = recipeDef(bill.recipe);
+        return {
+          recipe: bill.recipe,
+          name: recipe.name,
+          untilCount: bill.untilCount,
+          held: countHeld(world, recipe.product.def),
+          waitingFor: missingIngredientsFor(building, bill).map((def) => ITEM_DEFS[def].name),
+        };
+      }),
+      available: recipesFor(building.def)
+        .filter((recipe) => !building.bills.some((bill) => bill.recipe === recipe.id))
+        .map((recipe) => ({ recipe: recipe.id, name: recipe.name })),
+    });
+  }
+
+  return benches;
 }
 
 export function buildSnapshot(world: World): SimSnapshot {
@@ -144,6 +208,7 @@ export function buildSnapshot(world: World): SimSnapshot {
     ripePlants,
     rooms: world.rooms.enclosedCount,
     constructionSites: world.sites.size,
+    benches: benchSummaries(world),
   };
 }
 

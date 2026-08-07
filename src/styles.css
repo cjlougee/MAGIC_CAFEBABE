@@ -799,3 +799,166 @@ body {
   border: 1px solid var(--c-panelEdge);
   border-radius: 3px;
 }
+
+/* ── Bills on a workbench ─────────────────────────────────────────────────── */
+/* Same footprint as the colonist panel: only one of the two is ever open, so they
+   deliberately occupy the same corner rather than competing for it. */
+
+.bill-panel {
+  position: absolute;
+  right: 14px;
+  top: calc(var(--hud-height) + 12px);
+  width: 268px;
+  background: color-mix(in srgb, var(--c-panel) 94%, transparent);
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 6px;
+  backdrop-filter: blur(8px);
+  user-select: none;
+}
+
+.bill-panel__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--c-panelEdge);
+}
+
+.bill-panel__name {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-relic);
+}
+
+.bill-panel__where {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--c-textDim);
+}
+
+.bill-panel__close {
+  margin-left: auto;
+  padding: 0 3px;
+  font-size: 12px;
+  color: var(--c-textDim);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.bill-panel__close:hover {
+  color: var(--c-danger);
+}
+
+.bill-panel__body {
+  padding: 9px 11px 11px;
+}
+
+.bill-panel__empty {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--c-textDim);
+}
+
+.bill {
+  padding: 7px 8px;
+  margin-bottom: 7px;
+  background: color-mix(in srgb, var(--c-ink) 45%, transparent);
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 4px;
+}
+
+.bill__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bill__name {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bill__remove {
+  margin-left: auto;
+  padding: 0 3px;
+  font-size: 11px;
+  color: var(--c-textDim);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.bill__remove:hover {
+  color: var(--c-danger);
+}
+
+.bill__label {
+  font-size: 11px;
+  color: var(--c-textDim);
+}
+
+.bill__step {
+  width: 20px;
+  height: 20px;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-panelEdge) 70%, transparent);
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.bill__step:hover:not(:disabled) {
+  border-color: var(--c-relic);
+  color: var(--c-relic);
+}
+
+.bill__step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Tabular figures so the number doesn't jitter as it steps through widths. */
+.bill__count {
+  min-width: 22px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.bill__status {
+  margin: 6px 0 0;
+  font-size: 10px;
+  color: var(--c-textDim);
+}
+
+.bill__status.is-met {
+  color: var(--c-good);
+}
+
+.bill-panel__add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.bill-panel__addButton {
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-panelEdge) 55%, transparent);
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.bill-panel__addButton:hover {
+  border-color: var(--c-relic);
+  color: var(--c-relic);
+}

@@ -12,6 +12,7 @@
  */
 
 import type { BuildableId } from '../defs/buildables';
+import type { RecipeId } from '../defs/recipes';
 import type { WorkTypeId } from '../defs/workTypes';
 import type { EntityId } from './entityStore';
 import type { TilePos } from './position';
@@ -76,13 +77,30 @@ export interface BuildCommand {
   readonly area: TileRectangle;
 }
 
+/**
+ * Adds a standing order to a workbench, removes one, or changes what "enough" means.
+ *
+ * One command rather than three, because all three are "the bills on this bench are now
+ * different" and splitting them would give the sim three places to keep the same
+ * invariants — a bench with no bills must not sit on stranded ingredients.
+ */
+export interface BillCommand {
+  readonly type: 'bill';
+  readonly action: 'add' | 'remove' | 'setCount';
+  readonly bench: EntityId;
+  readonly recipe: RecipeId;
+  /** Only read by `setCount`. */
+  readonly untilCount?: number;
+}
+
 export type Command =
   | RegenerateCommand
   | MoveToCommand
   | DesignateCommand
   | ZoneCommand
   | SetWorkPriorityCommand
-  | BuildCommand;
+  | BuildCommand
+  | BillCommand;
 
 export class CommandQueue {
   private pending: Command[] = [];

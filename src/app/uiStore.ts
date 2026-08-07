@@ -19,6 +19,8 @@ export interface UiState {
   readonly ready: boolean;
   /** View state, not simulation state — where the player is looking, not what is true. */
   readonly selectedPawnId: EntityId | null;
+  /** The workbench whose bills are open, if any. */
+  readonly selectedBenchId: EntityId | null;
   readonly tool: Tool;
   /** Which blueprint the build tool would place. */
   readonly buildable: BuildableId;
@@ -32,6 +34,7 @@ const INITIAL: UiState = {
   fps: 0,
   ready: false,
   selectedPawnId: null,
+  selectedBenchId: null,
   tool: 'select',
   buildable: Buildable.Wall,
   showWorkPanel: false,

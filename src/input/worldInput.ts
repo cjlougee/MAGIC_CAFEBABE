@@ -18,9 +18,19 @@ import { Buildable, type BuildableId } from '../sim/defs/buildables';
 import type { EntityId } from '../sim/core/entityStore';
 import { normaliseRect, type Command } from '../sim/core/commands';
 import { GROUND_LEVEL, type TilePos } from '../sim/core/position';
+import { isWorkbench } from '../sim/entities/building';
+import { buildingAt } from '../sim/world/lookup';
 import type { World } from '../sim/world/world';
 
 export type Tool = 'select' | 'mine' | 'deconstruct' | 'stockpile' | 'erase' | 'build';
+
+/** The workbench standing on a cell, if there is one. */
+function benchAt(world: World, cell: TilePos): EntityId | null {
+  const index = world.map.idx(cell.x, cell.y, cell.z);
+  const building = buildingAt(world, index);
+  if (!building || !isWorkbench(building)) return null;
+  return building.id;
+}
 
 /**
  * Pointer travel, in pixels, above which a press counts as a drag rather than a click.
@@ -33,6 +43,13 @@ const PICK_RADIUS = 0.9;
 
 export interface WorldInputHandlers {
   readonly onSelect: (id: EntityId | null) => void;
+  /**
+   * A workbench was clicked, or the selection cleared.
+   *
+   * Separate from `onSelect` because pawns and buildings live in different entity
+   * stores, so a single id could not say which of the two it meant.
+   */
+  readonly onSelectBench: (id: EntityId | null) => void;
   /** Returns to the select tool. Raised by a quick right-click while a tool is active. */
   readonly onCancelTool: () => void;
   readonly dispatch: (command: Command) => void;
@@ -208,6 +225,17 @@ export class WorldInput {
     // Clicking empty ground clears the selection, which is what makes right-click
     // orders feel safe — there is always a way to put the mouse down.
     this.handlers.onSelect(closestId);
+
+    // A colonist standing at a bench wins: they move, so they are the harder thing to
+    // click, and the bench is not going anywhere.
+    if (closestId !== null) {
+      this.handlers.onSelectBench(null);
+      return;
+    }
+
+    const cell = { x: Math.round(tile.x), y: Math.round(tile.y), z: GROUND_LEVEL };
+    const bench = benchAt(world, cell);
+    this.handlers.onSelectBench(bench);
   }
 
   /**

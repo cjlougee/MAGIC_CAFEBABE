@@ -13,7 +13,8 @@
 import type { EntityId } from '../core/entityStore';
 import type { TilePos } from '../core/position';
 import { buildableDef, type BuildableId } from '../defs/buildables';
-import { ITEM_DEFS, type ItemDefId } from '../defs/items';
+import { type ItemDefId } from '../defs/items';
+import { emptyLedger, hasAllOf, missingOf, outstandingOf } from './materials';
 
 export interface ConstructionSite {
   readonly id: EntityId;
@@ -30,30 +31,28 @@ export function createSite(id: EntityId, def: BuildableId, pos: TilePos): Constr
     id,
     def,
     pos,
-    delivered: new Array<number>(ITEM_DEFS.length).fill(0),
+    delivered: emptyLedger(),
     workDone: 0,
   };
 }
 
+// The three questions below are the *same* three a workbench asks about its ingredients,
+// so they delegate to `materials.ts` rather than duplicating the arithmetic. See
+// docs/design/07-production.md.
+
 /** How much more of `item` this site still wants. Zero when satisfied. */
 export function outstanding(site: ConstructionSite, item: ItemDefId): number {
-  const required = buildableDef(site.def).cost.find((cost) => cost.def === item);
-  if (!required) return 0;
-  return Math.max(0, required.count - site.delivered[item]);
+  return outstandingOf(site.delivered, buildableDef(site.def).cost, item);
 }
 
 /** True once every material has arrived and only labour remains. */
 export function hasAllMaterials(site: ConstructionSite): boolean {
-  return buildableDef(site.def).cost.every(
-    (cost) => site.delivered[cost.def] >= cost.count,
-  );
+  return hasAllOf(site.delivered, buildableDef(site.def).cost);
 }
 
 /** Whatever is still missing, for the giver to go looking for. */
 export function missingMaterials(site: ConstructionSite): ItemDefId[] {
-  return buildableDef(site.def)
-    .cost.filter((cost) => site.delivered[cost.def] < cost.count)
-    .map((cost) => cost.def);
+  return missingOf(site.delivered, buildableDef(site.def).cost);
 }
 
 /** 0–1 across the whole job, materials and labour together. Used by the renderer. */

@@ -11,7 +11,7 @@ import type { EntityId } from '../core/entityStore';
 import { GROUND_LEVEL, type TilePos } from '../core/position';
 import { itemDef } from '../defs/items';
 import { Need, needDef, NEED_DEFS, REST_PER_SLEEPING_TICK, STARVATION_DAMAGE_PER_TICK } from '../defs/needs';
-import { Thought } from '../defs/thoughts';
+import { thoughtDef } from '../defs/thoughts';
 import { isBed, type Building } from '../entities/building';
 import { isOnGround, type Item } from '../entities/item';
 import type { Pawn } from '../entities/pawn';
@@ -52,20 +52,33 @@ function isNight(hour: number): boolean {
   return hour >= NIGHT_FROM || hour < NIGHT_UNTIL;
 }
 
-/** Nearest reachable, unclaimed, edible stack. */
+/**
+ * The best reachable, unclaimed food — and among equals, the nearest.
+ *
+ * Quality outranks distance, or a colony would cook diligently and then eat berries
+ * because the berries were closer, and the whole point of a kitchen would be invisible.
+ * Ranked by what the food does to mood, so the ordering is item data rather than a list
+ * of names this function has to keep up with.
+ */
 function findFood(world: World, pawn: Pawn): Item | null {
   let best: Item | null = null;
+  let bestQuality = -Infinity;
   let bestDistance = Infinity;
 
   for (const item of world.items.values()) {
     if (!isOnGround(item) || !item.pos) continue;
-    if (!itemDef(item.def).edible) continue;
+    const food = itemDef(item.def).food;
+    if (!food) continue;
     if (!world.reservations.canReserveEntity(item.id, pawn.id)) continue;
 
+    const quality = thoughtDef(food.thought).mood;
+    if (quality < bestQuality) continue;
+
     const distance = Math.abs(item.pos.x - pawn.pos.x) + Math.abs(item.pos.y - pawn.pos.y);
-    if (distance >= bestDistance) continue;
+    if (quality === bestQuality && distance >= bestDistance) continue;
     if (!world.reachability.canReach(pawn.pos, item.pos)) continue;
 
+    bestQuality = quality;
     bestDistance = distance;
     best = item;
   }
@@ -138,16 +151,21 @@ const EAT_UNTIL = 0.95;
  * shuttle between the stockpile and whatever they were meant to be doing. Eating until
  * satisfied turns that into one trip.
  */
-export function consumeFood(world: World, pawn: Pawn, item: Item, nutritionPerUnit: number): void {
+export function consumeFood(world: World, pawn: Pawn, item: Item): void {
+  const food = itemDef(item.def).food;
+  if (!food) return;
+
   let eaten = 0;
   while (pawn.needs[Need.Hunger] < EAT_UNTIL && item.count > 0) {
-    pawn.needs[Need.Hunger] = Math.min(1, pawn.needs[Need.Hunger] + nutritionPerUnit);
+    pawn.needs[Need.Hunger] = Math.min(1, pawn.needs[Need.Hunger] + food.nutrition);
     item.count -= 1;
     eaten++;
   }
 
   if (item.count <= 0) world.items.remove(item.id, world.map);
-  if (eaten > 0) addThought(pawn, Thought.AteRawFood);
+  // The memory belongs to whatever was actually eaten, so adding a food never means
+  // remembering to add a branch here.
+  if (eaten > 0) addThought(pawn, food.thought);
 }
 
 /** Needs that are low enough for the player to be told about. */
