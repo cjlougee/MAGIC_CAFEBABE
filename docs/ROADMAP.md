@@ -120,8 +120,8 @@ See [`design/06-save-and-load.md`](design/06-save-and-load.md).
 
 ## Slice 1 is complete
 
-A colony that generates, works, feeds itself, builds, and persists. 328 tests; the
-simulation runs seven in-game days in about a second, headless.
+A colony that generates, works, feeds itself, builds, and persists. 328 tests at the time
+it closed, 382 now; the simulation runs seven in-game days in about a second, headless.
 
 ---
 
@@ -176,14 +176,17 @@ Real, but not designed in detail yet. Each gets its own design pass when we reac
 
 ## Picking this up next
 
-Slice 1 works. It is not yet a *game* — there is no pressure, no reason to build beyond a
-mood bonus, and nothing to spend materials on. Ranked by what unlocks the most:
+Slice 1 works and M6 gave it a production loop. It is still not a *game*: there is no
+pressure, nothing threatens the colony, and the crafting ladder stops at its first rung.
+Ranked by what unlocks the most:
 
 ### Next, in order
 
-1. **The rest of Slice 2.** Bills exist and cooking proves them, so the *scrap → refined →
-   relic-tech* ladder is now a second and third recipe rather than a new system. Quality
-   tiers after that. Power stays deferred until something needs it.
+1. **M7 — the crafting ladder.** *Start here.* Bills exist and cooking proved the model, so
+   *scrap → refined → relic-tech* is a smelter bench plus two recipes, not a new system.
+   It is what finally gives mining a point beyond walls, and it is the setting's spine:
+   the top tier can only be **found**, which is what ties exploration, crafting and faction
+   motives together. Quality tiers after that. Power stays deferred until something needs it.
 2. **Slice 3 — threat.** Raids give walls a reason to exist and the event director gives
    the colony a shape over time. The `hediff` array on pawns is already there waiting.
 
@@ -217,7 +220,7 @@ mood bonus, and nothing to spend materials on. Ranked by what unlocks the most:
 - **Verticality is reserved, not built.** See ADR 0003; the data model takes a `z` today.
 - **No sound, no main-menu-before-game, no settings.**
 
-### The three bugs that were invisible to tests
+### The bugs that were invisible to tests
 
 Every real defect in this project passed a green suite and was obvious within a minute of
 watching the game. Budget for looking at it.
@@ -247,7 +250,10 @@ seed passing is exactly how it survived a green suite the first time.
   finished structures. Documented in `CLAUDE.md`. Reach for it before spending twenty minutes
   arranging a situation by hand; that cost is exactly why it was built.
 - **`.claude/skills/add-work-type`** — the checklist for a new kind of colonist work.
-  Written after M2 from real code, extended by M3, M4, and deconstruction.
+  Written after M2 from real code, extended by M3, M4, deconstruction, and Cook.
+- **`.claude/skills/art-pass`** — drawing or improving a procedural sprite. The shared shape
+  language, the one light direction, and the geometry rules that break tile alignment
+  without ever raising an error. Written after the M6 art pass from the mistakes it made.
 - **`docs/decisions/`** — six ADRs covering the stack, the projection, verticality,
   water, controls, and deconstruction.
 
