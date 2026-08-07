@@ -14,6 +14,7 @@ import { TERRAIN_DEFS, type TerrainId } from '../../sim/defs/terrain';
 import type { PawnAppearance } from '../../sim/entities/pawn';
 import { HALF_TILE_H, HALF_TILE_W, TILE_H, TILE_W } from '../constants';
 import { BUILDING_HEIGHT, buildBuildingGraphics, buildSiteGraphics } from './buildingArt';
+import { buildContactShadow } from './contactShadow';
 import { buildItemGraphics } from './itemArt';
 import { buildPlantGraphics } from './plantArt';
 import {
@@ -95,6 +96,23 @@ export class ArtProvider {
 
   deconstructMarker(): Texture {
     return this.cached('ui:deconstruct', buildDeconstructMarkerGraphics);
+  }
+
+  /**
+   * Shading for a ground tile that abuts something raised, keyed by which edges do.
+   *
+   * Built through the cache like everything else, but *not* through `cached()`: that path
+   * generates from a Graphics through the renderer with nearest sampling, and this is a
+   * soft gradient drawn on a canvas. Nearest would band it.
+   */
+  contactShadow(mask: number): Texture {
+    const key = `ui:contact:${mask}`;
+    const existing = this.cache.get(key);
+    if (existing) return existing;
+
+    const texture = buildContactShadow(mask);
+    this.cache.set(key, texture);
+    return texture;
   }
 
   previewTile(): Texture {

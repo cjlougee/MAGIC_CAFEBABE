@@ -19,15 +19,43 @@ import { Container, Sprite } from 'pixi.js';
 import { TERRAIN_DEFS } from '../../sim/defs/terrain';
 import type { TileMap } from '../../sim/world/tilemap';
 import type { ArtProvider } from '../art/artProvider';
+import { Edge } from '../art/contactShadow';
 import { terrainHeight, variantForCell } from '../art/terrainArt';
 import type { TerrainTintField } from '../art/terrainTint';
 import type { TileRect, WorldRect } from '../camera/camera';
 import { HALF_TILE_H, HALF_TILE_W } from '../constants';
 import { tileToWorld } from '../iso';
 
+/** Whether a cell holds something with vertical extent — rock, a bulkhead, a wall. */
+function isRaised(map: TileMap, x: number, y: number): boolean {
+  if (!map.inBounds(x, y)) return false;
+  const index = map.idx(x, y);
+  return terrainHeight(map.terrainAt(index)) > 0 || map.buildingBlocks[index] !== 0;
+}
+
+/**
+ * Which of this tile's edges abut something raised.
+ *
+ * Buildings count as well as terrain, so a stone wall beds into the floor exactly the way
+ * a cliff does — otherwise the thing the player *built* is the one thing in the scene
+ * still floating.
+ */
+function contactMask(map: TileMap, x: number, y: number): number {
+  let mask = 0;
+  if (isRaised(map, x - 1, y)) mask |= Edge.NW;
+  if (isRaised(map, x, y - 1)) mask |= Edge.NE;
+  if (isRaised(map, x + 1, y)) mask |= Edge.SE;
+  if (isRaised(map, x, y + 1)) mask |= Edge.SW;
+  return mask;
+}
+
 export class GroundLayer {
   readonly container = new Container();
+  /** Tiles, then the shading that seats them — two children, so the order is fixed. */
+  private readonly tiles = new Container();
+  private readonly shading = new Container();
   private readonly pool: Sprite[] = [];
+  private readonly shadowPool: Sprite[] = [];
   private lastKey = '';
 
   constructor(
@@ -38,6 +66,13 @@ export class GroundLayer {
     // thousand sprites is a measurable win.
     this.container.eventMode = 'none';
     this.container.interactiveChildren = false;
+    this.tiles.eventMode = 'none';
+    this.shading.eventMode = 'none';
+    // Separate containers rather than one pool: the shading must draw over every tile,
+    // and sharing a pool would interleave them in whatever order the pools happened to
+    // grow.
+    this.container.addChild(this.tiles);
+    this.container.addChild(this.shading);
   }
 
   update(map: TileMap, seed: number, view: TileRect, visible: WorldRect): void {
@@ -51,6 +86,7 @@ export class GroundLayer {
     this.lastKey = key;
 
     let used = 0;
+    let shaded = 0;
 
     for (let y = view.y0; y <= view.y1; y++) {
       for (let x = view.x0; x <= view.x1; x++) {
@@ -71,11 +107,24 @@ export class GroundLayer {
         sprite.position.set(pos.x - HALF_TILE_W, pos.y - HALF_TILE_H);
         sprite.tint = this.tint.at(index);
         sprite.visible = true;
+
+        // Only tiles that actually touch something raised pay for a second sprite, which
+        // in open country is almost none of them.
+        const mask = contactMask(map, x, y);
+        if (mask === 0) continue;
+
+        const shadow = this.shadowAt(shaded++);
+        shadow.texture = this.art.contactShadow(mask);
+        shadow.position.set(pos.x - HALF_TILE_W, pos.y - HALF_TILE_H);
+        shadow.visible = true;
       }
     }
 
     for (let i = used; i < this.pool.length; i++) {
       this.pool[i].visible = false;
+    }
+    for (let i = shaded; i < this.shadowPool.length; i++) {
+      this.shadowPool[i].visible = false;
     }
   }
 
@@ -90,7 +139,18 @@ export class GroundLayer {
       sprite = new Sprite();
       sprite.eventMode = 'none';
       this.pool[index] = sprite;
-      this.container.addChild(sprite);
+      this.tiles.addChild(sprite);
+    }
+    return sprite;
+  }
+
+  private shadowAt(index: number): Sprite {
+    let sprite = this.shadowPool[index];
+    if (!sprite) {
+      sprite = new Sprite();
+      sprite.eventMode = 'none';
+      this.shadowPool[index] = sprite;
+      this.shading.addChild(sprite);
     }
     return sprite;
   }
@@ -98,5 +158,6 @@ export class GroundLayer {
   destroy(): void {
     this.container.destroy({ children: true });
     this.pool.length = 0;
+    this.shadowPool.length = 0;
   }
 }
