@@ -125,7 +125,7 @@ export class GameRenderer {
     // so it borrows the world transform rather than converting every emitter itself.
     this.lighting.glow.position.copyFrom(this.worldContainer.position);
     this.lighting.glow.scale.copyFrom(this.worldContainer.scale);
-    this.lighting.updateEmitters(world, light, this.app.renderer);
+    this.lighting.updateEmitters(world, light);
 
     this.app.renderer.render(this.app.stage);
   }

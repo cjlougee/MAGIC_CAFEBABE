@@ -28,9 +28,20 @@ export const BUILDING_HEIGHT: Record<BuildingId, number> = {
   [Building.Wall]: 22,
   // Shorter than a wall so a doorway reads as a gap in the run, not another wall.
   [Building.Door]: 16,
-  // Low: a fire is something you stand around, and a tall one would occlude the
-  // colonists working at it — which is exactly what you want to watch.
-  [Building.Campfire]: 7,
+  // Tall enough for a flame to read as a flame, short enough not to occlude the
+  // colonists standing around it — which is exactly what you want to watch.
+  [Building.Campfire]: 14,
+};
+
+/**
+ * The colour each emitter casts, for the lighting layer to tint its glow with.
+ *
+ * Here rather than in `sim/defs/buildings.ts` because it is a *colour*: how far a fire
+ * lights is content, what colour it burns is art direction. Anything absent simply never
+ * lights, which `lightRadius` already decides.
+ */
+export const BUILDING_LIGHT: Partial<Record<BuildingId, number>> = {
+  [Building.Campfire]: Palette.firelight,
 };
 
 const BEDROLL = 0x6f5a48;
@@ -76,35 +87,76 @@ function drawDoor(g: Graphics): void {
   rightFace(g, y, 3).fill({ color: shade(Palette.relic, -0.12) });
 }
 
-function drawCampfire(g: Graphics): void {
-  const cx = HALF_TILE_W;
-  const cy = HALF_TILE_H;
-  const height = BUILDING_HEIGHT[Building.Campfire];
+/** One tongue of flame: a leaning spike, widest at its base. */
+function flame(g: Graphics, x: number, base: number, halfW: number, tall: number, lean: number, colour: number): void {
+  g.poly([
+    x - halfW, base,
+    x + halfW, base,
+    x + halfW * 0.4 + lean * 0.5, base - tall * 0.55,
+    x + lean, base - tall,
+    x - halfW * 0.5 + lean * 0.5, base - tall * 0.5,
+  ]).fill({ color: colour });
+}
 
-  // A ring of stones, then the fire sitting inside it. Drawn back-to-front so the near
-  // stones overlap the flame and it reads as *in* the ring rather than on top of it.
+/**
+ * A ring of stones with a fire in it.
+ *
+ * Drawn back-to-front — far stones, pit, logs, flame, near stones — so the near stones
+ * overlap the flame and it sits *inside* the ring rather than on top of it. The ring
+ * fills most of the tile, because a campfire that reads as a small dot in a large square
+ * looks like a bug rather than a hearth.
+ *
+ * Everything is measured from the ground plane, which for a raised building sits `height`
+ * pixels below the texture's top face. Getting that wrong is what put the first version
+ * in the corner of its tile.
+ */
+function drawCampfire(g: Graphics): void {
+  const height = BUILDING_HEIGHT[Building.Campfire];
+  const cx = HALF_TILE_W;
+  const cy = HALF_TILE_H + height;
+
+  const ringW = HALF_TILE_W - 5;
+  const ringH = HALF_TILE_H - 3;
   const stone = Palette.gravel;
-  for (let i = 0; i < 8; i++) {
-    const angle = (i / 8) * Math.PI * 2;
-    const sx = cx + Math.cos(angle) * (HALF_TILE_W - 7);
-    const sy = cy + Math.sin(angle) * (HALF_TILE_H - 4);
-    if (Math.sin(angle) > 0) continue;
-    diamond(g, sx, sy, 4, 2).fill({ color: shade(stone, -0.1) });
+
+  const stones: { x: number; y: number; front: boolean }[] = [];
+  for (let i = 0; i < 10; i++) {
+    const angle = (i / 10) * Math.PI * 2 + 0.3;
+    stones.push({
+      x: cx + Math.cos(angle) * ringW,
+      y: cy + Math.sin(angle) * ringH,
+      front: Math.sin(angle) > 0,
+    });
   }
 
-  diamond(g, cx, cy, 7, 3.5).fill({ color: shade(Palette.void, 0.25) });
+  for (const s of stones) {
+    if (s.front) continue;
+    diamond(g, s.x, s.y - 2, 5, 2.6).fill({ color: shade(stone, -0.22) });
+  }
 
-  // Flame: three stacked diamonds, hottest at the base, so it glows without animating.
-  diamond(g, cx, cy - height * 0.35, 6, 3).fill({ color: Palette.hazard });
-  diamond(g, cx, cy - height * 0.7, 4, 2.2).fill({ color: shade(Palette.gold, 0.1) });
-  diamond(g, cx, cy - height, 2.2, 1.3).fill({ color: shade(Palette.gold, 0.35) });
+  // Ash bed, then embers glowing through it.
+  diamond(g, cx, cy, ringW - 4, ringH - 2).fill({ color: shade(Palette.void, 0.3) });
+  diamond(g, cx, cy, ringW - 9, ringH - 5).fill({ color: shade(Palette.hazard, -0.55) });
 
-  for (let i = 0; i < 8; i++) {
-    const angle = (i / 8) * Math.PI * 2;
-    const sx = cx + Math.cos(angle) * (HALF_TILE_W - 7);
-    const sy = cy + Math.sin(angle) * (HALF_TILE_H - 4);
-    if (Math.sin(angle) <= 0) continue;
-    diamond(g, sx, sy, 4, 2).fill({ color: stone });
+  // Two crossed logs. Nothing says "campfire" faster than a pair of sticks.
+  const log = shade(Palette.dirt, -0.15);
+  g.poly([cx - 15, cy + 1, cx + 12, cy - 6, cx + 14, cy - 3, cx - 13, cy + 4]).fill({ color: log });
+  g.poly([cx - 12, cy - 6, cx + 15, cy + 1, cx + 13, cy + 4, cx - 14, cy - 3]).fill({
+    color: shade(log, 0.12),
+  });
+
+  // Three tongues, hottest and brightest at the core, leaning slightly apart so the
+  // silhouette isn't a symmetrical cone.
+  flame(g, cx - 5, cy - 3, 5, height * 0.75, -2, shade(Palette.hazard, -0.2));
+  flame(g, cx + 5, cy - 3, 5, height * 0.85, 2, shade(Palette.hazard, -0.1));
+  flame(g, cx, cy - 2, 7, height * 1.25, 0, Palette.hazard);
+  flame(g, cx, cy - 2, 4, height * 0.95, 0, shade(Palette.gold, 0.05));
+  flame(g, cx, cy - 1, 2, height * 0.6, 0, shade(Palette.gold, 0.45));
+
+  for (const s of stones) {
+    if (!s.front) continue;
+    diamond(g, s.x, s.y - 2, 5, 2.6).fill({ color: stone });
+    diamond(g, s.x, s.y - 3.5, 4, 2).fill({ color: shade(stone, 0.14) });
   }
 }
 

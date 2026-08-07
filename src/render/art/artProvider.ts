@@ -7,13 +7,13 @@
  * change to layer or gameplay code.
  */
 
-import { Graphics, Texture, type Renderer } from 'pixi.js';
+import { Graphics, Rectangle, Texture, type Renderer } from 'pixi.js';
 import type { BuildingId } from '../../sim/defs/buildings';
 import type { ItemDefId } from '../../sim/defs/items';
 import { TERRAIN_DEFS, type TerrainId } from '../../sim/defs/terrain';
 import type { PawnAppearance } from '../../sim/entities/pawn';
-import { HALF_TILE_H, HALF_TILE_W } from '../constants';
-import { buildBuildingGraphics, buildSiteGraphics } from './buildingArt';
+import { HALF_TILE_H, HALF_TILE_W, TILE_H, TILE_W } from '../constants';
+import { BUILDING_HEIGHT, buildBuildingGraphics, buildSiteGraphics } from './buildingArt';
 import { buildItemGraphics } from './itemArt';
 import { buildPlantGraphics } from './plantArt';
 import {
@@ -65,8 +65,19 @@ export class ArtProvider {
     return this.cached(`plant:${stage}`, () => buildPlantGraphics(stage));
   }
 
+  /**
+   * Texture for a structure.
+   *
+   * The frame is stated rather than inferred, because `generateTexture` otherwise crops
+   * to whatever the Graphics happened to draw — and `ObjectLayer` positions every
+   * building as though its texture were exactly `TILE_W x (TILE_H + height)` anchored at
+   * its top-left. A structure that doesn't paint into all four corners would come out
+   * smaller and land shifted up and left, which is precisely how the campfire first
+   * appeared as a small square in the corner of its tile.
+   */
   building(def: BuildingId): Texture {
-    return this.cached(`building:${def}`, () => buildBuildingGraphics(def));
+    const frame = new Rectangle(0, 0, TILE_W, TILE_H + BUILDING_HEIGHT[def]);
+    return this.cached(`building:${def}`, () => buildBuildingGraphics(def), frame);
   }
 
   /** A blueprint or part-built frame, at one of a few progress stages. */
@@ -99,7 +110,7 @@ export class ArtProvider {
     }
   }
 
-  private cached(key: string, build: () => Graphics): Texture {
+  private cached(key: string, build: () => Graphics, frame?: Rectangle): Texture {
     const existing = this.cache.get(key);
     if (existing) return existing;
 
@@ -107,6 +118,10 @@ export class ArtProvider {
     const texture = this.renderer.generateTexture({
       target: graphics,
       resolution: 1,
+      // Given explicitly by callers whose layer assumes a fixed footprint; omitted where
+      // the art's own bounds are the footprint (items, plants, pawns carry their own
+      // anchor constants).
+      frame,
       // Antialiasing is what causes the seams between isometric tiles: a diamond's
       // sloped edge renders as half-transparent pixels, and where two tiles abut, both
       // contribute partial alpha, so the dark background shows through as an outline

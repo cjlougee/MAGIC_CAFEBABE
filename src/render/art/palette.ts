@@ -45,6 +45,16 @@ export const Palette = {
   nightTint: 0x2a3f66,
 
   /**
+   * The light a fire casts.
+   *
+   * Deliberately warmer and paler than the flame itself: light picks up the colour of
+   * its source but washes toward white as it brightens what it lands on. A glow tinted
+   * the same orange as the fire reads as a coloured filter rather than as illumination —
+   * and left pure white, as this first was, it reads as a spotlight.
+   */
+  firelight: 0xffb765,
+
+  /**
    * Multiplied over a structure standing on a cell marked for demolition.
    *
    * A *tint*, not an overlay marker, because designation marks are drawn on the floor

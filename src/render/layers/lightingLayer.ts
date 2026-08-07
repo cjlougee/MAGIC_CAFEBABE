@@ -15,8 +15,9 @@
  * it stays a pure function of where the emitters are. See docs/design/07-production.md.
  */
 
-import { Container, Graphics, Sprite, Texture, type Renderer } from 'pixi.js';
+import { Container, Sprite, Texture } from 'pixi.js';
 import { buildingDef } from '../../sim/defs/buildings';
+import { BUILDING_LIGHT } from '../art/buildingArt';
 import type { World } from '../../sim/world/world';
 import { mixColors, Palette } from '../art/palette';
 import { TILE_W } from '../constants';
@@ -25,32 +26,66 @@ import { tileToWorld } from '../iso';
 /** How far toward night tint we go at full dark. Below 1 so night stays playable. */
 const MAX_NIGHT_STRENGTH = 0.72;
 
-/** Rings in the generated glow texture. More is smoother and costs nothing at runtime. */
-const GLOW_STEPS = 24;
-
 /** Radius of the glow texture in pixels. Scaled per-emitter to its own light radius. */
 const GLOW_TEXTURE_RADIUS = 128;
+
+/** Stops in the falloff. Enough that the curve is sampled, not stepped. */
+const GLOW_STOPS = 32;
+
+/**
+ * Brightness at the very centre.
+ *
+ * Below 1 on purpose. Additive blending at full strength saturates the core to white,
+ * which hides the thing that is emitting the light — a campfire disappearing inside its
+ * own glow. Light should reveal its source, not erase it.
+ */
+const GLOW_PEAK = 0.72;
 
 /**
  * A soft radial falloff, built once.
  *
- * Concentric rings rather than a real gradient fill: it is generated a single time into a
- * texture, so the crude method is invisible and the dependency-free version is simpler to
- * reason about. Squared falloff, because linear reads as a flat disc with an edge.
+ * A real canvas gradient rather than concentric rings. The first version stacked 24
+ * translucent circles, and every ring boundary was visible as a contour line — stacked
+ * alpha quantises, and the eye finds edges in it immediately. A gradient interpolates in
+ * the canvas at 8-bit precision, which for a soft glow is smooth.
+ *
+ * The curve is `(1 - t)^3`, not linear. Linear falloff reads as a flat disc with a hard
+ * rim; a cubic keeps a bright core and lets the edge disappear into the dark instead of
+ * ending. Sampled across many stops so the shape survives interpolation between them.
+ *
+ * Generated white, and tinted per-emitter — one texture serves every colour of light.
  */
-function buildGlowTexture(renderer: Renderer): Texture {
-  const g = new Graphics();
+function buildGlowTexture(): Texture {
+  const size = GLOW_TEXTURE_RADIUS * 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
 
-  for (let i = GLOW_STEPS; i > 0; i--) {
-    const t = i / GLOW_STEPS;
-    g.circle(GLOW_TEXTURE_RADIUS, GLOW_TEXTURE_RADIUS, GLOW_TEXTURE_RADIUS * t).fill({
-      color: 0xffffff,
-      alpha: (1 - t) * (1 - t) * 0.14,
-    });
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return Texture.WHITE;
+
+  const gradient = ctx.createRadialGradient(
+    GLOW_TEXTURE_RADIUS,
+    GLOW_TEXTURE_RADIUS,
+    0,
+    GLOW_TEXTURE_RADIUS,
+    GLOW_TEXTURE_RADIUS,
+    GLOW_TEXTURE_RADIUS,
+  );
+
+  for (let i = 0; i <= GLOW_STOPS; i++) {
+    const t = i / GLOW_STOPS;
+    const falloff = (1 - t) ** 3 * GLOW_PEAK;
+    gradient.addColorStop(t, `rgba(255, 255, 255, ${falloff.toFixed(4)})`);
   }
 
-  const texture = renderer.generateTexture(g);
-  g.destroy();
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+
+  const texture = Texture.from(canvas);
+  // Linear, unlike every other texture in the game: this one *is* a smooth gradient, and
+  // the nearest-neighbour sampling that keeps the pixel art crisp would band it again.
+  texture.source.scaleMode = 'linear';
   return texture;
 }
 
@@ -82,7 +117,7 @@ export class LightingLayer {
    * Faded out with the daylight, so a campfire is invisible at noon and unmistakable at
    * midnight. Nothing is drawn at all in full daylight, which is also the cheap path.
    */
-  updateEmitters(world: World, daylight: number, renderer: Renderer): void {
+  updateEmitters(world: World, daylight: number): void {
     const darkness = 1 - daylight;
     this.glow.visible = darkness > 0.02;
     if (!this.glow.visible) {
@@ -90,7 +125,7 @@ export class LightingLayer {
       return;
     }
 
-    this.glowTexture ??= buildGlowTexture(renderer);
+    this.glowTexture ??= buildGlowTexture();
 
     let used = 0;
     for (const building of world.buildings.values()) {
@@ -100,9 +135,12 @@ export class LightingLayer {
       const at = tileToWorld(building.pos.x, building.pos.y, building.pos.z);
       const sprite = this.spriteAt(used++);
       // Radius is in cells; a tile is TILE_W wide, so this is the lit span in pixels.
+      // Halved vertically because a circle of ground is an ellipse in 2:1 projection —
+      // light pools on the floor, and a round glow would read as a sphere in the air.
       const scale = (radius * TILE_W) / GLOW_TEXTURE_RADIUS;
       sprite.scale.set(scale, scale * 0.5);
       sprite.position.set(at.x, at.y);
+      sprite.tint = BUILDING_LIGHT[building.def] ?? Palette.firelight;
       sprite.alpha = darkness;
       sprite.visible = true;
     }
