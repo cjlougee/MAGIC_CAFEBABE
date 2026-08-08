@@ -23,8 +23,18 @@ export const HALF_TILE_H = TILE_H / 2;
  */
 export const LEVEL_HEIGHT = 24;
 
-/** Zoom bounds, chosen so the sprite pool stays bounded (see TerrainLayer). */
-export const MIN_ZOOM = 0.35;
+/**
+ * Zoom bounds, chosen so the sprite pool stays bounded (see GroundLayer).
+ *
+ * `MIN_ZOOM` was 0.35 when the world was 128 tiles across, where it showed a useful
+ * fraction of the map. On a 512² world that is a keyhole, so it is loosened to 0.2 —
+ * about 5,000 pooled sprites, which Pixi draws comfortably.
+ *
+ * It is deliberately *not* loosened far enough to fit the whole world on screen. At the
+ * zoom that would take, a tile is under eight pixels and the art is mush; the answer to
+ * "where am I in the world" is a minimap, not a zoom level. See docs/ROADMAP.md, M8.
+ */
+export const MIN_ZOOM = 0.2;
 export const MAX_ZOOM = 2.5;
 export const DEFAULT_ZOOM = 1;
 

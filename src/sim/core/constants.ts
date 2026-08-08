@@ -20,8 +20,19 @@ export const TICKS_PER_DAY = TICKS_PER_HOUR * HOURS_PER_DAY;
  */
 export const STARTING_TICK = TICKS_PER_HOUR * 8;
 
-/** Slice 1 map size. Designed to scale to 250x250 without structural change. */
-export const DEFAULT_MAP_SIZE = 128;
+/**
+ * The world, one continuous map. See ADR 0007.
+ *
+ * 262,144 cells — sixteen times Slice 1's map, and roughly a quarter of an hour to
+ * cross on foot, which is the point: there has to be somewhere far enough away to be
+ * worth travelling to.
+ *
+ * The ceiling used to be reachability, which re-flooded the whole map on every terrain
+ * change. Now that it is chunked, a single-cell change costs 615 µs here and 2.2 ms at
+ * 1024², so the binding constraint has moved to **save size** — 475 KB at this size
+ * against 1.9 MB at 1024², which starts crowding a multi-slot localStorage budget.
+ */
+export const DEFAULT_MAP_SIZE = 512;
 
 /**
  * Base movement cost of an open tile. Terrain costs are expressed relative to this

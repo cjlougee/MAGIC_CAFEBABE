@@ -75,10 +75,12 @@ Add to the `Command` union in `src/sim/core/commands.ts` and handle it in
 
 - **`toilWork` needs `stillValid`.** Checked every tick, because the reason for the work
   can vanish while it is being done — someone else finished it, the player cancelled it.
-- **Changing terrain requires `world.reachability.markDirty()`.** Forgetting it means
-  pawns can't reach ground they're standing next to. Changing terrain also bumps
-  `TileMap.revision`, which is what stops render layers drawing a hole where the terrain
-  used to be.
+- **Changing terrain requires `world.reachability.markDirtyAt(index)`.** Forgetting it
+  means pawns can't reach ground they're standing next to. Use the `At` form for a
+  single cell — it re-floods one chunk instead of the map, which on a 512² world is
+  615µs instead of 50ms; bare `markDirty()` is for loads and bulk edits. Changing
+  terrain also bumps `TileMap.revision`, which is what stops render layers drawing a
+  hole where the terrain used to be.
 - **Never release reservations yourself.** `endJob()` is the single exit; completion,
   failure, and preemption all route through it. Releasing anywhere else means the other
   paths leak, and a leaked reservation makes a target permanently untouchable with no

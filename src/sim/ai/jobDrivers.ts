@@ -116,7 +116,7 @@ const MINE_TOILS: readonly Toil[] = [
       // The cell just became walkable, so every cached answer about what connects to
       // what is now wrong. Forgetting this is how pawns end up unable to reach ground
       // they are standing next to.
-      world.reachability.markDirty();
+      world.reachability.markDirtyAt(index);
 
       if (def.mineYield) {
         world.items.spawn(world.map, def.mineYield.def, def.mineYield.count, cell);

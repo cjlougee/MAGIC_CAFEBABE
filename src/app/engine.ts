@@ -188,6 +188,19 @@ export class Engine {
   }
 
   /**
+   * Camera zoom, not routed through the command queue — it changes nothing in the
+   * simulation, and pushing render state through the sim would be the firewall running
+   * backwards.
+   */
+  get cameraZoom(): number {
+    return this.renderer.camera.zoom;
+  }
+
+  debugSetZoom(zoom: number): void {
+    this.renderer.camera.setZoom(zoom);
+  }
+
+  /**
    * Actually simulates `hours`, rather than moving the clock.
    *
    * The difference matters: `debugSetHour` skips to nightfall with nothing having

@@ -167,22 +167,40 @@ See ADR [0007](decisions/0007-world-shape.md) for the world shape, and
 See [`design/07-production.md`](design/07-production.md).
 
 ### M7 — The world gets big *(infrastructure with a view)*
-- [ ] `DEFAULT_MAP_SIZE` 128 → 512: sixteen times the area, roughly a quarter-hour to cross on foot
-- [ ] **Reachability stops re-flooding the whole map** on every terrain change. Measured at 512²:
-      63.7 ms per rebuild, and five colonists mining dirty it 13 times per in-game hour — a 64 ms
-      stall every three seconds at 1x. This is the single constraint on world size
-- [ ] **Biome worldgen** — terrain chosen in *regions* with their own palettes. Per-cell noise reads
-      as texture at 128² and as static at 512²; a world worth crossing is made of places that differ
-- [ ] The existing ruin noise field stays, demoted to *texture* — scattered wreckage you strip for
-      scrap. Named places are M8's job and are not a noise threshold
-- **Playable check:** pan across a continent that reads as *different places*, at 60fps, while a
-  colony works in one corner of it.
+- [x] `DEFAULT_MAP_SIZE` 128 → 512: sixteen times the area, roughly a quarter-hour to cross on foot
+- [x] **Reachability chunked** into 16×16 local components joined by a cached cross-chunk link
+      graph. A single-cell change went from 63.7 ms to **615 µs** — and because the residual cost
+      scales with chunk count rather than cell count, 1024² fell from 195 ms to 2.2 ms. Guarded by
+      a brute-force whole-map oracle run after every one of 220 random edits
+- [x] **Biome worldgen** — four biomes from crossed warmth/damp fields, *parameterising* the
+      existing per-cell choice rather than replacing it. Never stored: it is a pure function of
+      seed and position, so it is derived state
+- [x] **The local wavelengths had to grow too**, and this was the finding of the milestone.
+      Biomes alone left the map *mottled* — elevation features were 26 tiles, tuned when that was a
+      fifth of the map and not a twentieth. Rock speckled everywhere instead of gathering into
+      ranges. Fields are now ordered longest-to-shortest so a range sits inside a region and a ruin
+      sits on a hillside
+- [x] The ruin noise field stays, demoted to *texture*, with a separate long-wavelength wreckage
+      field deciding where the fallen civilization built thickly. Ruin fields cut across biomes
+      rather than lining up with them
+- [x] `MIN_ZOOM` 0.35 → 0.2, and a **zoom row in the debug panel** with a live readout
+- [x] Two worldgen guarantees now asserted at the size the game generates: mostly walkable, and
+      **one landmass** — largest district holds 97.5–99.8% of walkable ground across sampled seeds
+- **Playable check:** ✅ a continent that reads as different places — a lake with shallow margins,
+  green country, a grey massif with relic structures clustered in it, sand to the east. 60–64fps at
+  3x with colonists mining. Watched in-browser; the terrain census and connectivity sweep that back
+  it are in `tests/world.test.ts`.
 
-### M8 — There is a somewhere else
+### M8 — There is a somewhere else *(next)*
 - [ ] POIs **placed by constraint and named once at generation**, then persisted — the first real
       implementation of "noise makes texture, constraints make places". Deserves its own ADR
 - [ ] At least one guaranteed named ruin per world, visible from a distance. The relic glow already
-      draws it: on a large dark map that gutter *is* the "something is over there" signal
+      draws it, and M7 confirmed the effect: at night the relic structures are the only thing that
+      pulls the eye across a dark map, which *is* the "something is over there" signal
+- [ ] **A minimap.** Deferred out of M7 deliberately rather than forgotten: `MIN_ZOOM` is bounded
+      by the ground layer pooling a sprite per visible tile, and the honest answer to "where am I
+      in the world" was never a zoom level. A minimap with no named places on it is half a
+      feature; with them it is the exploration UI, so it belongs here
 - **Playable check:** ten seeds, ten named places you can see from far off and want to walk to.
 
 ### M9 — You can go there
@@ -232,12 +250,18 @@ Real, but not designed in detail yet. Each gets its own design pass when we reac
 Slice 1 works and M6 gave it a production loop. It is still not a *game*: there is no pressure,
 nowhere to go, and the colony's whole world is 128 tiles across.
 
-**M7 is the current milestone** — see above. It is the least fun and most necessary of the four in
-this slice: infrastructure that ends in a bigger screensaver if we stop there, so move through it
-and get to M8, where the world gets somewhere worth walking to.
+**M7 is done and M8 is the current milestone.** The world is 512² and reads as country rather than
+texture, but it is still a bigger screensaver: there is nowhere on it that is *anywhere*. M8 puts
+the first named place on the map and gives the player a way to see it.
 
-The order after that is M8 → M9 → M10, then **Slice 3 — threat**, which now has a world to be
-dangerous across. The `hediff` array on pawns is already there waiting.
+The order after that is M9 → M10, then **Slice 3 — threat**, which now has a world to be dangerous
+across. The `hediff` array on pawns is already there waiting.
+
+**What M7 taught, worth carrying into M8:** the milestone's real finding was not biomes, it was
+that *every* tuning constant in worldgen encoded the old map size. Biomes went in first and the map
+still looked like static, because elevation was switching bands every 26 tiles. Anything that reads
+"features per map" rather than "features per tile" is suspect at the new scale — the landing-site
+search radius (28 tiles, unchanged) and `BUSH_DENSITY` are the next two to look at.
 
 *Deconstruction is done* — it was the obvious hole in M4 and is ticked off there.
 
@@ -253,12 +277,16 @@ dangerous across. The `hediff` array on pawns is already there waiting.
   which cell a pawn reserves and walks to, room flood-fill, save shape, and deconstruct all
   currently assume one building occupies exactly one cell. Do the pose first; treat
   footprints as their own milestone rather than a polish item.
-- **The best landing sites are the furthest from stone.** `findLandingSite` maximises open,
-  *storable* ground, and rock is neither passable nor storable — so the chooser actively
-  walks away from it. Across several generated maps the nearest rock was a long trip. That
-  is correct behaviour for choosing somewhere to live and mildly awkward for the first
-  campfire, which costs 8 stone. Not a bug; worth watching once there is a tutorial or a
-  first-hour pacing pass.
+- **The best landing sites are the furthest from stone, and M7 made it worse.**
+  `findLandingSite` maximises open, *storable* ground, and rock is neither passable nor
+  storable — so the chooser actively walks away from it. With biome-scale regions the
+  party can now land well inside a grassland with the nearest rock, and sometimes the
+  nearest *anything else*, a long walk away. The search radius is still 28 tiles around
+  the map centre, which was a meaningful fraction of a 128² map and is now 5% of one.
+  Not a bug; due a pass when first-hour pacing is looked at.
+- **Save size is now the constraint on world size**, where reachability used to be.
+  475 KB at 512² against 1.9 MB at 1024², which starts crowding a multi-slot
+  `localStorage` budget. Worth knowing before anyone raises `DEFAULT_MAP_SIZE` again.
 - **A mine mark on rock is nearly invisible.** Designations draw on the ground plane, and
   rock is raised, so the mark sits at the base of the block it refers to. Deconstruction
   hit the same wall and solved it for *buildings* by tinting them; mining has no

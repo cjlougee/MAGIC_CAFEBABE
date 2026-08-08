@@ -124,8 +124,12 @@ tests rather than by structure:
   more optimistic, it promises routes A\* can't deliver and pawns re-plan forever.
 - Appearance is indices in `sim/`, colours in `render/`. `sim/defs/pawnKind.ts` declares how many of
   each; `render/art/palette.ts` must have at least that many.
-- Changing terrain must call `reachability.markDirty()`. `TileMap.revision` bumps automatically and
-  is what keeps render caches honest — without it, mining leaves a hole where the rock was.
+- Changing terrain must invalidate reachability, and **which call you use matters at 512²**.
+  `markDirtyAt(index)` re-floods one 16×16 chunk (615µs); `markDirty()` re-floods the whole map
+  (50ms) and means "I don't know what changed" — for loads and bulk edits only. Reaching for the
+  blanket one in a single-cell path is a stall every time a colonist finishes a rock.
+  `TileMap.revision` bumps automatically and is what keeps render caches honest — without it,
+  mining leaves a hole where the rock was. See `docs/design/08-the-world.md`.
 - **A pawn on an impassable cell is the worst state in the simulation.** Reachability
   reports their own position as unreachable, so `canReach` fails for *every* target and
   they idle forever with no visible cause. Never complete a structure on an occupied cell

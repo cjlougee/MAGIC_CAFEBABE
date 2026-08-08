@@ -214,11 +214,15 @@ export function HUD({ store, engine }: HUDProps) {
       {showDebug && engine && import.meta.env.DEV && (
         <DebugPanel
           instantBuild={instantBuild}
+          // Render state, so it is read rather than subscribed to. The readout refreshes
+          // whenever the snapshot does — ~10Hz, which is plenty for a number.
+          zoom={engine.cameraZoom}
           onSetHour={(hour) => engine.debugSetHour(hour)}
           onAdvanceHours={(hours) => engine.debugAdvanceHours(hours)}
           onGive={(item, count) => engine.debugGive(item, count)}
           onFinishBlueprints={() => engine.debugFinishBlueprints()}
           onToggleInstantBuild={(instant) => engine.setInstantBuild(instant)}
+          onSetZoom={(zoom) => engine.debugSetZoom(zoom)}
           onClose={() => store.update({ showDebug: false })}
         />
       )}

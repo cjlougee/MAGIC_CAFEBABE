@@ -67,6 +67,19 @@ export class Camera {
     this.y += before.y - after.y;
   }
 
+  /**
+   * Jumps straight to a zoom level, holding the view centre.
+   *
+   * Only the debug panel uses this — ordinary zooming goes through `zoomAt`, which
+   * tracks the cursor. It clamps to the same bounds rather than taking a shortcut past
+   * them: below MIN_ZOOM the ground layer pools a sprite per visible tile over a
+   * quarter-million-cell map, and a debug control that can lock up the browser is worse
+   * than no debug control.
+   */
+  setZoom(zoom: number): void {
+    this.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
+  }
+
   /** Fractional tile coordinates under a screen point. Used for picking. */
   screenToTile(
     screenX: number,

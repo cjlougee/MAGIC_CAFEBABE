@@ -40,8 +40,10 @@ export function completeConstruction(world: World, site: ConstructionSite): void
 
   world.sites.remove(site.id);
 
-  // Both change for the same reason — the shape of the world just changed.
-  world.reachability.markDirty();
+  // Both change for the same reason — the shape of the world just changed. Reachability
+  // is told *which* cell, because on a 512² map a blanket invalidation is a 60 ms stall
+  // and there are sixteen of them in a hut. See ADR 0007.
+  world.reachability.markDirtyAt(index);
   world.rooms.markDirty();
 }
 
@@ -106,7 +108,7 @@ export function deconstruct(world: World, index: number): boolean {
     world.items.spawn(world.map, salvage.def, salvage.count, pos);
   }
 
-  world.reachability.markDirty();
+  world.reachability.markDirtyAt(index);
   world.rooms.markDirty();
   return true;
 }

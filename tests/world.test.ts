@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { HOURS_PER_DAY, TICKS_PER_DAY, TICKS_PER_HOUR } from '../src/sim/core/constants';
+import {
+  DEFAULT_MAP_SIZE,
+  HOURS_PER_DAY,
+  TICKS_PER_DAY,
+  TICKS_PER_HOUR,
+} from '../src/sim/core/constants';
+import { pos } from '../src/sim/core/position';
 import { Terrain, TERRAIN_DEFS, terrainDef } from '../src/sim/defs/terrain';
+import { ReachabilityMap } from '../src/sim/pathfind/reachability';
 import { daylight, formatTime, timeOfDay } from '../src/sim/world/time';
 import { TileMap } from '../src/sim/world/tilemap';
 import { generateMap } from '../src/sim/world/worldgen';
@@ -79,15 +86,54 @@ describe('worldgen', () => {
     }
   });
 
-  it('produces a mostly walkable map rather than a wall of rock', () => {
-    const map = generateMap(96, 96, 2024);
-    let passable = 0;
-    for (let i = 0; i < map.size; i++) {
-      if (map.walkCost[i] !== 0) passable++;
+  /*
+   * This used to sample one 96x96 map and assert half of it was walkable. That was a
+   * reasonable proxy while every window of the map had the same statistics — but M7's
+   * wavelengths are longer than 96 tiles on purpose, so a 96-tile sample is now a look
+   * at *one region*, and a region legitimately can be badlands. It failed on a rocky
+   * seed while the world it came from was 78% walkable.
+   *
+   * So both halves are asserted at the size the game actually generates, over several
+   * seeds — and the second one asserts the property the first was only standing in for.
+   */
+  it('generates a world that is mostly walkable, at the size the game uses', () => {
+    for (const seed of [2024, 7, 31337]) {
+      const map = generateMap(DEFAULT_MAP_SIZE, DEFAULT_MAP_SIZE, seed);
+      let passable = 0;
+      for (let i = 0; i < map.size; i++) {
+        if (map.walkCost[i] !== 0) passable++;
+      }
+      const ratio = passable / map.size;
+      expect(ratio, `seed ${seed}`).toBeGreaterThan(0.5);
+      expect(ratio, `seed ${seed}`).toBeLessThan(0.99);
     }
-    const ratio = passable / map.size;
-    expect(ratio).toBeGreaterThan(0.5);
-    expect(ratio).toBeLessThan(0.99);
+  });
+
+  it('joins nearly all of that walkable ground into one landmass', () => {
+    /*
+     * The thing "mostly walkable" was really asking about. A world can be 80% open and
+     * still useless if it is 80% open in forty separate pockets — you would land in one
+     * and never leave it, which on a map built for travelling somewhere is fatal and
+     * completely invisible to a walkable-cell count.
+     */
+    for (const seed of [2024, 7, 31337]) {
+      const map = generateMap(DEFAULT_MAP_SIZE, DEFAULT_MAP_SIZE, seed);
+      const reach = new ReachabilityMap(map);
+
+      const sizes = new Map<number, number>();
+      let walkable = 0;
+      for (let y = 0; y < map.height; y++) {
+        for (let x = 0; x < map.width; x++) {
+          const district = reach.componentAt(pos(x, y));
+          if (district === -1) continue;
+          walkable++;
+          sizes.set(district, (sizes.get(district) ?? 0) + 1);
+        }
+      }
+
+      const largest = Math.max(...sizes.values());
+      expect(largest / walkable, `seed ${seed} is fragmented`).toBeGreaterThan(0.9);
+    }
   });
 
   it('scatters ruins, because the setting depends on them being visible', () => {

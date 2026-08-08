@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { pos } from '../src/sim/core/position';
+import { Rng } from '../src/sim/core/rng';
 import { Terrain } from '../src/sim/defs/terrain';
+import { canStep, DIRECTIONS } from '../src/sim/pathfind/neighbours';
 import { Pathfinder } from '../src/sim/pathfind/pathfinder';
 import { ReachabilityMap } from '../src/sim/pathfind/reachability';
 import { TileMap } from '../src/sim/world/tilemap';
@@ -182,7 +184,139 @@ describe('reachability', () => {
 
     expect(compared).toBeGreaterThan(100);
   });
+
+  it('matches a whole-map flood fill after every incremental edit', () => {
+    /*
+     * The guard on chunking (ADR 0007).
+     *
+     * ReachabilityMap no longer re-floods the map when terrain changes — it re-floods
+     * one 16x16 chunk and re-links its neighbourhood. That is a large amount of
+     * bookkeeping standing where a correct-by-construction algorithm used to be, and
+     * every way of getting it wrong produces the same symptom: a pawn that believes in
+     * a route nobody can walk, or refuses one that exists.
+     *
+     * So the incremental result is compared against the naive whole-map answer after
+     * *every single edit* — including edits that straddle chunk borders and corners,
+     * which is where linking goes wrong if it goes wrong at all.
+     */
+    const map = generateMap(80, 80, 4242);
+    const reach = new ReachabilityMap(map);
+    const rng = new Rng(20260808);
+
+    for (let edit = 0; edit < 220; edit++) {
+      const x = rng.range(0, map.width);
+      const y = rng.range(0, map.height);
+      const index = map.idx(x, y);
+
+      // Alternate between the two independent sources of passability, because they are
+      // separate grids and a chunk keyed off only one of them would still pass.
+      if (edit % 3 === 2) {
+        map.setBuildingAt(index, rng.range(0, 2) === 0, false);
+      } else {
+        map.setTerrain(x, y, rng.range(0, 2) === 0 ? Terrain.Rock : Terrain.Dirt);
+      }
+      reach.markDirtyAt(index);
+
+      expectSamePartition(map, reach, `after edit ${edit} at ${x},${y}`);
+    }
+  });
+
+  it('is unaffected by which chunk an edit lands in', () => {
+    // A 16-cell chunk means x=15 and x=16 are different chunks, and a cell at 15,15 is
+    // a corner shared by four of them. Diagonal links there depend on shoulders lying in
+    // two *other* chunks, which is the case a naive neighbourhood misses.
+    const map = openMap(48, 48);
+    const reach = new ReachabilityMap(map);
+
+    for (const [x, y] of [
+      [15, 15],
+      [16, 16],
+      [15, 16],
+      [16, 15],
+      [31, 15],
+      [0, 0],
+      [47, 47],
+    ]) {
+      map.setTerrain(x, y, Terrain.Rock);
+      reach.markDirtyAt(map.idx(x, y));
+      expectSamePartition(map, reach, `blocking the corner cell ${x},${y}`);
+    }
+  });
 });
+
+/** The naive answer: one flood fill over the whole map, sharing canStep with the real one. */
+function bruteForceComponents(map: TileMap): Int32Array {
+  const component = new Int32Array(map.size).fill(-1);
+  let next = 0;
+
+  for (let y = 0; y < map.height; y++) {
+    for (let x = 0; x < map.width; x++) {
+      const start = map.idx(x, y);
+      if (component[start] !== -1 || !map.isPassable(x, y)) continue;
+
+      const queue = [start];
+      component[start] = next;
+      for (let head = 0; head < queue.length; head++) {
+        const cx = map.xOf(queue[head]);
+        const cy = map.yOf(queue[head]);
+        for (const [dx, dy] of DIRECTIONS) {
+          if (!canStep(map, cx, cy, dx, dy)) continue;
+          const neighbour = map.idx(cx + dx, cy + dy);
+          if (component[neighbour] !== -1) continue;
+          component[neighbour] = next;
+          queue.push(neighbour);
+        }
+      }
+      next++;
+    }
+  }
+
+  return component;
+}
+
+/**
+ * Asserts the two partitions are identical.
+ *
+ * Comparing ids directly would be wrong — the chunked map numbers districts by slot and
+ * has no reason to agree. What must match is which cells are grouped *together*, so the
+ * mapping between the two labellings has to be one-to-one in both directions.
+ */
+function expectSamePartition(map: TileMap, reach: ReachabilityMap, context: string): void {
+  const oracle = bruteForceComponents(map);
+  const oracleToDistrict = new Map<number, number>();
+  const districtToOracle = new Map<number, number>();
+
+  // One assertion at the end rather than one per cell. Vitest's expect() is expensive
+  // enough that asserting 6,400 cells across 220 edits costs more than everything else
+  // in this file put together, and a single explained failure reads better anyway.
+  let failure: string | null = null;
+
+  for (let y = 0; y < map.height && failure === null; y++) {
+    for (let x = 0; x < map.width && failure === null; x++) {
+      const expected = oracle[map.idx(x, y)];
+      const district = reach.componentAt(pos(x, y));
+
+      if (expected === -1) {
+        if (district !== -1) failure = `impassable ${x},${y} reported reachable`;
+        continue;
+      }
+      if (district === -1) {
+        failure = `passable ${x},${y} reported impassable`;
+        continue;
+      }
+
+      const seenDistrict = oracleToDistrict.get(expected);
+      if (seenDistrict === undefined) oracleToDistrict.set(expected, district);
+      else if (seenDistrict !== district) failure = `${x},${y} split from its component`;
+
+      const seenOracle = districtToOracle.get(district);
+      if (seenOracle === undefined) districtToOracle.set(district, expected);
+      else if (seenOracle !== expected) failure = `${x},${y} merged with another component`;
+    }
+  }
+
+  expect(failure, context).toBeNull();
+}
 
 function reachFrom(map: TileMap, from: ReturnType<typeof pos>, to: ReturnType<typeof pos>) {
   return new ReachabilityMap(map).canReach(from, to);

@@ -26,6 +26,7 @@ How to find things, and where new writing belongs.
 | [`05-construction-and-rooms.md`](design/05-construction-and-rooms.md) | Blueprints, walls, deconstruction, room detection |
 | [`06-save-and-load.md`](design/06-save-and-load.md) | Serialization, versioning, migration |
 | [`07-production.md`](design/07-production.md) | Recipes, workbenches, bills, cooking, light |
+| [`08-the-world.md`](design/08-the-world.md) | Worldgen, biomes, chunked reachability, world scale |
 
 ## Conventions
 

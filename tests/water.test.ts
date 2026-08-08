@@ -17,6 +17,9 @@ import { Terrain, terrainDef } from '../src/sim/defs/terrain';
 import { Simulation } from '../src/sim/simulation';
 import type { World } from '../src/sim/world/world';
 
+/** The one row where the deep channel shallows out enough to wade. */
+const FORD_Y = 30;
+
 function yard() {
   const sim = new Simulation({ seed: 3, width: 40, height: 40, colonists: 1 });
   const world = sim.world;
@@ -24,12 +27,21 @@ function yard() {
   for (let y = 2; y <= 37; y++) {
     for (let x = 2; x <= 37; x++) world.map.setTerrain(x, y, Terrain.Dirt);
   }
-  // A river down the middle: shallow banks around a deep channel.
-  for (let y = 2; y <= 37; y++) {
+  // A river down the middle: shallow banks around a deep channel, spanning the *whole*
+  // map height so the only way across is the ford.
+  //
+  // It used to stop at y=37, which left the generated border rows as an accidental way
+  // round — so "wades a shallow ford" was really testing "walks around the end of a
+  // river", and passed only because seed 3 happened to generate walkable corners. When
+  // worldgen grew its wavelengths in M7 that luck ran out, which is the useful kind of
+  // test failure: the setup never matched the name.
+  for (let y = 0; y < world.map.height; y++) {
     world.map.setTerrain(20, y, Terrain.ShallowWater);
     world.map.setTerrain(21, y, Terrain.DeepWater);
     world.map.setTerrain(22, y, Terrain.ShallowWater);
   }
+  // The ford: one row where the channel shallows out and can be waded.
+  world.map.setTerrain(21, FORD_Y, Terrain.ShallowWater);
   world.reachability.markDirty();
 
   return { sim, world };
@@ -150,6 +162,9 @@ describe('movement and water', () => {
   it('lets colonists wade a shallow ford', () => {
     const { world } = yard();
     expect(world.map.isPassable(20, 10)).toBe(true);
+    // Only reachable by going down to the ford row and back up — the banks alone are
+    // not a crossing, because the channel between them is deep everywhere else.
+    expect(world.map.isPassable(21, FORD_Y)).toBe(true);
     expect(world.reachability.canReach(pos(10, 10), pos(30, 10))).toBe(true);
   });
 
