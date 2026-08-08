@@ -125,7 +125,20 @@ it closed, 382 now; the simulation runs seven in-game days in about a second, he
 
 ---
 
-## Slice 2 — Production
+## Slice 2 — The Frontier
+
+*Renamed mid-slice.* It opened as **Production** and was going to close with a smelter and two
+recipes. That plan died in design rather than in code: `scrap → refined → relic-tech` is a type
+hierarchy — three nouns in a partial order — and no amount of implementation was going to make it
+interesting. The production content survives; it lands in M10 as *what you carried home*.
+
+What the slice is now: **the world gets big enough to have a somewhere else, and you can go there
+and come back.** Exploration comes forward from Slice 4, and the smallest useful piece of Slice 5
+comes with it, because you cannot travel without taking colonists out of the work pool. Formations,
+morale and real tactical command stay where they were.
+
+See ADR [0007](decisions/0007-world-shape.md) for the world shape, and
+[`design/00-vision.md`](design/00-vision.md) for the specificity principle the whole slice serves.
 
 ### M6 — Cooking, and the first bills
 - [x] **Recipes** in `defs/recipes.ts`, shaped like buildables — a cost list, labour, a
@@ -153,9 +166,45 @@ it closed, 382 now; the simulation runs seven in-game days in about a second, he
 
 See [`design/07-production.md`](design/07-production.md).
 
-**Still to come in Slice 2:** the *scrap → refined → relic-tech* ladder (a second and third
-recipe now that the bill system exists), quality tiers, and power — deferred until something
-needs it, exactly as the light grid and cooking were.
+### M7 — The world gets big *(infrastructure with a view)*
+- [ ] `DEFAULT_MAP_SIZE` 128 → 512: sixteen times the area, roughly a quarter-hour to cross on foot
+- [ ] **Reachability stops re-flooding the whole map** on every terrain change. Measured at 512²:
+      63.7 ms per rebuild, and five colonists mining dirty it 13 times per in-game hour — a 64 ms
+      stall every three seconds at 1x. This is the single constraint on world size
+- [ ] **Biome worldgen** — terrain chosen in *regions* with their own palettes. Per-cell noise reads
+      as texture at 128² and as static at 512²; a world worth crossing is made of places that differ
+- [ ] The existing ruin noise field stays, demoted to *texture* — scattered wreckage you strip for
+      scrap. Named places are M8's job and are not a noise threshold
+- **Playable check:** pan across a continent that reads as *different places*, at 60fps, while a
+  colony works in one corner of it.
+
+### M8 — There is a somewhere else
+- [ ] POIs **placed by constraint and named once at generation**, then persisted — the first real
+      implementation of "noise makes texture, constraints make places". Deserves its own ADR
+- [ ] At least one guaranteed named ruin per world, visible from a distance. The relic glow already
+      draws it: on a large dark map that gutter *is* the "something is over there" signal
+- **Playable check:** ten seeds, ten named places you can see from far off and want to walk to.
+
+### M9 — You can go there
+- [ ] **Draft** — a colonist out of the work pool, taking direct orders only. `interrupt()`'s
+      `reason` parameter was written for exactly this, and `tickPawnAI`'s break → needs → work
+      hierarchy has one obvious slot for it
+- [ ] Multi-select, and a move order that applies to a party
+- [ ] Needs tick on the road, so you sleep rough and get hungry and distance *costs* something —
+      friction out of systems that already exist, with no combat required
+- [ ] Settle where the player character lands. Cheap mechanically, but "you go and take people" is
+      a different game from "you detach a squad"
+- **Playable check:** four colonists travel 200 tiles and back while the colony keeps mining, and
+  the trip is a real expense.
+
+### M10 — You bring something back
+- [ ] Relic-tech **recovered** at the ruin, not manufactured
+- [ ] The refined tier, and a bench to make it at — the M6 bill system carrying its second and
+      third recipe
+- [ ] **Skills**: who can make what, gated by what they have learned. Arriving *after* there is a
+      journey to survive, so the numbers get designed against something real
+- [ ] Blueprints as found knowledge rather than a menu that unlocks
+- **Playable check:** the thing you carried home changes what the colony can build.
 
 ---
 
@@ -163,32 +212,32 @@ needs it, exactly as the light grid and cooking were.
 
 Real, but not designed in detail yet. Each gets its own design pass when we reach it.
 
-- **Slice 2 — Production.** *Started — see M6 above.* Recipe chains, quality tiers, and a power
-  grid remain; the *scrap → refined → relic-tech* ladder is the next content on top of bills.
+- **Slice 2 — The Frontier.** *In progress — see M6–M10 above.* Quality tiers and a power grid are
+  still unscheduled, and stay deferred until something needs them.
 - **Slice 3 — Threat.** Combat, body-part injury model (`hediffs`), raids, an event director that
   paces pressure. Where high-ground and cover modifiers land, since they need combat to modify.
-- **Slice 4 — The world outside.** World map, caravans, exploration of ruins, factions, trade.
-  Where multi-level worldgen and cave dungeons land, since they serve exploration.
-- **Slice 5 — Command.** Squad selection, formations, orders, morale — the Bannerlord layer, riding
-  on the preemption support built in M2.
+  Now arrives with a world to be threatened *across*, and with enemy camps worth clearing to slow
+  the pressure down.
+- **Slice 4 — The world outside.** *Partly pulled into Slice 2.* Ruin exploration came forward as
+  M8–M9. What remains: factions, trade, named NPCs, towns you can buy into, and the multi-level
+  worldgen and cave dungeons that serve them.
+- **Slice 5 — Command.** *Partly pulled into Slice 2.* Draft and party movement come forward in M9,
+  because travel is impossible without them. Formations, morale, and genuine tactical control
+  remain — the Bannerlord layer, riding on the preemption built in M2.
 
 ---
 
 ## Picking this up next
 
-Slice 1 works and M6 gave it a production loop. It is still not a *game*: there is no
-pressure, nothing threatens the colony, and the crafting ladder stops at its first rung.
-Ranked by what unlocks the most:
+Slice 1 works and M6 gave it a production loop. It is still not a *game*: there is no pressure,
+nowhere to go, and the colony's whole world is 128 tiles across.
 
-### Next, in order
+**M7 is the current milestone** — see above. It is the least fun and most necessary of the four in
+this slice: infrastructure that ends in a bigger screensaver if we stop there, so move through it
+and get to M8, where the world gets somewhere worth walking to.
 
-1. **M7 — the crafting ladder.** *Start here.* Bills exist and cooking proved the model, so
-   *scrap → refined → relic-tech* is a smelter bench plus two recipes, not a new system.
-   It is what finally gives mining a point beyond walls, and it is the setting's spine:
-   the top tier can only be **found**, which is what ties exploration, crafting and faction
-   motives together. Quality tiers after that. Power stays deferred until something needs it.
-2. **Slice 3 — threat.** Raids give walls a reason to exist and the event director gives
-   the colony a shape over time. The `hediff` array on pawns is already there waiting.
+The order after that is M8 → M9 → M10, then **Slice 3 — threat**, which now has a world to be
+dangerous across. The `hediff` array on pawns is already there waiting.
 
 *Deconstruction is done* — it was the obvious hole in M4 and is ticked off there.
 
@@ -214,8 +263,11 @@ Ranked by what unlocks the most:
   rock is raised, so the mark sits at the base of the block it refers to. Deconstruction
   hit the same wall and solved it for *buildings* by tinting them; mining has no
   equivalent yet, and the honest fix is probably the same one.
-- **`lookup.ts` scans linearly** over buildings and sites. Fine at dozens, not at
-  thousands — when it matters, put the index *inside* the store so it cannot desync.
+- **`lookup.ts` scans linearly** over buildings and sites, and the work givers scan every item
+  once per pawn per think tick. Fine at dozens, not at thousands — when it matters, put the index
+  *inside* the store so it cannot desync. **Measured out of M7 rather than assumed out:** a
+  five-colonist colony ticks in 29 µs at 512², against a 16,667 µs frame budget. It grows with item
+  count, not with map size, so the bigger world did not move it.
 - **No save thumbnails or autosave.** Saving is manual and the list shows text only.
 - **Verticality is reserved, not built.** See ADR 0003; the data model takes a `z` today.
 - **No sound, no main-menu-before-game, no settings.**
@@ -254,8 +306,8 @@ seed passing is exactly how it survived a green suite the first time.
 - **`.claude/skills/art-pass`** — drawing or improving a procedural sprite. The shared shape
   language, the one light direction, and the geometry rules that break tile alignment
   without ever raising an error. Written after the M6 art pass from the mistakes it made.
-- **`docs/decisions/`** — six ADRs covering the stack, the projection, verticality,
-  water, controls, and deconstruction.
+- **`docs/decisions/`** — seven ADRs covering the stack, the projection, verticality,
+  water, controls, deconstruction, and the shape of the world.
 
 ## Verticality — reserved, not built
 
