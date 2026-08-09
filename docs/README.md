@@ -7,6 +7,7 @@ How to find things, and where new writing belongs.
 | `design/` | How a system works and why it's shaped that way | You build or change a system |
 | `decisions/` | Short ADRs — one decision, its alternatives, its consequences | You make a call a future reader would question |
 | `ROADMAP.md` | Slices, milestones, and what's actually done | You finish a milestone, or the plan changes |
+| `BACKLOG.md` | Wanted, not yet scheduled | Something is worth doing but isn't the next thing |
 
 ## Start here
 

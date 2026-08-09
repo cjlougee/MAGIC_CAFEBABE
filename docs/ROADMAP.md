@@ -213,26 +213,30 @@ See [`design/07-production.md`](design/07-production.md).
   them walkable-into from the landing site — `tests/places.test.ts`. Watched in-browser: *Corvid
   Vault* 98 tiles north, found on the minimap, reached by clicking its name.
 
-### M9 — You can go there
+### M9 — You can go there *(current)*
 - [ ] **Draft** — a colonist out of the work pool, taking direct orders only. `interrupt()`'s
       `reason` parameter was written for exactly this, and `tickPawnAI`'s break → needs → work
       hierarchy has one obvious slot for it
 - [ ] Multi-select, and a move order that applies to a party
+- [ ] **Travel to a named place** — order a party at a POI and they route there, rather than the
+      player scrolling 200 tiles and clicking the ground
 - [ ] Needs tick on the road, so you sleep rough and get hungry and distance *costs* something —
       friction out of systems that already exist, with no combat required
-- [ ] Settle where the player character lands. Cheap mechanically, but "you go and take people" is
-      a different game from "you detach a squad"
-- **Playable check:** four colonists travel 200 tiles and back while the colony keeps mining, and
-  the trip is a real expense.
+- [ ] **A player character**: one pawn marked at worldgen. No perspective change — the iso view and
+      click-to-order stay exactly as they are. A stat buff can hang off the flag later
+- **Playable check:** four colonists travel 200 tiles to a named place and back while the colony
+  keeps mining, and the trip is a real expense.
 
-### M10 — You bring something back
-- [ ] Relic-tech **recovered** at the ruin, not manufactured
-- [ ] The refined tier, and a bench to make it at — the M6 bill system carrying its second and
-      third recipe
-- [ ] **Skills**: who can make what, gated by what they have learned. Arriving *after* there is a
-      journey to survive, so the numbers get designed against something real
-- [ ] Blueprints as found knowledge rather than a menu that unlocks
-- **Playable check:** the thing you carried home changes what the colony can build.
+*The view does not change in M9 and is not expected to later.* Isometric, recruit pawns for direct
+control, send them by clicking. Settled — see [`design/00-vision.md`](design/00-vision.md).
+
+### After M9 — the detail pass
+
+**M10 as written is retired.** The crafting ladder was going to be next; the detail work in
+[`BACKLOG.md`](BACKLOG.md) matters more to whether this is worth playing, and most of it wants
+thinking through before any of it is built. Relic-tech recovery, the refined tier, pawn skills,
+quality and power are all still wanted and are listed at the bottom of that file rather than
+pretending to be a scheduled milestone.
 
 ---
 
@@ -240,8 +244,8 @@ See [`design/07-production.md`](design/07-production.md).
 
 Real, but not designed in detail yet. Each gets its own design pass when we reach it.
 
-- **Slice 2 — The Frontier.** *In progress — see M6–M10 above.* Quality tiers and a power grid are
-  still unscheduled, and stay deferred until something needs them.
+- **Slice 2 — The Frontier.** *In progress — M6 to M9 above.* The production content it opened with
+  now sits in [`BACKLOG.md`](BACKLOG.md) along with quality tiers and power.
 - **Slice 3 — Threat.** Combat, body-part injury model (`hediffs`), raids, an event director that
   paces pressure. Where high-ground and cover modifiers land, since they need combat to modify.
   Now arrives with a world to be threatened *across*, and with enemy camps worth clearing to slow
@@ -265,9 +269,11 @@ named places on it that you can find and point the camera at. What it has not go
 *go*: the only thing that moves a colonist eighty tiles is a direct order to one pawn, who then
 walks there alone, hungry, and still nominally on the work roster.
 
-M9 is draft, multi-select, a party move order, and needs ticking on the road. Then M10, then
-**Slice 3 — threat**, which now has a world to be dangerous across and camps worth clearing. The
-`hediff` array on pawns is already there waiting.
+M9 is draft, multi-select, a party move order, travel-to-a-named-place, and needs ticking on the
+road. After it, the detail pass in [`BACKLOG.md`](BACKLOG.md) rather than the crafting ladder —
+seventeen items covering doors that look like doors, buildings taller than one block, what goes
+inside them, world texture, and the people who live out there. **Slice 3 — threat** follows, with a
+world to be dangerous across and camps worth clearing; the `hediff` array is already there waiting.
 
 **What M8 taught, worth carrying into M9:** the bug that mattered was not in placement but in
 *reachability's silence*. A sealed compound is not an inaccessible building — its interior is
@@ -355,6 +361,8 @@ seed passing is exactly how it survived a green suite the first time.
   without ever raising an error. Written after the M6 art pass from the mistakes it made.
 - **`docs/decisions/`** — eight ADRs covering the stack, the projection, verticality,
   water, controls, deconstruction, the shape of the world, and how places differ from texture.
+- **`docs/BACKLOG.md`** — everything wanted and not scheduled, grouped and annotated with what the
+  code already has to say about it. Read before proposing a new milestone; it is probably in there.
 
 ## Verticality — reserved, not built
 

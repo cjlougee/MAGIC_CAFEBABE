@@ -38,8 +38,13 @@ reframed as *the thing you carried home from somewhere* rather than as a tier li
 ## The shape of play
 
 - **You are someone, and you have a band.** A player character among colonists who are also
-  characters, not interchangeable labour. Where exactly the avatar lands is still open; that it
-  exists is not.
+  characters, not interchangeable labour. **Settled in M9:** one pawn is marked at worldgen, and
+  that is all it is at first — a flag, with a stat buff or an ability free to hang off it later.
+  The avatar does *not* bring a camera change with it.
+- **The view is isometric and stays that way.** You recruit pawns, take direct control, and send
+  them by clicking. There is no first-person mode and no over-the-shoulder mode planned; "direct
+  control" here means Diablo-style pointing, not driving. Settled rather than deferred, because
+  half this list would be designed differently if a camera change were coming.
 - **The colony runs while you are away.** This is the hard part of the Kenshi/RimWorld hybrid, and
   the work-*pool* scheduler already solves it: colonists are never assigned to jobs, so removing
   four of them from the pool is not a special case.
