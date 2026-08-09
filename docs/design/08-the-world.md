@@ -108,13 +108,55 @@ Two properties, both asserted in `tests/world.test.ts` at the size the game actu
    open in forty pockets, and a walkable-cell count cannot tell the difference. Measured seeds come
    out at 97.5–99.8%.
 
+## Places
+
+Six or so named compounds per world, sited by a **constraint search** rather than by a threshold on
+noise — the reasoning is [ADR 0008](../decisions/0008-places.md), and it is the difference between
+scenery and a destination. Scattered plating is weather; `Corvid Vault` is somewhere you went.
+
+- `defs/pois.ts` — two kinds. **Listening posts** (span 7–11, five attempted) and one **relic
+  vault** (span 15–21), which is `guaranteed`: its search re-runs on progressively looser terms
+  rather than give up, because a world with nowhere to walk to has failed at the only thing this
+  milestone was for.
+- `world/poiPlacement.ts` — samples candidate sites from the world RNG, rejects any with water in
+  the footprint, too much rock, too close to the landing site or to another place, or with no door
+  that faces connected open ground. Survivors are scored by nearby wreckage, so compounds sit in
+  country the old civilization actually built in.
+- The winner is **stamped into the terrain grid**: bulkhead perimeter, plating interior, an offset
+  internal wall with a gap, and one or two doors on facing walls.
+
+Three details that are load-bearing rather than incidental, each of which was a bug first:
+
+1. **Doors are chosen, not cut.** A door needs open ground on the other side *and* that ground has
+   to connect to the colony. Random gaps produced a sealed compound whose walkable interior became
+   an isolated reachability district — a colonist sent there never arrives and nothing says why.
+2. **The centre stays standable.** `pos` is the place's address; the internal wall is offset so it
+   never lands on it.
+3. **The name is saved, not recomputed.** It is the one thing about a place that cannot be derived,
+   and it is in `hashWorld` so a round trip that restores the right compound under the wrong name
+   fails rather than passes.
+
+`tests/places.test.ts` sweeps ten seeds for all of it: a guaranteed vault, distinct names that never
+contain their own category, a real distance from home, no water underneath, and — the one that
+caught a genuine bug — that every place can actually be walked into from the landing site.
+
 ## Seeing it
 
 `MIN_ZOOM` is 0.2, loosened from 0.35 — that value showed a useful fraction of a 128-tile map and is
 a keyhole on a 512-tile one. It is deliberately not loosened far enough to fit the world on screen:
-at that zoom a tile is under eight pixels and the art is mush. **The answer to "where am I in the
-world" is a minimap, not a zoom level**, and that is M8's job, alongside the named places it would
-show.
+at that zoom a tile is under eight pixels and the art is mush.
+
+**The answer to "where am I in the world" is the minimap.** One canvas pixel per tile, painted flat
+with no isometric transform — a plan, where up is up, because the player already has one isometric
+view and needs the other kind here. It carries the camera's footprint as the diamond it actually is,
+the colonists, the landing site, and every named place; clicking jumps the camera, and so does
+clicking a name in the list beside it.
+
+Terrain is painted to an offscreen canvas and repainted only when `TileMap.revision` changes, while
+the markers redraw each snapshot. Mining one rock should not cost a 262,144-pixel repaint, and
+neither should a colonist taking a step. It is derived render state: a pure function of the terrain
+grid, never saved. Colours come from `terrainColour()`, shared with the world itself, because a map
+whose colours disagree with the terrain it depicts is worse than no map.
 
 The debug panel (`` ` ``) has a zoom row with a live readout, because finding a specific zoom by
 wheel is fiddly and comparing two changes at *different* zooms is not a comparison.

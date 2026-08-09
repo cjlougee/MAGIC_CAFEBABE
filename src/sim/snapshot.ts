@@ -23,6 +23,7 @@ import { isOnGround } from './entities/item';
 import { pawnActivity } from './entities/pawn';
 import { isRipe } from './entities/plant';
 import { ITEM_DEFS, type ItemDefId } from './defs/items';
+import { poiDef } from './defs/pois';
 import { Designation } from './world/designations';
 import { daylight, formatTime, timeOfDay } from './world/time';
 import type { World } from './world/world';
@@ -86,6 +87,19 @@ export interface BenchSummary {
   readonly available: readonly { readonly recipe: RecipeId; readonly name: string }[];
 }
 
+export interface PoiSummary {
+  readonly id: number;
+  /** The generated name — "Kessler Relay", not "listening post". */
+  readonly name: string;
+  /** What kind of place it is, already worded. */
+  readonly kind: string;
+  readonly x: number;
+  readonly y: number;
+  readonly radius: number;
+  /** Tiles from the landing site, so the UI can say how far a trip would be. */
+  readonly distance: number;
+}
+
 export interface SimSnapshot {
   readonly tick: number;
   readonly seed: number;
@@ -107,6 +121,9 @@ export interface SimSnapshot {
   readonly constructionSites: number;
   /** Every workbench, with its standing orders. Small — there are never many. */
   readonly benches: readonly BenchSummary[];
+  /** Named places, for the minimap and the places list. Never more than a handful. */
+  readonly pois: readonly PoiSummary[];
+  readonly landingSite: { readonly x: number; readonly y: number };
 }
 
 /**
@@ -209,6 +226,18 @@ export function buildSnapshot(world: World): SimSnapshot {
     rooms: world.rooms.enclosedCount,
     constructionSites: world.sites.size,
     benches: benchSummaries(world),
+    pois: [...world.pois.values()].map((poi) => ({
+      id: poi.id,
+      name: poi.name,
+      kind: poiDef(poi.def).kind,
+      x: poi.pos.x,
+      y: poi.pos.y,
+      radius: poi.radius,
+      distance: Math.round(
+        Math.hypot(poi.pos.x - world.landingSite.x, poi.pos.y - world.landingSite.y),
+      ),
+    })),
+    landingSite: { x: world.landingSite.x, y: world.landingSite.y },
   };
 }
 

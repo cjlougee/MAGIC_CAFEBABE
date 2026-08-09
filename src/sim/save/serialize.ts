@@ -20,12 +20,14 @@ import type { BuildableId } from '../defs/buildables';
 import type { BuildingId } from '../defs/buildings';
 import type { ItemDefId } from '../defs/items';
 import type { PlantId } from '../defs/plants';
+import type { PoiId } from '../defs/pois';
 import type { RecipeId } from '../defs/recipes';
 import { createBuilding, type Building } from '../entities/building';
 import { createSite, type ConstructionSite } from '../entities/constructionSite';
 import { createItem, type Item } from '../entities/item';
 import { createPawn, type Pawn, type PawnAppearance } from '../entities/pawn';
 import { createPlant, type Plant } from '../entities/plant';
+import { createPointOfInterest, type PointOfInterest } from '../entities/pointOfInterest';
 import type { ActiveJob } from '../ai/job';
 import { Reservations, type ReservationSave } from '../ai/reservations';
 import { Pathfinder } from '../pathfind/pathfinder';
@@ -38,7 +40,7 @@ import type { World } from '../world/world';
 import { Zones } from '../world/zones';
 
 /** Bumped whenever the save shape changes. See migrate.ts. */
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 // ── Run-length encoding for the map grids ───────────────────────────────────────
 // Terrain is enormously repetitive — long runs of the same value — so RLE turns tens of
@@ -154,6 +156,16 @@ export interface SaveData {
     workDone: number;
   }[];
   readonly nextSiteId: number;
+  /**
+   * Named places.
+   *
+   * The `name` is the reason this section exists. Position and footprint could be
+   * recomputed by re-running placement against the seed, but the name could not be
+   * *relied* on to come back the same the moment placement is ever tuned — and a vault
+   * that is called something different next session is not a place, it is a re-roll.
+   */
+  readonly pois: { id: number; def: number; name: string; pos: SavedPos; radius: number }[];
+  readonly nextPoiId: number;
   readonly mineDesignations: number[];
   readonly deconstructDesignations: number[];
   readonly stockpiles: number[];
@@ -231,6 +243,14 @@ export function serializeWorld(world: World): SaveData {
       workDone: s.workDone,
     })),
     nextSiteId: world.sites.nextIdForSave,
+    pois: [...world.pois.values()].map((poi) => ({
+      id: poi.id,
+      def: poi.def,
+      name: poi.name,
+      pos: at(poi.pos),
+      radius: poi.radius,
+    })),
+    nextPoiId: world.pois.nextIdForSave,
     mineDesignations: [...world.designations.cells(Designation.Mine)],
     deconstructDesignations: [...world.designations.cells(Designation.Deconstruct)],
     stockpiles: [...world.zones.stockpiles],
@@ -309,6 +329,14 @@ export function deserializeWorld(save: SaveData): World {
   }
   sites.restoreNextId(save.nextSiteId);
 
+  const pois = new EntityStore<PointOfInterest>();
+  for (const saved of save.pois) {
+    pois.restore(
+      createPointOfInterest(saved.id, saved.def as PoiId, saved.name, saved.pos, saved.radius),
+    );
+  }
+  pois.restoreNextId(save.nextPoiId);
+
   const designations = new Designations();
   for (const cell of save.mineDesignations) designations.add(Designation.Mine, cell);
   for (const cell of save.deconstructDesignations) {
@@ -328,6 +356,7 @@ export function deserializeWorld(save: SaveData): World {
     plants,
     buildings,
     sites,
+    pois,
     designations,
     zones,
     reservations: Reservations.restore(save.reservations),

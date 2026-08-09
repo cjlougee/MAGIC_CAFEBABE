@@ -7,6 +7,7 @@
 
 import { WorldInput, type Tool } from '../input/worldInput';
 import { GameRenderer } from '../render/gameRenderer';
+import { paintMinimapTerrain } from '../render/minimap';
 import type { Command } from '../sim/core/commands';
 import type { EntityId } from '../sim/core/entityStore';
 import { TICKS_PER_HOUR } from '../sim/core/constants';
@@ -36,6 +37,8 @@ export class Engine {
   private readonly input: WorldInput;
   private selectedId: EntityId | null = null;
   private snapshotTimerMs = 0;
+  /** Bumped whenever the world is *replaced* rather than merely edited. */
+  private worldEpoch = 0;
 
   private constructor(
     readonly sim: Simulation,
@@ -200,6 +203,53 @@ export class Engine {
     this.renderer.camera.setZoom(zoom);
   }
 
+  // ── The minimap ──────────────────────────────────────────────────────────
+  //
+  // Bridged through here rather than handing the UI a live TileMap. React gets the
+  // pixels and the numbers it needs to draw, and no reference it could write through.
+
+  /**
+   * Changes whenever the painted result would differ, so the caller knows to repaint.
+   *
+   * The epoch is not decoration. `TileMap.revision` counts edits *on one instance*, and
+   * loading a save or generating a new world hands over a completely different instance
+   * whose counter started again — two unrelated worlds can land on the same number, and
+   * the minimap would go on showing a world the player has left. Cheap to make
+   * impossible; unpleasant to diagnose.
+   */
+  get minimapKey(): string {
+    return `${this.worldEpoch}:${this.sim.world.map.revision}`;
+  }
+
+  paintMinimap(image: ImageData): void {
+    paintMinimapTerrain(this.sim.world.map, image);
+  }
+
+  /**
+   * The four screen corners, in tile coordinates.
+   *
+   * A diamond rather than a rectangle, because that is genuinely what an isometric
+   * camera sees. Drawing an axis-aligned box would quietly claim the player can see
+   * corners they cannot.
+   */
+  viewportTileCorners(): { x: number; y: number }[] {
+    const { camera, canvas } = this.renderer;
+    const w = canvas.width;
+    const h = canvas.height;
+    return [
+      camera.screenToTile(0, 0, w, h),
+      camera.screenToTile(w, 0, w, h),
+      camera.screenToTile(w, h, w, h),
+      camera.screenToTile(0, h, w, h),
+    ];
+  }
+
+  /** Jumps the camera so a tile sits in the middle of the screen. */
+  centreCameraOn(x: number, y: number): void {
+    this.renderer.camera.x = x;
+    this.renderer.camera.y = y;
+  }
+
   /**
    * Actually simulates `hours`, rather than moving the clock.
    *
@@ -247,6 +297,7 @@ export class Engine {
     this.select(null);
     this.selectBench(null);
     this.setTool('select');
+    this.worldEpoch++;
     this.renderer.onWorldReplaced();
     this.renderer.focusOn(this.sim.world.landingSite.x, this.sim.world.landingSite.y);
     this.store.update({ snapshot: this.sim.snapshot() });
@@ -261,6 +312,7 @@ export class Engine {
     this.select(null);
     this.selectBench(null);
     this.setTool('select');
+    this.worldEpoch++;
     this.renderer.onWorldReplaced();
     this.renderer.focusOn(this.sim.world.landingSite.x, this.sim.world.landingSite.y);
     this.store.update({ snapshot: this.sim.snapshot() });

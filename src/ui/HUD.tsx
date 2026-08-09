@@ -16,6 +16,7 @@ import { AlertsPanel } from './AlertsPanel';
 import { BillPanel } from './BillPanel';
 import { ColonistPanel } from './ColonistPanel';
 import { DebugPanel } from './DebugPanel';
+import { Minimap } from './Minimap';
 import { MainMenu } from './MainMenu';
 import { Toolbar } from './Toolbar';
 import { WorkPanel } from './WorkPanel';
@@ -181,6 +182,18 @@ export function HUD({ store, engine }: HUDProps) {
       />
 
       <AlertsPanel alerts={snapshot.alerts} />
+
+      {engine && (
+        <Minimap
+          engine={engine}
+          mapWidth={snapshot.mapWidth}
+          mapHeight={snapshot.mapHeight}
+          pois={snapshot.pois}
+          landingSite={snapshot.landingSite}
+          pawns={snapshot.pawns}
+          tick={snapshot.tick}
+        />
+      )}
 
       {showMenu && engine && (
         <MainMenu

@@ -37,6 +37,16 @@ import { Palette, shade } from './palette';
 /** Small enough not to show tile seams; broad variation is TerrainLayer's tint field. */
 const TONE_RANGE = 0.025;
 
+/**
+ * The one answer to "what colour is this terrain".
+ *
+ * Exported because the minimap needs the same answer, and a second table would drift —
+ * a map whose colours disagree with the world it depicts is worse than no map.
+ */
+export function terrainColour(id: TerrainId): number {
+  return TERRAIN_BASE[id];
+}
+
 const TERRAIN_BASE: Record<TerrainId, number> = {
   [Terrain.DeepWater]: Palette.deepWater,
   [Terrain.ShallowWater]: Palette.shallowWater,

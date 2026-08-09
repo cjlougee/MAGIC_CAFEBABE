@@ -148,6 +148,21 @@ export function hashWorld(world: World): string {
     for (const delivered of site.delivered) h = mixInt32(h, delivered);
   }
 
+  // Named places. The name is hashed as well as the position, because the name is the
+  // part that cannot be recomputed — a round trip that restored the right compound in
+  // the right spot under a different name would otherwise pass.
+  h = mixInt32(h, world.pois.size);
+  h = mixInt32(h, world.pois.nextIdForSave);
+  for (const poi of world.pois.values()) {
+    h = mixInt32(h, poi.id);
+    h = mixInt32(h, poi.def);
+    h = mixString(h, poi.name);
+    h = mixInt32(h, poi.pos.x);
+    h = mixInt32(h, poi.pos.y);
+    h = mixInt32(h, poi.pos.z);
+    h = mixInt32(h, poi.radius);
+  }
+
   // Structures change passability without changing terrain, so the terrain array alone
   // no longer describes the map.
   h = mixBytes(h, world.map.buildingBlocks);

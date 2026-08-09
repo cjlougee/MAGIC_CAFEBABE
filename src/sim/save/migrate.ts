@@ -91,10 +91,29 @@ function addWorkbenchesAndCook(save: Record<string, unknown>): Record<string, un
   };
 }
 
+/**
+ * v3 → v4: named places arrive.
+ *
+ * An old save gets **none**, and that is the honest answer rather than a shortfall. The
+ * places in a v4 world were sited during worldgen against the terrain *and the landing
+ * site*, and then stamped into the map; a v3 colony's terrain has no compounds in it, so
+ * inventing records for places that were never built would describe buildings that are
+ * not there.
+ *
+ * Deliberately not "re-run placement on load". That would stamp compounds into a world
+ * the player already knows, possibly across their base, and it would make a place's name
+ * a function of the current build rather than of the world — which is the one property
+ * naming them was for.
+ */
+function addPointsOfInterest(save: Record<string, unknown>): Record<string, unknown> {
+  return { ...save, version: 4, pois: [], nextPoiId: 1 };
+}
+
 /** Keyed by the version being upgraded *from*. */
 const STEPS: Record<number, MigrationStep> = {
   1: addNaturalTerrain,
   2: addWorkbenchesAndCook,
+  3: addPointsOfInterest,
 };
 
 /**

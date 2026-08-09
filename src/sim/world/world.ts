@@ -18,10 +18,12 @@ import type { Building } from '../entities/building';
 import type { ConstructionSite } from '../entities/constructionSite';
 import type { Pawn } from '../entities/pawn';
 import type { Plant } from '../entities/plant';
+import type { PointOfInterest } from '../entities/pointOfInterest';
 import { Pathfinder } from '../pathfind/pathfinder';
 import { ReachabilityMap } from '../pathfind/reachability';
 import { Designations } from './designations';
 import { ItemStore } from './itemStore';
+import { placePointsOfInterest } from './poiPlacement';
 import { RoomMap } from './rooms';
 import { placeBedrolls, scatterPlants, spawnColonists } from './spawn';
 import type { TileMap } from './tilemap';
@@ -42,6 +44,11 @@ export interface World {
   readonly plants: EntityStore<Plant>;
   readonly buildings: EntityStore<Building>;
   readonly sites: EntityStore<ConstructionSite>;
+  /**
+   * Named places. Sited by constraint at worldgen and *kept* — their names are the one
+   * thing in the world that cannot be recomputed from the seed and the terrain.
+   */
+  readonly pois: EntityStore<PointOfInterest>;
   /** Cells the player has marked for work. */
   readonly designations: Designations;
   /** Player-painted areas — stockpiles, for now. */
@@ -78,6 +85,13 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
   // worldgen consumed — otherwise gameplay randomness would correlate with terrain.
   const rng = new Rng(seed ^ 0x9e3779b9);
   const landingSite = spawnColonists(map, pawns, rng, colonists);
+
+  // Places are sited *after* the landing site, because "far enough away to be a journey"
+  // is measured from it, and *before* plants are scattered, so nothing grows on ground a
+  // compound is about to be stamped over.
+  const pois = new EntityStore<PointOfInterest>();
+  placePointsOfInterest(map, pois, rng, landingSite);
+
   placeBedrolls(map, buildings, landingSite, colonists * STARTING_BEDROLLS_PER_COLONIST);
   scatterPlants(map, plants, rng);
 
@@ -90,6 +104,7 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
     plants,
     buildings,
     sites,
+    pois,
     items: new ItemStore(),
     designations: new Designations(),
     zones: new Zones(),

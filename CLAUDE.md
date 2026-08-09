@@ -135,6 +135,11 @@ tests rather than by structure:
   they idle forever with no visible cause. Never complete a structure on an occupied cell
   (`toilWork`'s `canProgress` waits rather than fails), and `escapeIfTrapped` in
   `ai/movement.ts` is the backstop.
+- **An enclosure with no way in is worse than a wall.** A sealed ring of walls around walkable
+  ground is not merely inaccessible — it is a legitimate reachability district, so `canReach`
+  answers "no" perfectly correctly while the player watches a colonist refuse an order with nothing
+  on screen to explain it. Anything that encloses ground (POI compounds today, walled rooms
+  tomorrow) must guarantee a door onto ground that connects to the colony. See ADR 0008.
 - **Blocking, sealing, and terrain cost are three separate questions.** `walkCost` is
   terrain; `buildingBlocks` is obstruction; `buildingSealsRoom` is room edges. A door is
   walkable *and* a room edge, which is why the last two can't be one flag.

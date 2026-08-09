@@ -1056,3 +1056,80 @@ body {
   color: var(--c-text);
   cursor: pointer;
 }
+
+/* ── Minimap ──────────────────────────────────────────────────────────────── */
+/*
+ * Bottom-right, opposite the alerts. The zoom bound deliberately stops short of showing
+ * the whole 512-tile world, so this is the only thing that answers "where am I".
+ */
+
+.minimap {
+  position: absolute;
+  right: 10px;
+  bottom: 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+  user-select: none;
+}
+
+.minimap__canvas {
+  display: block;
+  /* One canvas pixel per tile, scaled up by CSS — nearest-neighbour, for the same
+     reason the world uses it: a blurred map is a map you cannot read a wall off. */
+  image-rendering: pixelated;
+  background: var(--c-void);
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 3px;
+  cursor: crosshair;
+}
+
+.minimap__places {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  width: 180px;
+  list-style: none;
+}
+
+.minimap__empty {
+  padding: 4px 7px;
+  font-size: 10px;
+  color: var(--c-textDim);
+}
+
+.minimap__place {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 7px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--c-text);
+  text-align: left;
+  background: color-mix(in srgb, var(--c-panel) 88%, transparent);
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 3px;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+
+.minimap__place:hover {
+  border-color: var(--c-relic);
+  color: var(--c-relic);
+}
+
+.minimap__place-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.minimap__place-distance {
+  flex: none;
+  color: var(--c-textDim);
+}

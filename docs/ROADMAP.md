@@ -191,17 +191,27 @@ See [`design/07-production.md`](design/07-production.md).
   3x with colonists mining. Watched in-browser; the terrain census and connectivity sweep that back
   it are in `tests/world.test.ts`.
 
-### M8 — There is a somewhere else *(next)*
-- [ ] POIs **placed by constraint and named once at generation**, then persisted — the first real
-      implementation of "noise makes texture, constraints make places". Deserves its own ADR
-- [ ] At least one guaranteed named ruin per world, visible from a distance. The relic glow already
-      draws it, and M7 confirmed the effect: at night the relic structures are the only thing that
-      pulls the eye across a dark map, which *is* the "something is over there" signal
-- [ ] **A minimap.** Deferred out of M7 deliberately rather than forgotten: `MIN_ZOOM` is bounded
-      by the ground layer pooling a sprite per visible tile, and the honest answer to "where am I
-      in the world" was never a zoom level. A minimap with no named places on it is half a
-      feature; with them it is the exploration UI, so it belongs here
-- **Playable check:** ten seeds, ten named places you can see from far off and want to walk to.
+### M8 — There is a somewhere else
+- [x] POIs **placed by a constraint search and named once at generation**, then persisted —
+      [ADR 0008](decisions/0008-places.md). The properties that make somewhere a destination are
+      all *relational* (far from home, not in a lake, not on the last one, has a way in), and a
+      threshold on noise has nothing to relate to
+- [x] One **guaranteed relic vault** per world plus up to five listening posts. Only the vault
+      re-runs its search on looser terms — an optional place that finds no good ground simply does
+      not exist that seed, which beats one wedged somewhere implausible
+- [x] Compounds are **stamped into the terrain**: bulkhead perimeter, plating interior, offset
+      internal wall, doors on facing walls. Not a label on a dense patch of the ruin field
+- [x] **Doors are chosen, not cut** — from wall cells facing open ground that connects to the
+      colony. Random gaps gave seed 7 a sealed compound whose walkable interior became an isolated
+      reachability district: a colonist sent there never arrives, and nothing on screen says why
+- [x] **A minimap**, one pixel per tile, drawn flat rather than isometric. Camera diamond,
+      colonists, home, and every named place; click the map or a name to jump. Terrain repaints
+      only on `TileMap.revision`
+- [x] Save v4 — places round-trip, and their **names are hashed**, so restoring the right compound
+      under the wrong name fails instead of passing
+- **Playable check:** ✅ ten seeds, ten worlds with named places 44–220 tiles out, every one of
+  them walkable-into from the landing site — `tests/places.test.ts`. Watched in-browser: *Corvid
+  Vault* 98 tiles north, found on the minimap, reached by clicking its name.
 
 ### M9 — You can go there
 - [ ] **Draft** — a colonist out of the work pool, taking direct orders only. `interrupt()`'s
@@ -250,12 +260,21 @@ Real, but not designed in detail yet. Each gets its own design pass when we reac
 Slice 1 works and M6 gave it a production loop. It is still not a *game*: there is no pressure,
 nowhere to go, and the colony's whole world is 128 tiles across.
 
-**M7 is done and M8 is the current milestone.** The world is 512² and reads as country rather than
-texture, but it is still a bigger screensaver: there is nowhere on it that is *anywhere*. M8 puts
-the first named place on the map and gives the player a way to see it.
+**M7 and M8 are done. M9 is the current milestone.** The world is 512², reads as country, and has
+named places on it that you can find and point the camera at. What it has not got is any way to
+*go*: the only thing that moves a colonist eighty tiles is a direct order to one pawn, who then
+walks there alone, hungry, and still nominally on the work roster.
 
-The order after that is M9 → M10, then **Slice 3 — threat**, which now has a world to be dangerous
-across. The `hediff` array on pawns is already there waiting.
+M9 is draft, multi-select, a party move order, and needs ticking on the road. Then M10, then
+**Slice 3 — threat**, which now has a world to be dangerous across and camps worth clearing. The
+`hediff` array on pawns is already there waiting.
+
+**What M8 taught, worth carrying into M9:** the bug that mattered was not in placement but in
+*reachability's silence*. A sealed compound is not an inaccessible building — its interior is
+walkable, so it becomes a legitimate district of its own, and `canReach` answers "no" perfectly
+correctly while the player sees a colonist refuse an order for no visible reason. Anything M9 adds
+that can strand a pawn — a travel order to somewhere across water, a party told to hold a spot
+inside a ruin — needs to fail *loudly*, because the failure mode here is a colonist standing still.
 
 **What M7 taught, worth carrying into M8:** the milestone's real finding was not biomes, it was
 that *every* tuning constant in worldgen encoded the old map size. Biomes went in first and the map
@@ -334,8 +353,8 @@ seed passing is exactly how it survived a green suite the first time.
 - **`.claude/skills/art-pass`** — drawing or improving a procedural sprite. The shared shape
   language, the one light direction, and the geometry rules that break tile alignment
   without ever raising an error. Written after the M6 art pass from the mistakes it made.
-- **`docs/decisions/`** — seven ADRs covering the stack, the projection, verticality,
-  water, controls, deconstruction, and the shape of the world.
+- **`docs/decisions/`** — eight ADRs covering the stack, the projection, verticality,
+  water, controls, deconstruction, the shape of the world, and how places differ from texture.
 
 ## Verticality — reserved, not built
 
