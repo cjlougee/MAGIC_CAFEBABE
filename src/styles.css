@@ -1133,3 +1133,175 @@ body {
   flex: none;
   color: var(--c-textDim);
 }
+
+/* ── Party ────────────────────────────────────────────────────────────────── */
+/*
+ * Shown whenever anyone is selected. Draft is implicit in giving an order, so without
+ * this panel a player would have no way of knowing why the colony stopped working.
+ */
+
+.party {
+  position: absolute;
+  right: 10px;
+  top: 46px;
+  width: 210px;
+  padding: 8px 9px 9px;
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-panel) 92%, transparent);
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 4px;
+  backdrop-filter: blur(6px);
+  user-select: none;
+}
+
+.party__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.party__title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-relic);
+}
+
+.party__drafted {
+  color: var(--c-hazard);
+}
+
+.party__close {
+  padding: 0 3px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--c-textDim);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.party__members {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+}
+
+.party__member {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.party__name {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.party__state {
+  flex: none;
+  font-size: 10px;
+  color: var(--c-textDim);
+}
+
+.party__release {
+  flex: none;
+  padding: 0 4px;
+  font: inherit;
+  font-size: 10px;
+  color: var(--c-hazard);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.party__release:hover {
+  border-color: var(--c-hazard);
+}
+
+.party__release-all {
+  width: 100%;
+  padding: 4px;
+  font: inherit;
+  font-size: 10px;
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-panelEdge) 55%, transparent);
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.party__release-all:hover {
+  border-color: var(--c-hazard);
+  color: var(--c-hazard);
+}
+
+.party__group {
+  margin: 8px 0 4px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-textDim);
+}
+
+.party__places {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.party__place {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 3px 6px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--c-text);
+  text-align: left;
+  background: none;
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.party__place:hover {
+  border-color: var(--c-relic);
+  color: var(--c-relic);
+}
+
+.party__place-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.party__place-distance {
+  flex: none;
+  color: var(--c-textDim);
+}
+
+/* The player character's mark, and the drafted state, in the roster. */
+.colonist__you {
+  margin-right: 4px;
+  color: var(--c-gold);
+}
+
+.colonist.is-drafted {
+  border-left: 2px solid var(--c-hazard);
+}

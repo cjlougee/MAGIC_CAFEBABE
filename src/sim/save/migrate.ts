@@ -109,11 +109,40 @@ function addPointsOfInterest(save: Record<string, unknown>): Record<string, unkn
   return { ...save, version: 4, pois: [], nextPoiId: 1 };
 }
 
+/**
+ * v4 → v5: draft, standing orders, and the player character.
+ *
+ * Nobody is drafted in an old save, which is simply true — the concept did not exist, so
+ * everyone was in the work pool.
+ *
+ * The player character needs a *guess*, and it is made once here rather than at every
+ * call site forever after, the same way v1 → v2 had to decide what a stone floor was laid
+ * on. A world generated before this version records nobody as "you", but one of that
+ * landing party always was; the first colonist still alive is an arbitrary and stable
+ * answer, and an arbitrary answer beats a colony with no protagonist in it.
+ */
+function addDraftAndPlayerCharacter(save: Record<string, unknown>): Record<string, unknown> {
+  const pawns = save.pawns as Record<string, unknown>[];
+  const chosen = pawns.find((pawn) => pawn.dead !== true) ?? pawns[0];
+
+  return {
+    ...save,
+    version: 5,
+    pawns: pawns.map((pawn) => ({
+      ...pawn,
+      drafted: false,
+      draftTarget: null,
+      playerCharacter: pawn === chosen,
+    })),
+  };
+}
+
 /** Keyed by the version being upgraded *from*. */
 const STEPS: Record<number, MigrationStep> = {
   1: addNaturalTerrain,
   2: addWorkbenchesAndCook,
   3: addPointsOfInterest,
+  4: addDraftAndPlayerCharacter,
 };
 
 /**

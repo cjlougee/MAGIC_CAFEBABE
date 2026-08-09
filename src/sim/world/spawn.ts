@@ -156,11 +156,26 @@ export function spawnColonists(
   const cells = nearbyCells(map, site, count, isPassableCell);
   const used = new Set<string>();
 
+  /*
+   * One of the party is you.
+   *
+   * Rolled rather than always the first, so the landing party does not read as "the
+   * protagonist and some staff" — you are one of the people who came, and which one is
+   * the world's business. Today the flag does nothing but say so; a stat buff or an
+   * ability can hang off it whenever there is one to give.
+   */
+  const playerIndex = rng.int(count);
+
   for (let i = 0; i < count; i++) {
     // If the map is so hostile there aren't even `count` open cells, stack the
     // remainder on the site rather than failing to start.
     const cell = cells[i] ?? site;
-    pawns.add((id) => createPawn(id, rollName(rng, used), cell, rollAppearance(rng)));
+    const isPlayer = i === playerIndex;
+    pawns.add((id) => {
+      const pawn = createPawn(id, rollName(rng, used), cell, rollAppearance(rng));
+      pawn.playerCharacter = isPlayer;
+      return pawn;
+    });
   }
 
   return site;

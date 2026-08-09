@@ -213,22 +213,44 @@ See [`design/07-production.md`](design/07-production.md).
   them walkable-into from the landing site — `tests/places.test.ts`. Watched in-browser: *Corvid
   Vault* 98 tiles north, found on the minimap, reached by clicking its name.
 
-### M9 — You can go there *(current)*
-- [ ] **Draft** — a colonist out of the work pool, taking direct orders only. `interrupt()`'s
-      `reason` parameter was written for exactly this, and `tickPawnAI`'s break → needs → work
-      hierarchy has one obvious slot for it
-- [ ] Multi-select, and a move order that applies to a party
-- [ ] **Travel to a named place** — order a party at a POI and they route there, rather than the
-      player scrolling 200 tiles and clicking the ground
-- [ ] Needs tick on the road, so you sleep rough and get hungry and distance *costs* something —
-      friction out of systems that already exist, with no combat required
-- [ ] **A player character**: one pawn marked at worldgen. No perspective change — the iso view and
-      click-to-order stay exactly as they are. A stat buff can hang off the flag later
-- **Playable check:** four colonists travel 200 tiles to a named place and back while the colony
-  keeps mining, and the trip is a real expense.
+### M9 — You can go there
+- [x] **Draft**, and the discovery that direct orders had *never worked*. Movement is a path, not a
+      job, and `startJob` clears the path — so every direct order since M1 had a lifetime of one
+      think interval before a work giver silently threw it away
+- [x] `draftTarget` is a **standing order**, kept until arrival, because eating clears the path and
+      an order that lived only in `pawn.path` ended wherever hunger struck
+- [x] **Needs still outrank draft.** A drafted pawn that ignored hunger would starve on an
+      expedition with a corpse as the only feedback
+- [x] Multi-select — shift-click, drag a rectangle, or shift-click the roster — and `moveParty`,
+      which fans the party out over distinct cells rather than stacking them on one
+- [x] **Travel to a named place** from the party panel. The places existed since M8 and were
+      effectively unusable without it
+- [x] **A player character**, rolled at worldgen. A ◆ in the roster and nothing else yet
+- [x] Save v5, with draft state hashed — a restored colonist resumes their walk
+- [x] Failing loudly: an impossible order is kept and alerted rather than dropped, and
+      `pawnActivity` separates **travelling** from **holding** from **idle**
+- [x] **A\*'s node budget was a flat 20,000** — more cells than a 128² map contains, so it could
+      never bind, and at 512² it binds on any long walk. A drafted colonist stood in a meadow for
+      five in-game hours: reachability said yes, A\* said no, nothing said anything. Now the whole
+      map, with `canReach` doing the job the budget was pretending to
+- **Playable check:** ✅ three colonists sent to *Mast Five*, 176 tiles out, walked ~340 tiles,
+  arrived on three distinct cells inside the compound, and stood there **holding** — off the work
+  roster the whole way. Watched in-browser; asserted headless in `tests/command.test.ts`.
+
+See [`design/09-command.md`](design/09-command.md).
 
 *The view does not change in M9 and is not expected to later.* Isometric, recruit pawns for direct
 control, send them by clicking. Settled — see [`design/00-vision.md`](design/00-vision.md).
+
+---
+
+## Slice 2 is complete
+
+The world got big enough to have a somewhere else, that somewhere else got a name, and a party can
+be sent to it and brought home. 417 tests; the simulation still runs seven in-game days in about a
+second, headless, on a map sixteen times the size Slice 1 shipped.
+
+---
 
 ### After M9 — the detail pass
 
@@ -244,7 +266,7 @@ pretending to be a scheduled milestone.
 
 Real, but not designed in detail yet. Each gets its own design pass when we reach it.
 
-- **Slice 2 — The Frontier.** *In progress — M6 to M9 above.* The production content it opened with
+- **Slice 2 — The Frontier.** *Complete — M6 to M9 above.* The production content it opened with
   now sits in [`BACKLOG.md`](BACKLOG.md) along with quality tiers and power.
 - **Slice 3 — Threat.** Combat, body-part injury model (`hediffs`), raids, an event director that
   paces pressure. Where high-ground and cover modifiers land, since they need combat to modify.
@@ -253,9 +275,10 @@ Real, but not designed in detail yet. Each gets its own design pass when we reac
 - **Slice 4 — The world outside.** *Partly pulled into Slice 2.* Ruin exploration came forward as
   M8–M9. What remains: factions, trade, named NPCs, towns you can buy into, and the multi-level
   worldgen and cave dungeons that serve them.
-- **Slice 5 — Command.** *Partly pulled into Slice 2.* Draft and party movement come forward in M9,
-  because travel is impossible without them. Formations, morale, and genuine tactical control
-  remain — the Bannerlord layer, riding on the preemption built in M2.
+- **Slice 5 — Command.** *Partly delivered in Slice 2.* Draft, multi-select and party movement
+  landed in M9, because travel was impossible without them. Formations, morale, stances and genuine
+  tactical control remain — the Bannerlord layer, riding on the preemption built in M2. Note that
+  draft as built lets needs interrupt a held position, which combat will have to revisit.
 
 ---
 
@@ -264,16 +287,22 @@ Real, but not designed in detail yet. Each gets its own design pass when we reac
 Slice 1 works and M6 gave it a production loop. It is still not a *game*: there is no pressure,
 nowhere to go, and the colony's whole world is 128 tiles across.
 
-**M7 and M8 are done. M9 is the current milestone.** The world is 512², reads as country, and has
-named places on it that you can find and point the camera at. What it has not got is any way to
-*go*: the only thing that moves a colonist eighty tiles is a direct order to one pawn, who then
-walks there alone, hungry, and still nominally on the work roster.
+**M7, M8 and M9 are done, and Slice 2 is closed.** The world is 512², reads as country, has named
+places on it, and you can take a party to one and bring them home. That is the whole loop the slice
+was reframed around.
 
-M9 is draft, multi-select, a party move order, travel-to-a-named-place, and needs ticking on the
-road. After it, the detail pass in [`BACKLOG.md`](BACKLOG.md) rather than the crafting ladder —
-seventeen items covering doors that look like doors, buildings taller than one block, what goes
-inside them, world texture, and the people who live out there. **Slice 3 — threat** follows, with a
-world to be dangerous across and camps worth clearing; the `hediff` array is already there waiting.
+**Next is the detail pass in [`BACKLOG.md`](BACKLOG.md)**, not the crafting ladder — seventeen items
+covering doors that look like doors, buildings taller than one block, what goes inside them, world
+texture, and the people who live out there. Much of it wants thinking through before any of it is
+built. **Slice 3 — threat** follows, with a world to be dangerous across and camps worth clearing;
+the `hediff` array is already there waiting.
+
+**What M9 taught, and it is now three for three:** every milestone since the map grew has been
+undone by a constant tuned to the *old* map size, and every one of them passed a green suite.
+Worldgen wavelengths in M7. A\*'s node budget in M9 — a flat 20,000 cells, more than a 128² map
+contains, so it had never once bound. The landing-site search radius (28 tiles) and `BUSH_DENSITY`
+are still sitting there unexamined. Anything phrased as an absolute count rather than a fraction of
+the world is a suspect until measured.
 
 **What M8 taught, worth carrying into M9:** the bug that mattered was not in placement but in
 *reachability's silence*. A sealed compound is not an inaccessible building — its interior is
@@ -337,6 +366,8 @@ watching the game. Budget for looking at it.
 | Deliverers entombed in walls | Seven of sixteen walls silently never built |
 | Landing site scored by `isPassable` | The party landed in the middle of a lake |
 | A deconstruct mark drawn under the wall | Marking a wall showed the player nothing at all |
+| A compound stamped inside a ruin field | The named place was invisible against its own scenery |
+| A\* node budget from the 128² map | A drafted colonist stood in a meadow for five in-game hours |
 
 The landing-site one is the sharpest example so far of a rule being right and applied to
 the wrong question. Openness was measured with `isPassable`, and shallow water is passable

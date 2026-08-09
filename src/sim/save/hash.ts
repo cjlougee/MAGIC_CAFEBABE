@@ -106,6 +106,13 @@ export function hashWorld(world: World): string {
     h = mixInt32(h, pawn.dead ? 1 : 0);
     h = mixInt32(h, pawn.asleep ? 1 : 0);
     h = mixInt32(h, pawn.breakTicks);
+    // Draft state is saved, so it is hashed. A standing order is the difference between
+    // a colonist who resumes walking across the map after a reload and one who stands
+    // where the reload found them.
+    h = mixInt32(h, pawn.drafted ? 1 : 0);
+    h = mixInt32(h, pawn.draftTarget?.x ?? -1);
+    h = mixInt32(h, pawn.draftTarget?.y ?? -1);
+    h = mixInt32(h, pawn.playerCharacter ? 1 : 0);
     h = mixInt32(h, pawn.memories.length);
     for (const memory of pawn.memories) {
       h = mixInt32(h, memory.def);

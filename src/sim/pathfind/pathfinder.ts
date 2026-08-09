@@ -28,8 +28,12 @@ const MIN_STRAIGHT = Math.min(
 );
 const MIN_DIAGONAL = ((MIN_STRAIGHT * 141) / 100) | 0;
 
-/** Ceiling on cells examined, so a hopeless search can't stall a tick. */
-const DEFAULT_NODE_BUDGET = 20000;
+/**
+ * Smallest ceiling on cells examined. The real default is the whole map — see below.
+ *
+ * Kept as a floor so a tiny test map still gets a sensible allowance.
+ */
+const MIN_NODE_BUDGET = 20000;
 
 export interface PathResult {
   /** Tiles to walk, excluding the pawn's current cell. Empty when already at the goal. */
@@ -46,8 +50,31 @@ export class Pathfinder {
   private readonly heap: BinaryHeap;
   private generation = 0;
 
+  /**
+   * Cells a search may examine before giving up. **The whole map, by default.**
+   *
+   * This was a flat 20,000, which on the 128² map it was written for is more cells than
+   * exist — the ceiling could never bind, and a reachable goal was always found. At 512²
+   * it binds constantly: a 265-tile walk around a lake exhausts it, A* returns null, and
+   * reachability goes on correctly insisting the route exists.
+   *
+   * That divergence is the one CLAUDE.md warns about, arriving through a different door.
+   * The usual form is A* and reachability disagreeing about a *step*; this is them
+   * disagreeing about *effort*, and it strands a colonist just as thoroughly — a drafted
+   * pawn stood in a meadow for five in-game hours with no path, no alert, and nothing on
+   * screen to say why.
+   *
+   * A full-map ceiling makes a false "no route" impossible, because `closedStamp` means
+   * no cell is examined twice. The original purpose — not stalling a tick on a hopeless
+   * search — is now served properly by `canReach`, an O(1) check every caller already
+   * makes first. A budget is a bad guard against hopelessness anyway: it cannot tell a
+   * hopeless search from a long one.
+   */
+  private readonly fullMapBudget: number;
+
   constructor(private readonly map: TileMap) {
     const size = map.size;
+    this.fullMapBudget = Math.max(MIN_NODE_BUDGET, size);
     this.gScore = new Int32Array(size);
     this.fScore = new Int32Array(size);
     this.cameFrom = new Int32Array(size);
@@ -66,7 +93,7 @@ export class Pathfinder {
     return MIN_STRAIGHT * (dx + dy) + (MIN_DIAGONAL - 2 * MIN_STRAIGHT) * Math.min(dx, dy);
   }
 
-  find(start: TilePos, goal: TilePos, nodeBudget = DEFAULT_NODE_BUDGET): PathResult | null {
+  find(start: TilePos, goal: TilePos, nodeBudget = this.fullMapBudget): PathResult | null {
     const map = this.map;
 
     // Levels are not linked yet; a cross-level request is a caller bug, not a long walk.

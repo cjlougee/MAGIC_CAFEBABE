@@ -23,6 +23,8 @@ import {
   type DebugCommand,
   type DesignateCommand,
   type MoveToCommand,
+  type MovePartyCommand,
+  type UndraftCommand,
   type SetWorkPriorityCommand,
   type TileRectangle,
   type ZoneCommand,
@@ -30,7 +32,16 @@ import {
 import { createSite, type ConstructionSite } from './entities/constructionSite';
 import { cancelConstruction, completeConstruction } from './world/construction';
 import { pawnOccupies, siteAt } from './world/lookup';
-import { clearPath } from './entities/pawn';
+import { clearPath, type Pawn } from './entities/pawn';
+import { GROUND_LEVEL, type TilePos } from './core/position';
+
+/**
+ * How far from a party's target we will look for somewhere to stand.
+ *
+ * Generous enough to fan a squad out around a doorway, small enough that a party sent
+ * somewhere genuinely crowded bunches up rather than scattering across the district.
+ */
+const PARTY_SPREAD_RADIUS = 6;
 import { PRIORITY_DISABLED, PRIORITY_LOWEST, WORK_TYPE_COUNT } from './defs/workTypes';
 import { buildableDef } from './defs/buildables';
 import { buildingDef } from './defs/buildings';
@@ -151,6 +162,12 @@ export class Simulation {
           break;
         case 'moveTo':
           this.applyMoveTo(command);
+          break;
+        case 'moveParty':
+          this.applyMoveParty(command);
+          break;
+        case 'undraft':
+          this.applyUndraft(command);
           break;
         case 'designate':
           this.applyDesignate(command);
@@ -304,9 +321,60 @@ export class Simulation {
   }
 
   private applyMoveTo(command: MoveToCommand): void {
+    const pawn = this.worldState.pawns.get(command.pawnId);
+    if (pawn) this.orderPawnTo(pawn, command.target);
+  }
+
+  /**
+   * Sends a party, fanned out so they arrive as a group rather than as a queue.
+   *
+   * Each pawn is given the nearest free standable cell to the target that nobody ahead
+   * of them has claimed. Assignment walks the party in the order given, so the same
+   * order always produces the same arrangement — a spread that varied run to run would
+   * break determinism for something purely cosmetic.
+   */
+  private applyMoveParty(command: MovePartyCommand): void {
     const world = this.worldState;
-    const pawn = world.pawns.get(command.pawnId);
-    if (!pawn) return;
+    const taken = new Set<number>();
+
+    for (const pawnId of command.pawnIds) {
+      const pawn = world.pawns.get(pawnId);
+      if (!pawn || pawn.dead) continue;
+
+      const cell = this.freeCellNear(command.target, taken);
+      if (!cell) continue;
+
+      taken.add(world.map.idx(cell.x, cell.y, cell.z));
+      this.orderPawnTo(pawn, cell);
+    }
+  }
+
+  /** Nearest standable, unclaimed cell to `target`, searched in rings. */
+  private freeCellNear(target: TilePos, taken: ReadonlySet<number>): TilePos | null {
+    const map = this.worldState.map;
+    const z = target.z ?? GROUND_LEVEL;
+
+    for (let radius = 0; radius <= PARTY_SPREAD_RADIUS; radius++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          // Ring only — the interior was covered by a smaller radius.
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+
+          const x = target.x + dx;
+          const y = target.y + dy;
+          if (!map.isPassable(x, y, z)) continue;
+          if (taken.has(map.idx(x, y, z))) continue;
+
+          return { x, y, z };
+        }
+      }
+    }
+    return null;
+  }
+
+  /** The whole of a direct order: preempt, draft, remember, path. */
+  private orderPawnTo(pawn: Pawn, target: TilePos): void {
+    const world = this.worldState;
 
     /*
      * Enforcement rule 3 at the point of use: a direct order preempts autonomous work.
@@ -317,6 +385,19 @@ export class Simulation {
     interrupt(world, pawn, 'player order');
 
     /*
+     * A direct order drafts.
+     *
+     * Without it the order had a lifetime of one think interval: `startJob` clears the
+     * path, so the first work giver to reach this pawn threw away where the player had
+     * sent them, and a colonist ordered across the map turned round and went back to
+     * hauling. "Send someone somewhere" has to mean they stay sent.
+     *
+     * The target is stored as well as pathed, so eating on the way does not cancel it.
+     */
+    pawn.drafted = true;
+    pawn.draftTarget = target;
+
+    /*
      * Plan from where the pawn will *be*, not where it is.
      *
      * A pawn caught mid-step is between two tiles; `pos` is the one it is leaving.
@@ -325,14 +406,28 @@ export class Simulation {
     const origin = pawn.moveTarget ?? pawn.pos;
 
     // O(1) rejection before spending a search. Without this, ordering a pawn onto an
-    // island runs a full flood of the map every time the player misclicks.
-    if (!world.reachability.canReach(origin, command.target)) return;
+    // island runs a full flood of the map every time the player misclicks. The target is
+    // kept regardless, so an impossible order shows up as an alert rather than as a
+    // colonist who quietly ignored you.
+    if (!world.reachability.canReach(origin, target)) return;
 
-    const result = world.pathfinder.find(origin, command.target);
+    const result = world.pathfinder.find(origin, target);
     if (!result) return;
 
     pawn.path = result.steps;
     pawn.pathIndex = 0;
+  }
+
+  /** Back to the work pool, wherever they happen to be standing. */
+  private applyUndraft(command: UndraftCommand): void {
+    const pawn = this.worldState.pawns.get(command.pawnId);
+    if (!pawn) return;
+
+    pawn.drafted = false;
+    pawn.draftTarget = null;
+    // Not interrupted: a pawn released mid-walk should stop walking somewhere they were
+    // only going because they were told to, and pick up work from where they are.
+    clearPath(pawn);
   }
 
   private applyDesignate(command: DesignateCommand): void {

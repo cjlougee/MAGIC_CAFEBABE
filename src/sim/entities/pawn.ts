@@ -69,6 +69,36 @@ export interface Pawn {
   breakTicks: number;
   /** True while asleep, so needs and rendering can treat them differently. */
   asleep: boolean;
+
+  /**
+   * Under direct command: takes the player's orders and no work at all.
+   *
+   * The hybrid control model's other half. Until this existed, a move order lasted at
+   * most one think interval — `startJob` clears the path, so the next work giver to
+   * hand this pawn a job silently threw away where the player had sent them. Thirty
+   * ticks was the entire lifetime of a direct order.
+   *
+   * Needs still apply while drafted, deliberately. See `docs/design/09-command.md`.
+   */
+  drafted: boolean;
+
+  /**
+   * Where the player last sent them, kept until they arrive.
+   *
+   * A *standing* order rather than a one-shot path, because eating or sleeping clears
+   * the path on the way and the order has to survive that. Without it, a colonist
+   * interrupted by hunger halfway across the map stops there permanently.
+   */
+  draftTarget: TilePos | null;
+
+  /**
+   * The one colonist the player *is*.
+   *
+   * A flag and nothing else today — no camera change, no special control. It exists so
+   * the fiction has somebody in it from the first minute, and so a stat buff or an
+   * ability has something to hang off later.
+   */
+  playerCharacter: boolean;
 }
 
 export interface Memory {
@@ -102,6 +132,9 @@ export function createPawn(
     dead: false,
     breakTicks: 0,
     asleep: false,
+    drafted: false,
+    draftTarget: null,
+    playerCharacter: false,
   };
 }
 
@@ -138,6 +171,19 @@ export function pawnActivity(pawn: Pawn): string {
   if (pawn.asleep) return 'asleep';
   if (pawn.breakTicks > 0) return 'breaking down';
   if (pawn.job) return ACTIVITY_LABELS[pawn.job.job.kind];
+
+  /*
+   * Under orders reads differently from idle, and the difference is the whole feature.
+   *
+   * Movement is a path rather than a job, so a colonist walking ninety tiles under a
+   * standing order had no job to name and reported "idle" — which is precisely the word
+   * a player scans for when wondering why nothing is happening.
+   */
+  if (pawn.drafted) {
+    if (isMoving(pawn) || pawn.draftTarget) return 'travelling';
+    return 'holding';
+  }
+
   return isMoving(pawn) ? 'walking' : 'idle';
 }
 

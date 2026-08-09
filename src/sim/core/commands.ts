@@ -35,6 +35,32 @@ export interface MoveToCommand {
   readonly target: TilePos;
 }
 
+/**
+ * Sends several colonists to one place.
+ *
+ * Not a loop of `moveTo` in the input layer, because the interesting part is that they
+ * must not all path to the *same cell* — four pawns given one tile would arrive as one
+ * pawn and three colonists standing on the doorstep. Fanning them out is a decision
+ * about the world, so it belongs in the simulation where it is deterministic and
+ * testable rather than in a mouse handler.
+ */
+export interface MovePartyCommand {
+  readonly type: 'moveParty';
+  readonly pawnIds: readonly EntityId[];
+  readonly target: TilePos;
+}
+
+/**
+ * Hands a colonist back to the work pool.
+ *
+ * The inverse of the draft a move order implies. Without it, ordering somebody anywhere
+ * would take them off work permanently and the only way back would be reloading.
+ */
+export interface UndraftCommand {
+  readonly type: 'undraft';
+  readonly pawnId: EntityId;
+}
+
 export interface TileRectangle {
   readonly x0: number;
   readonly y0: number;
@@ -127,6 +153,8 @@ export interface BillCommand {
 export type Command =
   | RegenerateCommand
   | MoveToCommand
+  | MovePartyCommand
+  | UndraftCommand
   | DesignateCommand
   | ZoneCommand
   | SetWorkPriorityCommand

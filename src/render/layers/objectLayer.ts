@@ -69,7 +69,14 @@ export class ObjectLayer {
   private readonly pawnSprites = new Map<EntityId, Sprite>();
   private readonly facing = new Map<EntityId, number>();
   private readonly occluders = new Set<number>();
-  private readonly selectionRing: Sprite;
+  /**
+   * One ring per selected colonist, pooled.
+   *
+   * Was a single sprite, which was exactly right while only one pawn could be selected
+   * and silently wrong the moment a party could — the last pawn in the loop would have
+   * taken the ring and the rest would have looked unselected while still obeying orders.
+   */
+  private readonly selectionRings: Sprite[] = [];
 
   constructor(
     private readonly art: ArtProvider,
@@ -79,12 +86,9 @@ export class ObjectLayer {
     this.container.interactiveChildren = false;
     this.container.sortableChildren = true;
 
-    this.selectionRing = new Sprite(art.selectionRing());
-    this.selectionRing.visible = false;
-    this.container.addChild(this.selectionRing);
   }
 
-  update(world: World, view: TileRect, visible: WorldRect, selectedId: EntityId | null): void {
+  update(world: World, view: TileRect, visible: WorldRect, selected: ReadonlySet<EntityId>): void {
     const visuals: PawnVisual[] = [...world.pawns.values()].map((pawn) => ({
       pawn,
       at: pawnVisualPos(pawn),
@@ -101,7 +105,7 @@ export class ObjectLayer {
     this.updateSites(world, visible);
     this.updatePlants(world, visible);
     this.updateItems(world, visible);
-    this.updatePawns(visuals, selectedId);
+    this.updatePawns(visuals, selected);
   }
 
   private updateBuildings(world: World, visible: WorldRect): void {
@@ -240,8 +244,9 @@ export class ObjectLayer {
     }
   }
 
-  private updatePawns(visuals: readonly PawnVisual[], selectedId: EntityId | null): void {
+  private updatePawns(visuals: readonly PawnVisual[], selected: ReadonlySet<EntityId>): void {
     const alive = new Set<EntityId>();
+    let ringsUsed = 0;
 
     for (const { pawn, at } of visuals) {
       alive.add(pawn.id);
@@ -253,16 +258,17 @@ export class ObjectLayer {
       sprite.scale.x = this.facingFor(pawn);
       sprite.visible = true;
 
-      if (selectedId === pawn.id) {
-        this.selectionRing.position.set(world.x - HALF_TILE_W, world.y - HALF_TILE_H);
+      if (selected.has(pawn.id)) {
+        const ring = this.ringAt(ringsUsed++);
+        ring.position.set(world.x - HALF_TILE_W, world.y - HALF_TILE_H);
         // Just under the pawn, so the ring reads as being on the ground beneath them.
-        this.selectionRing.zIndex = (at.x + at.y) * DEPTH_SCALE + ENTITY_BIAS - 1;
-        this.selectionRing.visible = true;
+        ring.zIndex = (at.x + at.y) * DEPTH_SCALE + ENTITY_BIAS - 1;
+        ring.visible = true;
       }
     }
 
-    if (selectedId === null || !alive.has(selectedId)) {
-      this.selectionRing.visible = false;
+    for (let i = ringsUsed; i < this.selectionRings.length; i++) {
+      this.selectionRings[i].visible = false;
     }
 
     // Drop sprites for pawns that no longer exist — regenerating the world replaces
@@ -273,6 +279,17 @@ export class ObjectLayer {
       this.pawnSprites.delete(id);
       this.facing.delete(id);
     }
+  }
+
+  /** Grows on demand, like the pawn sprites. A party is never large enough to bound. */
+  private ringAt(index: number): Sprite {
+    let ring = this.selectionRings[index];
+    if (!ring) {
+      ring = new Sprite(this.art.selectionRing());
+      this.container.addChild(ring);
+      this.selectionRings[index] = ring;
+    }
+    return ring;
   }
 
   /**

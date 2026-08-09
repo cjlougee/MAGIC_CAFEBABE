@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_MAP_SIZE } from '../src/sim/core/constants';
 import { pos } from '../src/sim/core/position';
 import { Rng } from '../src/sim/core/rng';
 import { Terrain } from '../src/sim/defs/terrain';
@@ -183,6 +184,40 @@ describe('reachability', () => {
     }
 
     expect(compared).toBeGreaterThan(100);
+  });
+
+  it('never refuses a route reachability promises, however long the walk', () => {
+    /*
+     * The bug that stranded a drafted colonist in an open meadow for five in-game hours.
+     *
+     * A* had a flat 20,000-cell ceiling, written when the map was 128² — 16,384 cells,
+     * so the ceiling could never bind. At 512² a long walk around water exhausts it, A*
+     * returns null, and reachability goes on correctly insisting the route exists. The
+     * pawn has a target, no path, and nothing to say about it.
+     *
+     * Reachability is exact and shares `canStep`, so it is the authority: anything it
+     * says is walkable, A* must produce.
+     */
+    const map = generateMap(DEFAULT_MAP_SIZE, DEFAULT_MAP_SIZE, 20260809);
+    const reach = new ReachabilityMap(map);
+    const finder = new Pathfinder(map);
+
+    // Corner to corner, which is the longest thing anyone can ask for.
+    let from: ReturnType<typeof pos> | null = null;
+    let to: ReturnType<typeof pos> | null = null;
+
+    for (let i = 0; i < DEFAULT_MAP_SIZE && (!from || !to); i++) {
+      if (!from && map.isPassable(i, i)) from = pos(i, i);
+      const far = DEFAULT_MAP_SIZE - 1 - i;
+      if (!to && map.isPassable(far, far)) to = pos(far, far);
+    }
+
+    expect(from && to).toBeTruthy();
+    if (!reach.canReach(from!, to!)) return; // Different landmasses on this seed.
+
+    const route = finder.find(from!, to!);
+    expect(route, `A* refused a ${DEFAULT_MAP_SIZE}-tile diagonal it can reach`).not.toBeNull();
+    expect(route!.steps.at(-1)).toEqual(to);
   });
 
   it('matches a whole-map flood fill after every incremental edit', () => {

@@ -16,7 +16,7 @@ import type { Camera } from '../render/camera/camera';
 import type { DragPreview, PreviewTool } from '../render/layers/overlayLayer';
 import { Buildable, type BuildableId } from '../sim/defs/buildables';
 import type { EntityId } from '../sim/core/entityStore';
-import { normaliseRect, type Command } from '../sim/core/commands';
+import { normaliseRect, type Command, type TileRectangle } from '../sim/core/commands';
 import { GROUND_LEVEL, type TilePos } from '../sim/core/position';
 import { isWorkbench } from '../sim/entities/building';
 import { buildingAt } from '../sim/world/lookup';
@@ -42,7 +42,10 @@ const CLICK_SLOP = 5;
 const PICK_RADIUS = 0.9;
 
 export interface WorldInputHandlers {
-  readonly onSelect: (id: EntityId | null) => void;
+  /** `additive` is shift-click: toggle this colonist in the party rather than replace it. */
+  readonly onSelect: (id: EntityId | null, additive: boolean) => void;
+  /** Everyone inside a drag rectangle. Replaces the party unless `additive`. */
+  readonly onSelectMany: (ids: readonly EntityId[], additive: boolean) => void;
   /**
    * A workbench was clicked, or the selection cleared.
    *
@@ -53,7 +56,7 @@ export interface WorldInputHandlers {
   /** Returns to the select tool. Raised by a quick right-click while a tool is active. */
   readonly onCancelTool: () => void;
   readonly dispatch: (command: Command) => void;
-  readonly getSelected: () => EntityId | null;
+  readonly getSelected: () => readonly EntityId[];
   readonly getWorld: () => World;
   readonly getViewSize: () => { width: number; height: number };
 }
@@ -142,7 +145,9 @@ export class WorldInput {
     this.downY = event.clientY;
     this.downButton = event.button;
 
-    if (event.button === 0 && this.tool !== 'select') {
+    // The select tool drags too, now that a party is a thing you can have. Left-drag
+    // still means "apply the active tool" — for select, applying it is picking people.
+    if (event.button === 0) {
       const tile = this.tileUnder(event);
       this.dragFrom = { x: Math.round(tile.x), y: Math.round(tile.y) };
       this.dragTo = this.dragFrom;
@@ -161,22 +166,43 @@ export class WorldInput {
     this.downButton = -1;
 
     if (this.dragFrom) {
-      this.commitDrag();
+      // A select-tool press that never travelled is a click, and click-picking has a
+      // radius of tolerance that a one-cell rectangle does not. Losing that would make
+      // colonists fiddly to hit for no gain.
+      if (this.tool === 'select' && travel <= CLICK_SLOP) {
+        this.dragFrom = null;
+        this.dragTo = null;
+        this.select(this.tileUnder(event), event.shiftKey);
+        return;
+      }
+
+      this.commitDrag(event.shiftKey);
       return;
     }
 
     if (travel > CLICK_SLOP) return; // The player was panning, not clicking.
 
     const tile = this.tileUnder(event);
-    if (event.button === 0) this.select(tile);
+    if (event.button === 0) this.select(tile, event.shiftKey);
     else if (event.button === 2) this.order(tile);
   };
 
   /** Turns the finished rectangle into the command the active tool implies. */
-  private commitDrag(): void {
+  private commitDrag(additive = false): void {
+    // Read before clearing: `preview` is derived from the drag corners.
+    const rect =
+      this.dragFrom && this.dragTo
+        ? normaliseRect(this.dragFrom.x, this.dragFrom.y, this.dragTo.x, this.dragTo.y, GROUND_LEVEL)
+        : null;
     const area = this.preview;
     this.dragFrom = null;
     this.dragTo = null;
+
+    if (this.tool === 'select') {
+      if (rect) this.selectWithin(rect, additive);
+      return;
+    }
+
     if (!area) return;
 
     switch (this.tool) {
@@ -204,8 +230,6 @@ export class WorldInput {
         this.handlers.dispatch({ type: 'designate', action: 'cancel', area });
         this.handlers.dispatch({ type: 'zone', action: 'clear', area });
         break;
-      case 'select':
-        break;
     }
   }
 
@@ -220,12 +244,13 @@ export class WorldInput {
     );
   }
 
-  private select(tile: { x: number; y: number }): void {
+  private select(tile: { x: number; y: number }, additive: boolean): void {
     const world = this.handlers.getWorld();
     let closestId: EntityId | null = null;
     let closest = PICK_RADIUS;
 
     for (const pawn of world.pawns.values()) {
+      if (pawn.dead) continue;
       const distance = Math.hypot(pawn.pos.x - tile.x, pawn.pos.y - tile.y);
       if (distance < closest) {
         closest = distance;
@@ -233,9 +258,13 @@ export class WorldInput {
       }
     }
 
+    // Shift-clicking empty ground must not wipe a party the player just built up — the
+    // whole gesture means "add to what I have", and a near-miss is the common case.
+    if (closestId === null && additive) return;
+
     // Clicking empty ground clears the selection, which is what makes right-click
     // orders feel safe — there is always a way to put the mouse down.
-    this.handlers.onSelect(closestId);
+    this.handlers.onSelect(closestId, additive);
 
     // A colonist standing at a bench wins: they move, so they are the harder thing to
     // click, and the bench is not going anywhere.
@@ -247,6 +276,29 @@ export class WorldInput {
     const cell = { x: Math.round(tile.x), y: Math.round(tile.y), z: GROUND_LEVEL };
     const bench = benchAt(world, cell);
     this.handlers.onSelectBench(bench);
+  }
+
+  /**
+   * Every living colonist standing inside the dragged rectangle.
+   *
+   * Iterated in entity-store order, which is stable, so the party is always listed the
+   * same way — and the party's order is what decides which pawn gets which cell when
+   * they are sent somewhere.
+   */
+  private selectWithin(rect: TileRectangle, additive: boolean): void {
+    const world = this.handlers.getWorld();
+    const caught: EntityId[] = [];
+
+    for (const pawn of world.pawns.values()) {
+      if (pawn.dead) continue;
+      if (pawn.pos.x < rect.x0 || pawn.pos.x > rect.x1) continue;
+      if (pawn.pos.y < rect.y0 || pawn.pos.y > rect.y1) continue;
+      caught.push(pawn.id);
+    }
+
+    // An empty drag across bare ground clears the party, matching click-on-nothing.
+    this.handlers.onSelectMany(caught, additive);
+    if (caught.length > 0) this.handlers.onSelectBench(null);
   }
 
   /**
@@ -264,7 +316,7 @@ export class WorldInput {
     }
 
     const selected = this.handlers.getSelected();
-    if (selected === null) return;
+    if (selected.length === 0) return;
 
     const target: TilePos = {
       x: Math.round(tile.x),
@@ -275,6 +327,8 @@ export class WorldInput {
     const map = this.handlers.getWorld().map;
     if (!map.isPassable(target.x, target.y, target.z)) return;
 
-    this.handlers.dispatch({ type: 'moveTo', pawnId: selected, target });
+    // Always the party command, even for one colonist. One path through the simulation
+    // means the fan-out rule cannot differ between "a pawn" and "some pawns".
+    this.handlers.dispatch({ type: 'moveParty', pawnIds: [...selected], target });
   }
 }

@@ -40,7 +40,7 @@ import type { World } from '../world/world';
 import { Zones } from '../world/zones';
 
 /** Bumped whenever the save shape changes. See migrate.ts. */
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 // ── Run-length encoding for the map grids ───────────────────────────────────────
 // Terrain is enormously repetitive — long runs of the same value — so RLE turns tens of
@@ -104,6 +104,10 @@ export interface SavedPawn {
   readonly dead: boolean;
   readonly breakTicks: number;
   readonly asleep: boolean;
+  readonly drafted: boolean;
+  /** The standing order, which outlives the path and so has to be stored with it. */
+  readonly draftTarget: SavedPos | null;
+  readonly playerCharacter: boolean;
 }
 
 export interface SaveData {
@@ -209,6 +213,9 @@ export function serializeWorld(world: World): SaveData {
       dead: pawn.dead,
       breakTicks: pawn.breakTicks,
       asleep: pawn.asleep,
+      drafted: pawn.drafted,
+      draftTarget: pawn.draftTarget ? at(pawn.draftTarget) : null,
+      playerCharacter: pawn.playerCharacter,
     })),
     nextPawnId: world.pawns.nextIdForSave,
     items: [...world.items.values()].map((item) => ({
@@ -284,6 +291,9 @@ export function deserializeWorld(save: SaveData): World {
     pawn.dead = saved.dead;
     pawn.breakTicks = saved.breakTicks;
     pawn.asleep = saved.asleep;
+    pawn.drafted = saved.drafted;
+    pawn.draftTarget = saved.draftTarget;
+    pawn.playerCharacter = saved.playerCharacter;
     pawns.restore(pawn);
   }
   pawns.restoreNextId(save.nextPawnId);

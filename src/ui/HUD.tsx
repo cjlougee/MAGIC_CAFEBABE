@@ -17,6 +17,7 @@ import { BillPanel } from './BillPanel';
 import { ColonistPanel } from './ColonistPanel';
 import { DebugPanel } from './DebugPanel';
 import { Minimap } from './Minimap';
+import { PartyPanel } from './PartyPanel';
 import { MainMenu } from './MainMenu';
 import { Toolbar } from './Toolbar';
 import { WorkPanel } from './WorkPanel';
@@ -48,7 +49,7 @@ export function HUD({ store, engine }: HUDProps) {
     speed,
     fps,
     ready,
-    selectedPawnId,
+    selectedPawnIds,
     selectedBenchId,
     tool,
     buildable,
@@ -79,7 +80,7 @@ export function HUD({ store, engine }: HUDProps) {
         // One key backs out of whatever you're in — a tool, a selection, and finally to
         // the menu when there is nothing left to back out of.
         if (state.tool !== 'select') engine.setTool('select');
-        else if (selectedPawnId !== null) engine.select(null);
+        else if (selectedPawnIds.length > 0) engine.select(null);
         else store.update({ showMenu: !state.showMenu });
         return;
       }
@@ -101,9 +102,12 @@ export function HUD({ store, engine }: HUDProps) {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [engine, speed, state, selectedPawnId, store]);
+  }, [engine, speed, state, selectedPawnIds, store]);
 
-  const selected = snapshot?.pawns.find((pawn) => pawn.id === selectedPawnId) ?? null;
+  const party = snapshot?.pawns.filter((pawn) => selectedPawnIds.includes(pawn.id)) ?? [];
+  // The colonist panel is for *a* colonist. With a party selected the party panel takes
+  // over, because per-pawn needs and thoughts for six people is a wall, not information.
+  const selected = party.length === 1 ? party[0] : null;
   // Looked up fresh each snapshot rather than held, so a bench that is deconstructed
   // while its panel is open simply closes instead of describing something gone.
   const selectedBench = snapshot?.benches.find((bench) => bench.id === selectedBenchId) ?? null;
@@ -168,8 +172,8 @@ export function HUD({ store, engine }: HUDProps) {
 
       <ColonistStrip
         pawns={snapshot.pawns}
-        selectedId={selectedPawnId}
-        onPick={(id) => engine?.focusPawn(id)}
+        selectedIds={selectedPawnIds}
+        onPick={(id, additive) => engine?.focusPawn(id, additive)}
       />
 
       <Toolbar
@@ -208,6 +212,17 @@ export function HUD({ store, engine }: HUDProps) {
         />
       )}
 
+      {party.length > 0 && !showWorkPanel && engine && (
+        <PartyPanel
+          party={party}
+          places={snapshot.pois}
+          onUndraft={(pawnId) => engine.undraft(pawnId)}
+          onUndraftAll={() => party.forEach((pawn) => engine.undraft(pawn.id))}
+          onTravelTo={(poi) => engine.orderPartyTo(poi)}
+          onClose={() => engine.select(null)}
+        />
+      )}
+
       {selected && !showWorkPanel && (
         <ColonistPanel pawn={selected} onClose={() => engine?.select(null)} />
       )}
@@ -243,7 +258,7 @@ export function HUD({ store, engine }: HUDProps) {
       {showWorkPanel && (
         <WorkPanel
           pawns={snapshot.pawns}
-          selectedId={selectedPawnId}
+          selectedId={selected?.id ?? null}
           onSet={(pawnId, workType, priority) =>
             engine?.setWorkPriority(pawnId, workType, priority)
           }
@@ -282,33 +297,49 @@ function DaylightPip({ daylight }: { readonly daylight: number }) {
 
 interface ColonistStripProps {
   readonly pawns: readonly PawnSummary[];
-  readonly selectedId: EntityId | null;
-  readonly onPick: (id: EntityId) => void;
+  readonly selectedIds: readonly EntityId[];
+  /** `additive` is shift-click, so a party can be built from the roster as well as the map. */
+  readonly onPick: (id: EntityId, additive: boolean) => void;
 }
 
 /**
  * The colony roster. Clicking a name selects that colonist and pans to them, which is
  * how you find someone who has wandered off the screen.
  */
-function ColonistStrip({ pawns, selectedId, onPick }: ColonistStripProps) {
+function ColonistStrip({ pawns, selectedIds, onPick }: ColonistStripProps) {
   if (pawns.length === 0) return null;
 
   return (
     <aside className="colonists">
-      {pawns.map((pawn) => (
-        <button
-          key={pawn.id}
-          type="button"
-          className={`colonist${selectedId === pawn.id ? ' is-selected' : ''}`}
-          onClick={() => onPick(pawn.id)}
-          title={`${pawn.name} — (${pawn.x}, ${pawn.y})`}
-        >
-          <span className="colonist__name">{pawn.name}</span>
-          <span className="colonist__state">
-            {pawn.carrying ? `${pawn.activity} · ${pawn.carrying}` : pawn.activity}
-          </span>
-        </button>
-      ))}
+      {pawns.map((pawn) => {
+        const classes = [
+          'colonist',
+          selectedIds.includes(pawn.id) ? 'is-selected' : '',
+          pawn.drafted ? 'is-drafted' : '',
+        ]
+          .filter(Boolean)
+          .join(' ');
+
+        return (
+          <button
+            key={pawn.id}
+            type="button"
+            className={classes}
+            onClick={(event) => onPick(pawn.id, event.shiftKey)}
+            title={`${pawn.name} — (${pawn.x}, ${pawn.y})${pawn.drafted ? ' · drafted' : ''}`}
+          >
+            <span className="colonist__name">
+              {/* The one colonist you are. A mark rather than a label, so the roster
+                  stays scannable and nobody is described as "(you)". */}
+              {pawn.playerCharacter && <span className="colonist__you">◆</span>}
+              {pawn.name}
+            </span>
+            <span className="colonist__state">
+              {pawn.carrying ? `${pawn.activity} · ${pawn.carrying}` : pawn.activity}
+            </span>
+          </button>
+        );
+      })}
     </aside>
   );
 }

@@ -12,7 +12,8 @@
  */
 
 import type { Pawn } from '../entities/pawn';
-import { clearPath } from '../entities/pawn';
+import { clearPath, isMoving } from '../entities/pawn';
+import { samePos } from '../core/position';
 import { PRIORITY_DISABLED, PRIORITY_HIGHEST, PRIORITY_LOWEST } from '../defs/workTypes';
 import type { World } from '../world/world';
 import { createActiveJob, type Job, type JobOutcome } from './job';
@@ -145,23 +146,65 @@ function wanderTarget(world: World, pawn: Pawn): Job {
 }
 
 /**
+ * Resumes a standing order after anything interrupted it.
+ *
+ * Drafted pawns keep `draftTarget` until they arrive, because the path alone does not
+ * survive being pulled off to eat — `startJob` clears it. Re-planning here is what makes
+ * "go there" mean *go there*, rather than "start going there".
+ *
+ * An unreachable target is deliberately **not** cleared. Silently dropping the order
+ * would leave a colonist standing still with no explanation, which is the exact failure
+ * this area specialises in; keeping it means `buildAlerts` can say so out loud, and the
+ * retry costs one O(1) reachability check per think tick.
+ */
+function resumeDraftOrder(world: World, pawn: Pawn): void {
+  const target = pawn.draftTarget;
+  if (!target) return;
+
+  if (samePos(pawn.pos, target)) {
+    pawn.draftTarget = null;
+    return;
+  }
+
+  // Already walking it. Re-planning every think tick would throw away progress.
+  if (isMoving(pawn)) return;
+
+  const origin = pawn.moveTarget ?? pawn.pos;
+  if (!world.reachability.canReach(origin, target)) return;
+
+  const route = world.pathfinder.find(origin, target);
+  if (!route) return;
+
+  pawn.path = route.steps;
+  pawn.pathIndex = 0;
+}
+
+/**
  * Decides what an idle colonist does next. Called only on that pawn's think tick.
  *
  * The order is the whole behavioural hierarchy:
  *
  *   1. a mental break, which overrides everything
  *   2. needs — eating and sleeping outrank *all* work, unconditionally
- *   3. work, by the player's priority grid
+ *   3. a standing order, if the player has drafted them
+ *   4. work, by the player's priority grid
  *
  * Needs sitting above the grid is deliberate. If eating were just another work type, a
  * colonist with Haul at priority 1 would starve beside a stockpile, and the player would
  * rightly read that as a bug rather than a lesson about priorities.
+ *
+ * **Needs stay above draft for the same reason.** A drafted pawn that ignored hunger
+ * would starve to death on an expedition while the player was looking elsewhere, and the
+ * only feedback would be a corpse. Out in the wild there is nothing to eat anyway, so the
+ * need finds no job and the pawn keeps walking; near home they detour, eat, and then
+ * resume — which is why the order is stored rather than being just a path.
  */
 export function tickPawnAI(world: World, pawn: Pawn): void {
   if (pawn.dead) return;
 
   if (maybeBreak(world, pawn)) {
-    // A break supersedes whatever they were doing, reservations and all.
+    // A break supersedes whatever they were doing, reservations and all. Drafting is no
+    // protection from one — a colonist who has stopped coping has stopped taking orders.
     interrupt(world, pawn, 'mental break');
   }
 
@@ -175,6 +218,13 @@ export function tickPawnAI(world: World, pawn: Pawn): void {
   const need = findNeedJob(world, pawn);
   if (need) {
     startJob(pawn, need);
+    return;
+  }
+
+  // Drafted pawns are out of the work pool entirely. This is the whole point of draft:
+  // not that they prefer orders, but that no giver can ever reach them.
+  if (pawn.drafted) {
+    resumeDraftOrder(world, pawn);
     return;
   }
 

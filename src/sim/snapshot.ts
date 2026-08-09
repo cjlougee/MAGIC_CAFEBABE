@@ -57,6 +57,12 @@ export interface PawnSummary {
   readonly thoughts: readonly ThoughtSummary[];
   readonly health: number;
   readonly dead: boolean;
+  /** Under direct command, and therefore doing no work at all. */
+  readonly drafted: boolean;
+  /** True for the one colonist the player is. */
+  readonly playerCharacter: boolean;
+  /** Ordered somewhere they cannot get to — the loud half of a silent failure. */
+  readonly orderUnreachable: boolean;
 }
 
 export interface ResourceSummary {
@@ -195,6 +201,10 @@ export function buildSnapshot(world: World): SimSnapshot {
       })),
       health: pawn.health,
       dead: pawn.dead,
+      drafted: pawn.drafted,
+      playerCharacter: pawn.playerCharacter,
+      orderUnreachable:
+        pawn.draftTarget !== null && !world.reachability.canReach(pawn.pos, pawn.draftTarget),
     });
   }
 

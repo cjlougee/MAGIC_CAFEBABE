@@ -11,6 +11,7 @@ import { paintMinimapTerrain } from '../render/minimap';
 import type { Command } from '../sim/core/commands';
 import type { EntityId } from '../sim/core/entityStore';
 import { TICKS_PER_HOUR } from '../sim/core/constants';
+import { GROUND_LEVEL } from '../sim/core/position';
 import type { BuildableId } from '../sim/defs/buildables';
 import type { ItemDefId } from '../sim/defs/items';
 import type { RecipeId } from '../sim/defs/recipes';
@@ -35,7 +36,7 @@ export class Engine {
   readonly loop: GameLoop;
 
   private readonly input: WorldInput;
-  private selectedId: EntityId | null = null;
+  private selectedIds: readonly EntityId[] = [];
   private snapshotTimerMs = 0;
   /** Bumped whenever the world is *replaced* rather than merely edited. */
   private worldEpoch = 0;
@@ -53,11 +54,12 @@ export class Engine {
     );
 
     this.input = new WorldInput(this.renderer.canvas, this.renderer.camera, {
-      onSelect: (id) => this.select(id),
+      onSelect: (id, additive) => this.select(id, additive),
+      onSelectMany: (ids, additive) => this.selectMany(ids, additive),
       onSelectBench: (id) => this.selectBench(id),
       onCancelTool: () => this.setTool('select'),
       dispatch: (command) => this.dispatch(command),
-      getSelected: () => this.selectedId,
+      getSelected: () => this.selectedIds,
       getWorld: () => this.sim.world,
       getViewSize: () => this.renderer.viewSize,
     });
@@ -123,10 +125,60 @@ export class Engine {
     this.store.update({ tool: 'build', buildable });
   }
 
-  /** Selection is view state, so it is published to the UI but never sent to the sim. */
-  select(id: EntityId | null): void {
-    this.selectedId = id;
-    this.store.update({ selectedPawnId: id });
+  /**
+   * Selection is view state, so it is published to the UI but never sent to the sim.
+   *
+   * `additive` is shift-click: it toggles one colonist in or out of the party rather
+   * than replacing it, which is the only way to build a party out of pawns that are not
+   * standing near each other.
+   */
+  select(id: EntityId | null, additive = false): void {
+    if (id === null) {
+      this.selectedIds = [];
+    } else if (!additive) {
+      this.selectedIds = [id];
+    } else if (this.selectedIds.includes(id)) {
+      this.selectedIds = this.selectedIds.filter((held) => held !== id);
+    } else {
+      this.selectedIds = [...this.selectedIds, id];
+    }
+
+    this.store.update({ selectedPawnIds: this.selectedIds });
+  }
+
+  /** Everyone caught by a drag. Replaces the party unless `additive`. */
+  selectMany(ids: readonly EntityId[], additive = false): void {
+    const merged = additive ? [...this.selectedIds] : [];
+    for (const id of ids) {
+      if (!merged.includes(id)) merged.push(id);
+    }
+
+    this.selectedIds = merged;
+    this.store.update({ selectedPawnIds: this.selectedIds });
+  }
+
+  /** Hands a colonist back to the work pool. */
+  undraft(pawnId: EntityId): void {
+    this.dispatch({ type: 'undraft', pawnId });
+    this.store.update({ snapshot: this.sim.snapshot() });
+  }
+
+  /**
+   * Sends the current party somewhere — the ground, or a named place.
+   *
+   * Returns false when nobody is selected, so the caller can say so rather than
+   * appearing to do nothing.
+   */
+  orderPartyTo(target: { x: number; y: number }): boolean {
+    if (this.selectedIds.length === 0) return false;
+
+    this.dispatch({
+      type: 'moveParty',
+      pawnIds: [...this.selectedIds],
+      target: { x: target.x, y: target.y, z: GROUND_LEVEL },
+    });
+    this.store.update({ snapshot: this.sim.snapshot() });
+    return true;
   }
 
   /**
@@ -139,11 +191,17 @@ export class Engine {
     this.store.update({ selectedBenchId: id });
   }
 
-  /** Selects a colonist and brings them on screen. Used by the HUD's colonist strip. */
-  focusPawn(id: EntityId): void {
+  /**
+   * Selects a colonist and brings them on screen. Used by the HUD's colonist strip.
+   *
+   * Shift-clicking adds them to the party instead of replacing it — the roster is often
+   * the only practical way to gather colonists who are scattered across a 512-tile map
+   * doing their own thing, where a drag rectangle would have to cover half the world.
+   */
+  focusPawn(id: EntityId, additive = false): void {
     const pawn = this.sim.world.pawns.get(id);
     if (!pawn) return;
-    this.select(id);
+    this.select(id, additive);
     this.renderer.focusOn(pawn.pos.x, pawn.pos.y);
   }
 
@@ -319,7 +377,7 @@ export class Engine {
   }
 
   private onDraw(dtMs: number): void {
-    this.renderer.render(this.sim.world, dtMs, this.selectedId, this.input.preview);
+    this.renderer.render(this.sim.world, dtMs, new Set(this.selectedIds), this.input.preview);
 
     this.snapshotTimerMs += dtMs;
     if (this.snapshotTimerMs >= SNAPSHOT_INTERVAL_MS) {

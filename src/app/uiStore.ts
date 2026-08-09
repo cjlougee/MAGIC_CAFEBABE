@@ -17,8 +17,14 @@ export interface UiState {
   readonly speed: GameSpeed;
   readonly fps: number;
   readonly ready: boolean;
-  /** View state, not simulation state — where the player is looking, not what is true. */
-  readonly selectedPawnId: EntityId | null;
+  /**
+   * View state, not simulation state — where the player is looking, not what is true.
+   *
+   * A list rather than one id, because a party is the unit of command from M9 onward.
+   * Empty means nothing selected; panels that only make sense for one colonist show when
+   * there is exactly one.
+   */
+  readonly selectedPawnIds: readonly EntityId[];
   /** The workbench whose bills are open, if any. */
   readonly selectedBenchId: EntityId | null;
   /** Debug panel visibility, and whether Build raises finished structures. */
@@ -36,7 +42,7 @@ const INITIAL: UiState = {
   speed: 1,
   fps: 0,
   ready: false,
-  selectedPawnId: null,
+  selectedPawnIds: [],
   selectedBenchId: null,
   showDebug: false,
   instantBuild: false,

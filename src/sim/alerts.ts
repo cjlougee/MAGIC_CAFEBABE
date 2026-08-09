@@ -49,6 +49,25 @@ export function buildAlerts(world: World): Alert[] {
     }
   }
 
+  /*
+   * An order nobody can carry out.
+   *
+   * This is the loud half of the quietest failure in the game. A colonist sent somewhere
+   * unreachable simply stands there: the order is real, the pathfinder is right to refuse
+   * it, and *nothing on screen says so*. M8 produced the same silence through a sealed
+   * ruin, and the lesson was that anything able to strand a pawn has to announce it.
+   */
+  for (const pawn of living) {
+    if (!pawn.draftTarget) continue;
+    if (world.reachability.canReach(pawn.pos, pawn.draftTarget)) continue;
+
+    alerts.push({
+      id: `unreachable:${pawn.id}`,
+      level: 'warning',
+      text: `${pawn.name} cannot reach where you sent them`,
+    });
+  }
+
   if (edibleUnits === 0 && living.length > 0) {
     alerts.push({ id: 'nofood', level: 'danger', text: 'No food available' });
   } else if (edibleUnits < living.length * 4) {
