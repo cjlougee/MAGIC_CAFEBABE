@@ -157,9 +157,16 @@ export class Engine {
     this.store.update({ selectedPawnIds: this.selectedIds });
   }
 
-  /** Hands a colonist back to the work pool. */
-  undraft(pawnId: EntityId): void {
-    this.dispatch({ type: 'undraft', pawnId });
+  /** Drafts or releases the whole current party in one go. */
+  setPartyDrafted(drafted: boolean): void {
+    if (this.selectedIds.length === 0) return;
+    this.dispatch({ type: 'setDrafted', pawnIds: [...this.selectedIds], drafted });
+    this.store.update({ snapshot: this.sim.snapshot() });
+  }
+
+  /** One colonist, for the per-member control in the party panel. */
+  setDrafted(pawnId: EntityId, drafted: boolean): void {
+    this.dispatch({ type: 'setDrafted', pawnIds: [pawnId], drafted });
     this.store.update({ snapshot: this.sim.snapshot() });
   }
 

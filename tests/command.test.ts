@@ -129,12 +129,40 @@ describe('draft', () => {
     sim.run(THINK_INTERVAL * 2);
     expect(pawn.drafted).toBe(true);
 
-    sim.dispatch({ type: 'undraft', pawnId: pawn.id });
+    sim.dispatch({ type: 'setDrafted', pawnIds: [pawn.id], drafted: false });
     sim.run(THINK_INTERVAL * 3);
 
     expect(pawn.drafted).toBe(false);
     expect(pawn.draftTarget).toBeNull();
     expect(pawn.job, 'released but still idle').not.toBeNull();
+  });
+
+  it('drafts a whole party in one order, without sending them anywhere', () => {
+    /*
+     * Draft used to be reachable only as a side effect of a move order, so "hold this
+     * lot where they are" was not expressible and "how do I undraft" had no visible
+     * answer. Drafting with no target means exactly that: stop working, stand there.
+     */
+    const { sim, world } = yard();
+    const party = colonists(world);
+
+    sim.run(THINK_INTERVAL * 2); // Let them pick up work first, so there is work to stop.
+    expect(party.some((pawn) => pawn.job !== null)).toBe(true);
+
+    sim.dispatch({ type: 'setDrafted', pawnIds: party.map((p) => p.id), drafted: true });
+    sim.run(THINK_INTERVAL * 3);
+
+    for (const pawn of party) {
+      expect(pawn.drafted, `${pawn.name} was not drafted`).toBe(true);
+      expect(pawn.job, `${pawn.name} kept working while drafted`).toBeNull();
+      expect(pawn.draftTarget).toBeNull();
+    }
+
+    sim.dispatch({ type: 'setDrafted', pawnIds: party.map((p) => p.id), drafted: false });
+    sim.run(THINK_INTERVAL * 3);
+
+    expect(party.every((pawn) => !pawn.drafted)).toBe(true);
+    expect(party.some((pawn) => pawn.job !== null), 'nobody went back to work').toBe(true);
   });
 
   it('keeps an impossible order rather than dropping it silently', () => {

@@ -24,7 +24,7 @@ import {
   type DesignateCommand,
   type MoveToCommand,
   type MovePartyCommand,
-  type UndraftCommand,
+  type SetDraftedCommand,
   type SetWorkPriorityCommand,
   type TileRectangle,
   type ZoneCommand,
@@ -35,13 +35,6 @@ import { pawnOccupies, siteAt } from './world/lookup';
 import { clearPath, type Pawn } from './entities/pawn';
 import { GROUND_LEVEL, type TilePos } from './core/position';
 
-/**
- * How far from a party's target we will look for somewhere to stand.
- *
- * Generous enough to fan a squad out around a doorway, small enough that a party sent
- * somewhere genuinely crowded bunches up rather than scattering across the district.
- */
-const PARTY_SPREAD_RADIUS = 6;
 import { PRIORITY_DISABLED, PRIORITY_LOWEST, WORK_TYPE_COUNT } from './defs/workTypes';
 import { buildableDef } from './defs/buildables';
 import { buildingDef } from './defs/buildings';
@@ -58,6 +51,14 @@ import {
   canPlaceStockpile,
 } from './world/placement';
 import { createWorld, type World, type WorldOptions } from './world/world';
+
+/**
+ * How far from a party's target we will look for somewhere to stand.
+ *
+ * Generous enough to fan a squad out around a doorway, small enough that a party sent
+ * somewhere genuinely crowded bunches up rather than scattering across the district.
+ */
+const PARTY_SPREAD_RADIUS = 6;
 
 export interface SimulationOptions extends WorldOptions {
   readonly seed?: number;
@@ -166,8 +167,8 @@ export class Simulation {
         case 'moveParty':
           this.applyMoveParty(command);
           break;
-        case 'undraft':
-          this.applyUndraft(command);
+        case 'setDrafted':
+          this.applySetDrafted(command);
           break;
         case 'designate':
           this.applyDesignate(command);
@@ -418,16 +419,25 @@ export class Simulation {
     pawn.pathIndex = 0;
   }
 
-  /** Back to the work pool, wherever they happen to be standing. */
-  private applyUndraft(command: UndraftCommand): void {
-    const pawn = this.worldState.pawns.get(command.pawnId);
-    if (!pawn) return;
+  /** Under direct command, or back to the work pool where they stand. */
+  private applySetDrafted(command: SetDraftedCommand): void {
+    for (const pawnId of command.pawnIds) {
+      const pawn = this.worldState.pawns.get(pawnId);
+      if (!pawn) continue;
 
-    pawn.drafted = false;
-    pawn.draftTarget = null;
-    // Not interrupted: a pawn released mid-walk should stop walking somewhere they were
-    // only going because they were told to, and pick up work from where they are.
-    clearPath(pawn);
+      pawn.drafted = command.drafted;
+      pawn.draftTarget = null;
+
+      /*
+       * Cleared in both directions, and for the same reason: whatever they were walking
+       * toward, they are not walking toward it now. Drafting somebody who was hauling
+       * stops them where they stand — which is what "hold" means — and releasing
+       * somebody mid-errand should let them pick up work from here rather than finish a
+       * journey they were only making under orders.
+       */
+      if (pawn.job) interrupt(this.worldState, pawn, 'draft change');
+      clearPath(pawn);
+    }
   }
 
   private applyDesignate(command: DesignateCommand): void {

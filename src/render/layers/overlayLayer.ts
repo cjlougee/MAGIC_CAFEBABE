@@ -24,8 +24,16 @@ import type { TileRect, WorldRect } from '../camera/camera';
 import { HALF_TILE_H, HALF_TILE_W } from '../constants';
 import { tileToWorld } from '../iso';
 
-/** Which cells a tool would actually affect, so the preview can say so up front. */
-export type PreviewTool = 'mine' | 'deconstruct' | 'stockpile' | 'erase' | 'build';
+/**
+ * Which cells a tool would actually affect, so the preview can say so up front.
+ *
+ * `select` is here because a drag with no marquee reads as a broken control. It was
+ * excluded on the grounds that selecting changes nothing about the world — true, and
+ * beside the point: the player still needs to see the box they are dragging. Reported
+ * as "I can't drag select", when it had been selecting correctly the whole time and
+ * simply never drew anything.
+ */
+export type PreviewTool = 'select' | 'mine' | 'deconstruct' | 'stockpile' | 'erase' | 'build';
 
 export interface DragPreview {
   readonly x0: number;
@@ -50,6 +58,9 @@ function acceptsCell(world: World, tool: PreviewTool, x: number, y: number, z: n
   const index = world.map.idx(x, y, z);
 
   switch (tool) {
+    // A selection box asks nothing of the ground, so no cell is ever greyed out.
+    case 'select':
+      return true;
     case 'mine':
       return canDesignateMine(world.map, index);
     case 'deconstruct':

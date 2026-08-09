@@ -30,10 +30,17 @@ lived only in `pawn.path` would end wherever hunger struck, halfway across the m
 `resumeDraftOrder` re-plans on the next think tick after any interruption, which is what makes "go
 there" mean *go there* rather than "start going there".
 
-**A move order drafts.** Not a separate mode to enter first: sending somebody somewhere is the
-statement that you want them there, and requiring two clicks to make an order durable would leave
-the one-click version broken exactly as it was. Undraft is explicit, per colonist or for the whole
-party.
+**A move order drafts**, and draft is *also* a thing you can just ask for. Sending somebody
+somewhere is the statement that you want them there, so requiring a separate mode first would leave
+the one-click version broken exactly as it was. But the implicit path cannot be the only one:
+"hold this lot where they are" is an order in its own right, and with no visible control the honest
+question was *how do I undraft?* — which had no answer you could see.
+
+So `setDrafted` takes a list and a boolean. The party panel leads with a single button that says
+which way it goes — **Draft all 3** or **Back to work (3)** — and each member carries a
+`working`/`drafted` toggle. A mixed party counts as undrafted, so the first press drafts everybody
+rather than releasing the ones already under command. Drafting with no target means exactly what it
+says: stop working, stand there.
 
 ### The behavioural hierarchy, updated
 
@@ -57,6 +64,11 @@ Selection is a list. Shift-click adds, left-drag over the world catches everyone
 rectangle, and shift-clicking the roster works too — on a 512-tile map a drag rectangle would have
 to cover half the world to gather colonists who have wandered off.
 
+**The drag draws a marquee**, and that is not cosmetic. It was left out on the grounds that
+selecting changes nothing about the world — true, and beside the point. Reported as "I can't drag
+select the party", when it had been selecting correctly all along and simply never drew the box, so
+there was no way to tell a successful drag from a dead control.
+
 `moveParty` is a command in its own right rather than a loop of `moveTo` in the input layer, because
 the interesting part is that they must **not all path to the same cell**. Each pawn takes the
 nearest free standable cell to the target that nobody ahead of them claimed. Assignment walks the
@@ -71,6 +83,18 @@ between "a pawn" and "some pawns".
 The party panel lists every place M8 generated with its distance, and clicking one sends the party.
 Without it, reaching a vault 200 tiles away meant scrolling there and clicking the ground — the
 places existed, and were effectively unusable.
+
+## Panels stack, they do not overlap
+
+The party controls, a colonist's sheet and a bench's bills were each absolutely positioned in the
+same top-right corner. Any two at once meant one covered the other — and selecting a *single*
+colonist did exactly that, hiding the controls that acted on them behind their own character sheet.
+Closing the sheet then cleared the selection, taking the party panel with it, so the controls could
+not be reached at all.
+
+They now share a `.side-rail`: one scrollable column, panels stacked in order, no absolute
+positioning of their own. A panel added later goes in the rail rather than picking a corner and
+hoping.
 
 ## The player character
 
@@ -119,3 +143,4 @@ the old map size, still passing every test.**
 6. A party arrives fanned out, nobody stacked, everybody within reach of the rendezvous.
 7. The same party and order produce the same world hash.
 8. Draft and the standing order survive a save round-trip.
+9. A whole party drafts and releases in one order, stopping work without being sent anywhere.

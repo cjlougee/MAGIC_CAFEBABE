@@ -439,9 +439,6 @@ body {
 /* ── Colonist panel ───────────────────────────────────────────────────────── */
 
 .colonist-panel {
-  position: absolute;
-  right: 14px;
-  top: calc(var(--hud-height) + 12px);
   width: 268px;
   background: color-mix(in srgb, var(--c-panel) 94%, transparent);
   border: 1px solid var(--c-panelEdge);
@@ -805,9 +802,6 @@ body {
    deliberately occupy the same corner rather than competing for it. */
 
 .bill-panel {
-  position: absolute;
-  right: 14px;
-  top: calc(var(--hud-height) + 12px);
   width: 268px;
   background: color-mix(in srgb, var(--c-panel) 94%, transparent);
   border: 1px solid var(--c-panelEdge);
@@ -1141,10 +1135,7 @@ body {
  */
 
 .party {
-  position: absolute;
-  right: 10px;
-  top: 46px;
-  width: 210px;
+  width: 268px;
   padding: 8px 9px 9px;
   color: var(--c-text);
   background: color-mix(in srgb, var(--c-panel) 92%, transparent);
@@ -1304,4 +1295,70 @@ body {
 
 .colonist.is-drafted {
   border-left: 2px solid var(--c-hazard);
+}
+
+/* ── The right-hand rail ──────────────────────────────────────────────────── */
+/*
+ * The party controls, a colonist's sheet and a bench's bills all used to position
+ * themselves absolutely in the same corner, so any two of them showing at once meant one
+ * covered the other. Stacking them in a scrollable column means selecting a single
+ * colonist no longer hides the controls that act on them.
+ */
+
+.side-rail {
+  position: absolute;
+  right: 14px;
+  top: calc(var(--hud-height) + 12px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  width: 268px;
+  /* Leaves the toolbar and the minimap clear rather than running under them. */
+  max-height: calc(100vh - var(--hud-height) - 96px);
+  overflow-y: auto;
+}
+
+.party__draft {
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 6px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--c-void);
+  background: var(--c-hazard);
+  border: 1px solid var(--c-hazard);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.party__draft.is-drafted {
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-panelEdge) 55%, transparent);
+  border-color: var(--c-panelEdge);
+}
+
+.party__draft.is-drafted:hover {
+  border-color: var(--c-good);
+  color: var(--c-good);
+}
+
+.party__toggle {
+  flex: none;
+  padding: 1px 5px;
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--c-textDim);
+  background: none;
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.party__toggle.is-drafted {
+  color: var(--c-hazard);
+  border-color: color-mix(in srgb, var(--c-hazard) 55%, transparent);
 }

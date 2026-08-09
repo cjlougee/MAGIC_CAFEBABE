@@ -101,7 +101,6 @@ export class WorldInput {
   /** The rectangle currently being dragged, for the renderer to outline. */
   get preview(): DragPreview | null {
     if (!this.dragFrom || !this.dragTo) return null;
-    if (this.tool === 'select') return null;
 
     const rect = normaliseRect(
       this.dragFrom.x,

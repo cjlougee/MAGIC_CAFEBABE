@@ -212,31 +212,39 @@ export function HUD({ store, engine }: HUDProps) {
         />
       )}
 
-      {party.length > 0 && !showWorkPanel && engine && (
-        <PartyPanel
-          party={party}
-          places={snapshot.pois}
-          onUndraft={(pawnId) => engine.undraft(pawnId)}
-          onUndraftAll={() => party.forEach((pawn) => engine.undraft(pawn.id))}
-          onTravelTo={(poi) => engine.orderPartyTo(poi)}
-          onClose={() => engine.select(null)}
-        />
-      )}
+      {/*
+        One rail, so the panels stack instead of covering one another. The party controls
+        and a colonist's sheet were both absolutely positioned in the same corner, so
+        selecting a single colonist hid the very controls that acted on them — and closing
+        the sheet cleared the selection, which took the party panel with it.
+      */}
+      {!showWorkPanel && (party.length > 0 || selectedBench) && (
+        <div className="side-rail">
+          {party.length > 0 && engine && (
+            <PartyPanel
+              party={party}
+              places={snapshot.pois}
+              onSetDrafted={(pawnId, drafted) => engine.setDrafted(pawnId, drafted)}
+              onSetPartyDrafted={(drafted) => engine.setPartyDrafted(drafted)}
+              onTravelTo={(poi) => engine.orderPartyTo(poi)}
+              onClose={() => engine.select(null)}
+            />
+          )}
 
-      {selected && !showWorkPanel && (
-        <ColonistPanel pawn={selected} onClose={() => engine?.select(null)} />
-      )}
+          {selected && <ColonistPanel pawn={selected} onClose={() => engine?.select(null)} />}
 
-      {selectedBench && !showWorkPanel && (
-        <BillPanel
-          bench={selectedBench}
-          onAdd={(recipe) => engine?.addBill(selectedBench.id, recipe)}
-          onRemove={(recipe) => engine?.removeBill(selectedBench.id, recipe)}
-          onSetCount={(recipe, untilCount) =>
-            engine?.setBillCount(selectedBench.id, recipe, untilCount)
-          }
-          onClose={() => engine?.selectBench(null)}
-        />
+          {selectedBench && (
+            <BillPanel
+              bench={selectedBench}
+              onAdd={(recipe) => engine?.addBill(selectedBench.id, recipe)}
+              onRemove={(recipe) => engine?.removeBill(selectedBench.id, recipe)}
+              onSetCount={(recipe, untilCount) =>
+                engine?.setBillCount(selectedBench.id, recipe, untilCount)
+              }
+              onClose={() => engine?.selectBench(null)}
+            />
+          )}
+        </div>
       )}
 
       {showDebug && engine && import.meta.env.DEV && (

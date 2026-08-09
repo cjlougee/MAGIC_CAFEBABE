@@ -13,8 +13,8 @@ import type { PawnSummary, PoiSummary } from '../sim/snapshot';
 interface PartyPanelProps {
   readonly party: readonly PawnSummary[];
   readonly places: readonly PoiSummary[];
-  readonly onUndraft: (pawnId: EntityId) => void;
-  readonly onUndraftAll: () => void;
+  readonly onSetDrafted: (pawnId: EntityId, drafted: boolean) => void;
+  readonly onSetPartyDrafted: (drafted: boolean) => void;
   readonly onTravelTo: (poi: PoiSummary) => void;
   readonly onClose: () => void;
 }
@@ -22,12 +22,22 @@ interface PartyPanelProps {
 export function PartyPanel({
   party,
   places,
-  onUndraft,
-  onUndraftAll,
+  onSetDrafted,
+  onSetPartyDrafted,
   onTravelTo,
   onClose,
 }: PartyPanelProps) {
   const drafted = party.filter((pawn) => pawn.drafted);
+
+  /*
+   * One button, and it says which way it goes.
+   *
+   * Draft used to be reachable only as a side effect of ordering somebody somewhere,
+   * and undraft only as a small glyph per colonist — so "how do I undraft" was a fair
+   * question with no visible answer. Mixed parties count as undrafted so the first
+   * press drafts everyone rather than releasing the ones already under command.
+   */
+  const allDrafted = party.length > 0 && drafted.length === party.length;
 
   return (
     <section className="party">
@@ -41,6 +51,16 @@ export function PartyPanel({
         </button>
       </header>
 
+      <button
+        type="button"
+        className={`party__draft${allDrafted ? ' is-drafted' : ''}`}
+        onClick={() => onSetPartyDrafted(!allDrafted)}
+      >
+        {allDrafted
+          ? `Back to work (${party.length})`
+          : `Draft ${party.length === 1 ? '' : `all ${party.length}`}`.trim()}
+      </button>
+
       <ul className="party__members">
         {party.map((pawn) => (
           <li key={pawn.id} className="party__member">
@@ -53,25 +73,17 @@ export function PartyPanel({
                   alerts panel — this is the panel you are looking at when you gave it. */}
               {pawn.orderUnreachable ? 'cannot get there' : pawn.activity}
             </span>
-            {pawn.drafted && (
-              <button
-                type="button"
-                className="party__release"
-                onClick={() => onUndraft(pawn.id)}
-                title="Back to work"
-              >
-                ⏎
-              </button>
-            )}
+            <button
+              type="button"
+              className={`party__toggle${pawn.drafted ? ' is-drafted' : ''}`}
+              onClick={() => onSetDrafted(pawn.id, !pawn.drafted)}
+              title={pawn.drafted ? `Send ${pawn.name} back to work` : `Draft ${pawn.name}`}
+            >
+              {pawn.drafted ? 'drafted' : 'working'}
+            </button>
           </li>
         ))}
       </ul>
-
-      {drafted.length > 0 && (
-        <button type="button" className="party__release-all" onClick={onUndraftAll}>
-          Everyone back to work
-        </button>
-      )}
 
       {places.length > 0 && (
         <>

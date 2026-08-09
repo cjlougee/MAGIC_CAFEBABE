@@ -51,14 +51,17 @@ export interface MovePartyCommand {
 }
 
 /**
- * Hands a colonist back to the work pool.
+ * Puts colonists under direct command, or hands them back to the work pool.
  *
- * The inverse of the draft a move order implies. Without it, ordering somebody anywhere
- * would take them off work permanently and the only way back would be reloading.
+ * Takes a list and a state rather than being undraft-only, because drafting needs to be
+ * something the player can *ask for* — holding a party in place is an order in its own
+ * right, not only a side effect of sending them somewhere. Undrafting one at a time was
+ * also the only way back, which made a party of six a chore.
  */
-export interface UndraftCommand {
-  readonly type: 'undraft';
-  readonly pawnId: EntityId;
+export interface SetDraftedCommand {
+  readonly type: 'setDrafted';
+  readonly pawnIds: readonly EntityId[];
+  readonly drafted: boolean;
 }
 
 export interface TileRectangle {
@@ -154,7 +157,7 @@ export type Command =
   | RegenerateCommand
   | MoveToCommand
   | MovePartyCommand
-  | UndraftCommand
+  | SetDraftedCommand
   | DesignateCommand
   | ZoneCommand
   | SetWorkPriorityCommand
