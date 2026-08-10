@@ -158,6 +158,17 @@ convenience: a door is one cell, so the toolbar offers no Rotate button for it, 
 without this there is no way for the player to say which way it runs at all. Ties keep
 whatever was asked for, so a free-standing door is still placed rather than refused.
 
+**It is a starting guess, not a rule.** Orientation happens once, at placement, and a door
+placed *before* the wall it will eventually sit in has nothing to line up with — so a door
+is `orientable` and Q/E turn it like anything else. Re-orienting a standing door whenever
+a neighbour changed would be worse: it would silently overrule a facing the player had
+chosen on purpose.
+
+`orientable` is deliberately **not** "is it more than one cell". A door is one cell in
+every rotation and still has to face the right way; a 2×2 hearth is four cells and looks
+identical from every side. Rotation is offered exactly when turning it changes something
+visible, because a control that does nothing teaches the player that the controls lie.
+
 **Locking flips `buildingBlocks` and leaves `buildingSealsRoom` alone** — the clearest
 possible use of the pair M4 kept separate. A barred door is a wall to a colonist and still
 a door to the room, so a hut with its door locked is still indoors and everyone sleeping

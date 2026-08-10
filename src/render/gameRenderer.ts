@@ -120,6 +120,7 @@ export class GameRenderer {
     dtMs: number,
     selected: ReadonlySet<EntityId>,
     preview: DragPreview | null = null,
+    selectedStructure: EntityId | null = null,
   ): void {
     const width = this.app.screen.width;
     const height = this.app.screen.height;
@@ -135,7 +136,7 @@ export class GameRenderer {
     this.ground.update(world.map, world.seed, view, visible);
     this.overlays.update(world, view, visible, preview);
     this.orderMarkers.update(dtMs);
-    this.objects.update(world, view, visible, selected);
+    this.objects.update(world, view, visible, selected, selectedStructure, preview);
     const light = daylight(world.tick);
     this.lighting.update(light, width, height);
     // Screen-space like the wash, but its children are positioned in world coordinates,

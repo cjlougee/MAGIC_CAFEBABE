@@ -8,7 +8,7 @@
 
 import type { Tool } from '../input/worldInput';
 import { BUILDABLE_DEFS, type BuildableId } from '../sim/defs/buildables';
-import { footprintOfBuildable, isSingleCell, type Rotation } from '../sim/world/footprint';
+import { isOrientable, type Rotation } from '../sim/world/footprint';
 import { ITEM_DEFS } from '../sim/defs/items';
 
 interface ToolOption {
@@ -42,7 +42,6 @@ interface ToolbarProps {
   readonly workPanelOpen: boolean;
   readonly onPick: (tool: Tool) => void;
   readonly onPickBuildable: (buildable: BuildableId) => void;
-  readonly onRotate: () => void;
   readonly onToggleWork: () => void;
 }
 
@@ -56,7 +55,6 @@ export function Toolbar({
   workPanelOpen,
   onPick,
   onPickBuildable,
-  onRotate,
   onToggleWork,
 }: ToolbarProps) {
   return (
@@ -77,19 +75,16 @@ export function Toolbar({
             </button>
           ))}
           {/*
-            Only shown for a blueprint that has a long axis. A rotate button on a wall is
-            a control that visibly does nothing, which teaches the player it is broken.
+            A readout, not a button. The preview under the cursor already shows the
+            facing, so a button here would be a second way to do a thing the keys do
+            better — and one the player's hand has to leave the map for.
           */}
-          {!isSingleCell(footprintOfBuildable(buildable)) && (
-            <button
-              type="button"
-              title="Turn the blueprint a quarter turn (R)"
-              className="toolbar__button"
-              onClick={onRotate}
-            >
-              Rotate ⟳
+          {isOrientable(buildable) && (
+            <span className="toolbar__facing">
+              <kbd>Q</kbd>
+              <kbd>E</kbd> turn
               <span className="toolbar__cost">{FACING[buildRotation]}</span>
-            </button>
+            </span>
           )}
         </nav>
       )}

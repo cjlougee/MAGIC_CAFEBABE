@@ -70,6 +70,15 @@ export interface BuildingDef {
    */
   readonly lockable: boolean;
   /**
+   * Whether facing this one way rather than another changes anything the player can see.
+   *
+   * True for a footprint that is not square, and *also* for a door — which is one cell,
+   * so its cells never change, but whose jambs have to line up with the wall run they
+   * interrupt. Drives whether rotation is offered at all: a control that visibly does
+   * nothing teaches the player that the controls lie.
+   */
+  readonly orientable: boolean;
+  /**
    * Whether it forms the edge of a room.
    *
    * Separate from `passable` because a **door is both**: colonists walk through it, and
@@ -92,9 +101,10 @@ export const BUILDING_DEFS: readonly BuildingDef[] = [
     passable: true,
     blocksRoom: false,
     lockable: false,
+    orientable: true,
   },
-  { id: Building.Wall, name: 'Wall', footprint: SINGLE_CELL, isBed: false, lightRadius: 0, passable: false, blocksRoom: true, lockable: false },
-  { id: Building.Door, name: 'Door', footprint: SINGLE_CELL, isBed: false, lightRadius: 0, passable: true, blocksRoom: true, lockable: true },
+  { id: Building.Wall, name: 'Wall', footprint: SINGLE_CELL, isBed: false, lightRadius: 0, passable: false, blocksRoom: true, lockable: false, orientable: false },
+  { id: Building.Door, name: 'Door', footprint: SINGLE_CELL, isBed: false, lightRadius: 0, passable: true, blocksRoom: true, lockable: true, orientable: true },
   // Impassable but not a room edge: you cannot walk through a fire, and a fire in the
   // middle of a hut must not cut the hut into two rooms. Exactly the case those two
   // flags were kept separate for.
@@ -107,6 +117,7 @@ export const BUILDING_DEFS: readonly BuildingDef[] = [
     passable: false,
     blocksRoom: false,
     lockable: false,
+    orientable: false,
   },
   // The upgrade the roadmap promised in M4 and could not deliver until a building was
   // allowed to be longer than it is wide. Passable, because you walk onto a bed to
@@ -120,6 +131,7 @@ export const BUILDING_DEFS: readonly BuildingDef[] = [
     passable: true,
     blocksRoom: false,
     lockable: false,
+    orientable: true,
   },
   // The first structure that is impassable across *several* cells, which is the case a
   // 2×1 bedroll cannot exercise: blocking, standing beside rather than on, and a solid
@@ -133,6 +145,9 @@ export const BUILDING_DEFS: readonly BuildingDef[] = [
     passable: false,
     blocksRoom: false,
     lockable: false,
+    // Square, and drawn the same from every side. Turning it would be a control that
+    // visibly does nothing.
+    orientable: false,
   },
 ];
 

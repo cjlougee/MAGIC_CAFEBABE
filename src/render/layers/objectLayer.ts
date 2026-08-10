@@ -20,7 +20,9 @@ import { buildingCells } from '../../sim/entities/building';
 import { pawnVisualPos, type Pawn, type PawnAppearance } from '../../sim/entities/pawn';
 import { ripeness } from '../../sim/entities/plant';
 import { Designation } from '../../sim/world/designations';
+import { buildableDef } from '../../sim/defs/buildables';
 import { footprintOfBuilding, sizeOf } from '../../sim/world/footprint';
+import { canPlaceFootprint } from '../../sim/world/placement';
 import { buildingAt } from '../../sim/world/lookup';
 import type { World } from '../../sim/world/world';
 import type { ArtProvider } from '../art/artProvider';
@@ -36,6 +38,7 @@ import type { TileRect, WorldRect } from '../camera/camera';
 import { HALF_TILE_H, HALF_TILE_W } from '../constants';
 import { footprintBounds, tileToWorld } from '../iso';
 import { collectOccluders } from '../occlusion';
+import type { DragPreview } from './overlayLayer';
 
 /** How transparent an occluding tile becomes. Low enough to clearly read the pawn. */
 const OCCLUDED_ALPHA = 0.32;
@@ -80,6 +83,8 @@ export class ObjectLayer {
    * taken the ring and the rest would have looked unselected while still obeying orders.
    */
   private readonly selectionRings: Sprite[] = [];
+  /** One ghost, for the blueprint under the cursor. There is never more than one. */
+  private ghost: Sprite | null = null;
 
   constructor(
     private readonly art: ArtProvider,
@@ -91,7 +96,14 @@ export class ObjectLayer {
 
   }
 
-  update(world: World, view: TileRect, visible: WorldRect, selected: ReadonlySet<EntityId>): void {
+  update(
+    world: World,
+    view: TileRect,
+    visible: WorldRect,
+    selected: ReadonlySet<EntityId>,
+    selectedStructure: EntityId | null = null,
+    preview: DragPreview | null = null,
+  ): void {
     const visuals: PawnVisual[] = [...world.pawns.values()].map((pawn) => ({
       pawn,
       at: pawnVisualPos(pawn),
@@ -104,14 +116,19 @@ export class ObjectLayer {
     );
 
     this.updateTiles(world, view, visible);
-    this.updateBuildings(world, visible);
+    this.updateBuildings(world, visible, selectedStructure);
     this.updateSites(world, visible);
     this.updatePlants(world, visible);
     this.updateItems(world, visible);
     this.updatePawns(world, visuals, selected);
+    this.updateGhost(world, preview);
   }
 
-  private updateBuildings(world: World, visible: WorldRect): void {
+  private updateBuildings(
+    world: World,
+    visible: WorldRect,
+    selectedStructure: EntityId | null,
+  ): void {
     let used = 0;
 
     for (const building of world.buildings.values()) {
@@ -142,9 +159,19 @@ export class ObjectLayer {
        * and recycled, so an unmarked building would inherit the last tenant's red.
        */
       const index = world.map.idx(building.pos.x, building.pos.y, building.pos.z);
+      /*
+       * Selection is shown the same way a demolition mark is, and for the same reason:
+       * a ring on the ground would be hidden under the very structure it points at.
+       *
+       * A mark outranks selection when both apply — the order the colony is about to
+       * carry out matters more than which panel happens to be open, and the panel is
+       * already on screen saying what is selected.
+       */
       sprite.tint = world.designations.has(Designation.Deconstruct, index)
         ? Palette.markedForDeconstruct
-        : 0xffffff;
+        : building.id === selectedStructure
+          ? Palette.selected
+          : 0xffffff;
       // Same offset rule as raised terrain: the texture's base diamond sits `height`
       // pixels down from its top edge, so the footprint lands on the ground plane.
       sprite.position.set(box.left, box.top);
@@ -166,6 +193,57 @@ export class ObjectLayer {
     }
 
     this.hideRest(this.buildingPool, used);
+  }
+
+  /**
+   * The structure the build tool is about to place, drawn where the cursor is.
+   *
+   * In the object layer rather than with the flat preview tiles, because it has height
+   * and has to sort against what is already standing — a ghost drawn under the walls it
+   * is being fitted between tells the player nothing about whether it fits.
+   *
+   * **The sprite, not the footprint.** The overlay's cell outline says where it lands and
+   * cannot say which way it faces: rotations 0 and 2 cover exactly the same cells, so on
+   * the outline alone half of every player's presses of Q look like they did nothing.
+   */
+  private updateGhost(world: World, preview: DragPreview | null): void {
+    const buildable = preview?.buildable;
+    if (!preview || buildable === undefined) {
+      if (this.ghost) this.ghost.visible = false;
+      return;
+    }
+
+    const result = buildableDef(buildable).result;
+    if (result.kind !== 'building') {
+      if (this.ghost) this.ghost.visible = false;
+      return;
+    }
+
+    const rotation = preview.rotation ?? 0;
+    const anchor = { x: preview.x1, y: preview.y1, z: preview.z };
+    const height = BUILDING_HEIGHT[result.building] ?? 0;
+    const { w, h } = sizeOf(footprintOfBuilding(result.building), rotation);
+    const box = footprintBounds(anchor.x, anchor.y, w, h, anchor.z, height);
+
+    const sprite = (this.ghost ??= this.makeGhost());
+    sprite.texture = this.art.building(result.building, rotation);
+    sprite.position.set(box.left, box.top);
+    // Red when the simulation would refuse it, so the ghost never promises a placement
+    // the click then declines. Same predicate the command uses.
+    sprite.tint = canPlaceFootprint(world, anchor, buildable, rotation)
+      ? 0xffffff
+      : Palette.danger;
+    sprite.zIndex = (anchor.x + w - 1 + (anchor.y + h - 1)) * DEPTH_SCALE + ENTITY_BIAS + 1;
+    sprite.visible = true;
+  }
+
+  private makeGhost(): Sprite {
+    const sprite = new Sprite();
+    sprite.eventMode = 'none';
+    // Translucent, so it reads as a proposal rather than as something already built.
+    sprite.alpha = 0.55;
+    this.container.addChild(sprite);
+    return sprite;
   }
 
   private updateSites(world: World, visible: WorldRect): void {

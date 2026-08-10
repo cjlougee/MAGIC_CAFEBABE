@@ -85,6 +85,15 @@ export const Palette = {
    * marker — cutting the landscape is a different order from undoing your own work.
    */
   markedForMine: 0xe0b384,
+
+  /**
+   * Multiplied over the structure whose panel is open.
+   *
+   * Relic-tinted, matching the selection ring under a colonist, so "this is the thing
+   * you clicked" reads the same whether the thing moves or not. Pale, because unlike a
+   * demolition mark it is not an order — it is just where you are looking.
+   */
+  selected: 0xa8e8de,
 } as const;
 
 export type PaletteColor = (typeof Palette)[keyof typeof Palette];

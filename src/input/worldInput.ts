@@ -17,10 +17,15 @@ import type { DragPreview, PreviewTool } from '../render/layers/overlayLayer';
 import { Buildable, type BuildableId } from '../sim/defs/buildables';
 import {
   footprintOfBuildable,
+  isOrientable,
   isSingleCell,
-  nextRotation,
   type Rotation,
 } from '../sim/world/footprint';
+
+/** A quarter turn either way, wrapping. Q goes anticlockwise, E clockwise. */
+function turn(rotation: Rotation, step: 1 | -1): Rotation {
+  return (((rotation + step) % 4) + 4) % 4 as Rotation;
+}
 import type { EntityId } from '../sim/core/entityStore';
 import { normaliseRect, type Command, type TileRectangle } from '../sim/core/commands';
 import { GROUND_LEVEL, type TilePos } from '../sim/core/position';
@@ -106,6 +111,14 @@ export class WorldInput {
   private downButton = -1;
   private dragFrom: { x: number; y: number } | null = null;
   private dragTo: { x: number; y: number } | null = null;
+  /**
+   * The cell under the cursor, tracked whether or not a button is down.
+   *
+   * What makes the build tool show what it is about to do *before* the click. Until M11
+   * the preview only existed during a drag, so placing a bed was a blind commitment —
+   * there was no feedback on position or facing until it was already built.
+   */
+  private hover: { x: number; y: number } | null = null;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -132,9 +145,15 @@ export class WorldInput {
     this.cancelDrag();
   }
 
-  /** Turns the pending blueprint a quarter turn. No effect on anything one cell square. */
-  rotateBuildable(): void {
-    this.rotation = nextRotation(this.rotation);
+  /** Turns the pending blueprint a quarter turn. Ignored for anything that looks the same either way. */
+  rotateBuildable(step: 1 | -1 = 1): void {
+    if (!isOrientable(this.buildable)) return;
+    this.rotation = turn(this.rotation, step);
+  }
+
+  /** Whether the active buildable is one the player can face. Drives the hint and the keys. */
+  get canRotate(): boolean {
+    return this.tool === 'build' && isOrientable(this.buildable);
   }
 
   get buildRotation(): Rotation {
@@ -157,9 +176,28 @@ export class WorldInput {
     this.instantBuild = instant;
   }
 
-  /** The rectangle currently being dragged, for the renderer to outline. */
+  /** The rectangle currently being dragged, or the cell the build tool is hovering. */
   get preview(): DragPreview | null {
-    if (!this.dragFrom || !this.dragTo) return null;
+    /*
+     * With no button down, the build tool still previews — under the cursor, at the
+     * rotation it would be placed at.
+     *
+     * This is the only feedback the player gets about *facing* before committing, and
+     * without it rotating was a control with no visible effect until after the fact.
+     */
+    if (!this.dragFrom || !this.dragTo) {
+      if (this.tool !== 'build' || !this.hover) return null;
+      return {
+        x0: this.hover.x,
+        y0: this.hover.y,
+        x1: this.hover.x,
+        y1: this.hover.y,
+        z: GROUND_LEVEL,
+        tool: 'build',
+        buildable: this.buildable,
+        rotation: this.rotation,
+      };
+    }
 
     // A multi-tile blueprint follows the cursor rather than sweeping an area, so the
     // rectangle collapses onto wherever the pointer currently is.
@@ -218,9 +256,12 @@ export class WorldInput {
   };
 
   private onPointerMove = (event: PointerEvent): void => {
-    if (!this.dragFrom) return;
     const tile = this.tileUnder(event);
-    this.dragTo = { x: Math.round(tile.x), y: Math.round(tile.y) };
+    const cell = { x: Math.round(tile.x), y: Math.round(tile.y) };
+    // Tracked always, not only mid-drag: the hover preview is the whole point.
+    this.hover = cell;
+    if (!this.dragFrom) return;
+    this.dragTo = cell;
   };
 
   private onPointerUp = (event: PointerEvent): void => {

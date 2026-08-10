@@ -142,9 +142,14 @@ export class Engine {
    * rotations cover the same cells, so for anything but a bed the only visible effect is
    * on the sprite — which is exactly why it needs saying somewhere other than the sprite.
    */
-  rotateBuildable(): void {
-    this.input.rotateBuildable();
+  rotateBuildable(step: 1 | -1 = 1): void {
+    this.input.rotateBuildable(step);
     this.store.update({ buildRotation: this.input.buildRotation });
+  }
+
+  /** Whether Q and E currently mean "turn this", for the hint bar to say so. */
+  get canRotate(): boolean {
+    return this.input.canRotate;
   }
 
   /**
@@ -496,7 +501,13 @@ export class Engine {
   }
 
   private onDraw(dtMs: number): void {
-    this.renderer.render(this.sim.world, dtMs, new Set(this.selectedIds), this.input.preview);
+    this.renderer.render(
+      this.sim.world,
+      dtMs,
+      new Set(this.selectedIds),
+      this.input.preview,
+      this.store.getState().selectedStructureId,
+    );
 
     this.snapshotTimerMs += dtMs;
     if (this.snapshotTimerMs >= SNAPSHOT_INTERVAL_MS) {

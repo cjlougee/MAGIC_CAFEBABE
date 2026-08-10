@@ -94,10 +94,18 @@ export function HUD({ store, engine }: HUDProps) {
         return;
       }
 
-      // R turns the pending blueprint. Only meaningful with the build tool up, and
-      // deliberately silent otherwise rather than stealing the key from anything later.
-      if (event.code === 'KeyR' && state.tool === 'build') {
-        engine.rotateBuildable();
+      /*
+       * Q and E turn the pending blueprint — but only while the build tool is up.
+       *
+       * ADR 0005 forbids an input that means different things depending on state, and
+       * this is deliberately the exception it allows for: the rule is about *state the
+       * player cannot see*. Which tool is active is the most visible state in the game —
+       * the toolbar highlights it, the cursor changes, the architect row is open, and the
+       * hint bar changes to say Q/E turn. Escape and right-click both still leave the
+       * tool, so nothing is trapped behind the borrowed key.
+       */
+      if (engine.canRotate && (event.code === 'KeyQ' || event.code === 'KeyE')) {
+        engine.rotateBuildable(event.code === 'KeyE' ? 1 : -1);
         return;
       }
 
@@ -198,7 +206,6 @@ export function HUD({ store, engine }: HUDProps) {
         workPanelOpen={showWorkPanel}
         onPick={(next) => engine?.setTool(next)}
         onPickBuildable={(next) => engine?.setBuildable(next)}
-        onRotate={() => engine?.rotateBuildable()}
         onToggleWork={() => store.update({ showWorkPanel: !showWorkPanel })}
       />
 

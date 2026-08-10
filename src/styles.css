@@ -1483,3 +1483,20 @@ body {
   font-style: italic;
   color: var(--c-textDim);
 }
+
+/* A readout rather than a button: the preview under the cursor already shows the
+   facing, and the keys do the turning without the hand leaving the map. */
+.toolbar__facing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--c-textDim);
+  white-space: nowrap;
+}
+
+.toolbar__facing kbd {
+  margin-right: 2px;
+}

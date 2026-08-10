@@ -339,9 +339,25 @@ See [`superpowers/specs/2026-08-10-multi-tile-footprints-design.md`](superpowers
 - [x] An empty marquee **no longer clears the party**. Consistent with clicking bare ground, and
       wrong in practice: once the marquee made drag-select inviting, a drag that missed by a tile
       threw away a party built up over several clicks, with no undo
+- [x] **The build tool shows what it is about to do**, on hover rather than only mid-drag: the
+      footprint cells, and a translucent **ghost of the sprite** tinted red when the placement would
+      be refused. The outline alone can say *where* but never *which way* — rotations 0 and 2 cover
+      the same cells, so half of every turn would look like it did nothing
+- [x] **Q and E turn it**, and the Rotate button is gone — the ghost already shows the facing, so a
+      button was a second way to do what the keys do better, with the hand off the map. Q means
+      "select tool" everywhere else; that is inside ADR 0005 rather than in breach of it, because
+      the rule is about state the player *cannot see* and the active tool is the most visible state
+      there is. The hint bar swaps to say so
+- [x] Rotation is offered for anything **`orientable`**, which is not the same question as "more
+      than one cell": a door is one cell in every rotation and still has to face its wall run, and a
+      2×2 hearth is four cells and looks identical from every side. This is also the answer to a
+      door placed *before* its wall — auto-orientation is a starting guess, not a rule
+- [x] **A selected structure is tinted**, since a ring on the ground would sit under the very thing
+      it points at — the same problem, and the same answer, as a demolition mark in M4
 - **Playable check:** ✅ click a wall, see what it is, press ✕, watch it tint and a colonist take it
   down. Doors placed into runs on both axes each faced their own run. Locked one and watched the bar
-  appear; colonists path around it and the room stays indoors. Asserted headless in
+  appear; colonists path around it and the room stays indoors. Held a bed over the map, pressed E,
+  watched the ghost swing onto the other axis before committing. Asserted headless in
   `tests/footprint.test.ts`.
 
 ### M12 — The asset pipeline *(new — process, not content)*

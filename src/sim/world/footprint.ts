@@ -64,6 +64,18 @@ export function footprintOfBuildable(def: BuildableId): Footprint {
 }
 
 /**
+ * Whether turning this blueprint changes anything the player can see.
+ *
+ * Not the same question as "is it more than one cell". A door is one cell in every
+ * rotation and still has to line up with the wall run it interrupts; a 2×2 hearth is four
+ * cells and looks identical from every side.
+ */
+export function isOrientable(def: BuildableId): boolean {
+  const result = buildableDef(def).result;
+  return result.kind === 'building' && buildingDef(result.building).orientable;
+}
+
+/**
  * Every cell a structure anchored here would stand on.
  *
  * `anchor` is the **minimum x and y** of the rotated footprint, so the cells are simply

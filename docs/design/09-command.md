@@ -97,6 +97,52 @@ The party panel lists every place M8 generated with its distance, and clicking o
 Without it, reaching a vault 200 tiles away meant scrolling there and clicking the ground — the
 places existed, and were effectively unusable.
 
+## Showing what a tool is about to do
+
+The build tool used to show nothing until the button went down. Position, extent and
+facing were all invisible until after the click, so placing a bed was a blind commitment
+and rotating it was a control whose effect you could only see by undoing it.
+
+Three things fixed that, and the third is the one that matters:
+
+- The **cursor is tracked whether or not a button is down**, so the preview exists on
+  hover rather than only during a drag.
+- The overlay draws the **footprint cells**, greyed out as a whole when the placement
+  would be refused — a footprint is legal or it is not, so marking one offending cell
+  would imply the rest is going ahead.
+- `ObjectLayer` draws a translucent **ghost of the actual sprite**, tinted red when the
+  simulation would refuse it. The cell outline can say *where* but never *which way*:
+  rotations 0 and 2 cover exactly the same cells, so on the outline alone half of every
+  player's presses of the turn key look like they did nothing at all. It lives in the
+  object layer rather than with the flat overlay tiles because it has height and has to
+  sort against what is already standing — a ghost drawn *under* the walls it is being
+  fitted between answers nothing about whether it fits.
+
+### Q and E, and why that is not a breach of ADR 0005
+
+**Q and E turn the pending blueprint, but only while the build tool is up.** Q otherwise
+selects the select tool.
+
+The rule is that a gesture must not change meaning based on **state the player cannot
+see** — and which tool is active is the most visible state in the game. The toolbar
+highlights it, the cursor changes to a crosshair, the architect row opens, the facing
+readout appears, and the hint bar itself swaps to say `Q` `E` turn. Escape and right-click
+both still leave the tool, so nothing is trapped behind the borrowed key.
+
+The rotate *button* was removed rather than kept alongside. The ghost under the cursor
+already shows the facing, so a button would be a second way to do something the keys do
+better — and one that makes the player's hand leave the map.
+
+## Selecting a structure shows you which one
+
+A colonist gets a ring on the ground. A wall cannot: the ring would be underneath the very
+thing it points at, which is the same problem demolition marks hit in M4. So a selected
+structure is **tinted**, in the object layer, the same mechanism and for the same reason —
+relic-tinted to match the colonist's ring, and pale, because unlike a demolition mark it
+is not an order. A mark outranks a selection when both apply: what the colony is about to
+*do* matters more than which panel happens to be open, and the panel is already on screen
+saying what is selected.
+
 ## Saying that an order landed
 
 Right-clicking the ground used to produce nothing at all, and worse than nothing — the right button

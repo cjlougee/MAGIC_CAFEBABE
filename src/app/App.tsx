@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSyncExternalStore, useEffect, useMemo, useRef, useState } from 'react';
 import { HUD } from '../ui/HUD';
 import { Engine } from './engine';
 import { UiStore } from './uiStore';
@@ -40,6 +40,9 @@ export function App() {
     };
   }, [store]);
 
+  // Only for the hint bar, which has to say what Q currently does.
+  const building = useSyncExternalStore(store.subscribe, store.getState).tool === 'build';
+
   return (
     <div className="app">
       <div className="viewport" ref={hostRef} />
@@ -48,7 +51,25 @@ export function App() {
         <kbd>Right-drag</kbd> pan · <kbd>Right-click</kbd> order / cancel tool ·{' '}
         <kbd>Left-drag</kbd> select or use tool · <kbd>Ctrl</kbd> add · <kbd>Shift</kbd> range ·{' '}
         <kbd>Wheel</kbd> zoom · <kbd>WASD</kbd> scroll · <kbd>Space</kbd> pause ·{' '}
-        <kbd>Q</kbd><kbd>M</kbd><kbd>B</kbd><kbd>C</kbd><kbd>X</kbd> tools
+        {/*
+          Q changes meaning while the build tool is up, so the hint has to change with it.
+          That is what keeps it inside ADR 0005 rather than in breach of it: the rule
+          forbids an input that depends on state the player cannot see.
+        */}
+        {building ? (
+          <>
+            <kbd>Q</kbd>
+            <kbd>E</kbd> turn · <kbd>Esc</kbd> leave the tool
+          </>
+        ) : (
+          <>
+            <kbd>Q</kbd>
+            <kbd>M</kbd>
+            <kbd>B</kbd>
+            <kbd>C</kbd>
+            <kbd>X</kbd> tools
+          </>
+        )}
       </footer>
     </div>
   );
