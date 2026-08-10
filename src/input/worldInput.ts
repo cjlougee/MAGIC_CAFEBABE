@@ -15,6 +15,12 @@
 import type { Camera } from '../render/camera/camera';
 import type { DragPreview, PreviewTool } from '../render/layers/overlayLayer';
 import { Buildable, type BuildableId } from '../sim/defs/buildables';
+import {
+  footprintOfBuildable,
+  isSingleCell,
+  nextRotation,
+  type Rotation,
+} from '../sim/world/footprint';
 import type { EntityId } from '../sim/core/entityStore';
 import { normaliseRect, type Command, type TileRectangle } from '../sim/core/commands';
 import { GROUND_LEVEL, type TilePos } from '../sim/core/position';
@@ -88,6 +94,8 @@ export class WorldInput {
   private tool: Tool = 'select';
   /** Which blueprint the build tool places. Meaningless for other tools. */
   private buildable: BuildableId = Buildable.Wall;
+  /** Quarter turns the next blueprint is placed at. Reset when the buildable changes. */
+  private rotation: Rotation = 0;
   /** Debug: raise the finished structure instead of a blueprint. */
   private instantBuild = false;
   private downX = 0;
@@ -113,8 +121,33 @@ export class WorldInput {
 
   setBuildable(buildable: BuildableId): void {
     this.buildable = buildable;
+    // Reset rather than carried over: a rotation held from the last buildable is
+    // invisible state, and the preview would appear to place a wall "sideways" for no
+    // reason the player could see.
+    this.rotation = 0;
     this.tool = 'build';
     this.cancelDrag();
+  }
+
+  /** Turns the pending blueprint a quarter turn. No effect on anything one cell square. */
+  rotateBuildable(): void {
+    this.rotation = nextRotation(this.rotation);
+  }
+
+  get buildRotation(): Rotation {
+    return this.rotation;
+  }
+
+  /**
+   * Whether the build tool drags out an area, or places one structure per click.
+   *
+   * A wall is dragged in runs and a hearth is not: sweeping a 2x2 across a rectangle
+   * would tile it greedily and hand the player four hearths for one gesture. The sim
+   * would place them quite happily — the restraint belongs here, where the preview can
+   * show what will actually happen.
+   */
+  private get dragsAnArea(): boolean {
+    return this.tool !== 'build' || isSingleCell(footprintOfBuildable(this.buildable));
   }
 
   setInstantBuild(instant: boolean): void {
@@ -125,16 +158,21 @@ export class WorldInput {
   get preview(): DragPreview | null {
     if (!this.dragFrom || !this.dragTo) return null;
 
-    const rect = normaliseRect(
-      this.dragFrom.x,
-      this.dragFrom.y,
-      this.dragTo.x,
-      this.dragTo.y,
-      GROUND_LEVEL,
-    );
+    // A multi-tile blueprint follows the cursor rather than sweeping an area, so the
+    // rectangle collapses onto wherever the pointer currently is.
+    const from = this.dragsAnArea ? this.dragFrom : this.dragTo;
+
+    const rect = normaliseRect(from.x, from.y, this.dragTo.x, this.dragTo.y, GROUND_LEVEL);
     // The tool travels with the rectangle so the overlay can grey out cells it would
-    // skip — a drag across a river should say so before the player commits.
-    return { ...rect, tool: this.tool as PreviewTool };
+    // skip — a drag across a river should say so before the player commits. The
+    // buildable goes too, because a footprint's legality is a question about several
+    // cells and the preview must ask exactly the question the command will.
+    return {
+      ...rect,
+      tool: this.tool as PreviewTool,
+      buildable: this.tool === 'build' ? this.buildable : undefined,
+      rotation: this.rotation,
+    };
   }
 
   attach(): void {
@@ -241,7 +279,8 @@ export class WorldInput {
         this.handlers.dispatch({
           type: 'build',
           buildable: this.buildable,
-          area,
+          area: this.dragsAnArea ? area : { ...area, x0: area.x1, y0: area.y1 },
+          rotation: this.rotation,
           instant: this.instantBuild,
         });
         break;

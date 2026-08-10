@@ -70,6 +70,17 @@ Claude: prefer the `run` skill or `preview_start` (`.claude/launch.json` defines
 launch the dev server, then verify visually with the browser tools. **Look at the running game — test
 output alone is not verification for a rendering change.**
 
+Two review harnesses, both served by the dev server, because the game at play zoom is the *worst*
+place to judge art:
+
+- **`filmstrip.html`** — an animation sampled across a dozen values of normalised time. An animation
+  cannot be screenshotted; every attempt is a race against a tool round-trip. Write motion as a pure
+  function of `t` and review the strip.
+- **`sprites.html`** — every structure at every rotation, at 3x, over an outline of the footprint
+  cells it claims. Built in M10 and it earned itself immediately: it found a capsule that drew as a
+  bow-tie for two of four facings, and a hearth drawn a whole storey above its own footprint. Both
+  were invisible at 1x on a busy map.
+
 ### The debug panel — press `` ` ``
 
 **Use it. It exists so that looking at the game is cheap.** Dev builds only (`import.meta.env.DEV`),
@@ -143,6 +154,15 @@ tests rather than by structure:
 - **Blocking, sealing, and terrain cost are three separate questions.** `walkCost` is
   terrain; `buildingBlocks` is obstruction; `buildingSealsRoom` is room edges. A door is
   walkable *and* a room edge, which is why the last two can't be one flag.
+- **A building stores an anchor and a rotation; its cells are derived.**
+  `sim/world/footprint.ts` is the only place that turns a def plus a rotation into cells,
+  and a second copy of that arithmetic will disagree the first time the convention moves.
+  Rotations 0 and 2 cover *identical* cells and differ only in facing, which is why
+  rotation has to be in `hashWorld()` — a bed restored backwards round-trips perfectly by
+  every other measure. Anything that used to say "the cell" now has to say "every cell":
+  legality is all-or-nothing, a demolition mark covers the whole structure, deconstruct
+  refunds once rather than once per cell, and "adjacent" excludes the footprint itself or
+  a pawn on one end of a bed counts as standing beside it. See ADR 0009.
 - **Need jobs outrank all work, unconditionally.** Eating and sleeping never enter the priority
   grid and can't be switched off — otherwise a colonist with Haul at priority 1 starves beside a
   stockpile. The hierarchy lives in `tickPawnAI`: break → needs → work. See ADR-free notes in
@@ -182,7 +202,10 @@ tests rather than by structure:
   Written after M2, once the pattern was real rather than predicted.
 - **`art-pass`** — drawing or improving a procedural sprite. The shared shape language, the one
   light direction, and the geometry rules that break tile alignment without an error. Written
-  after the M6 art pass, from the mistakes it actually made.
+  after the M6 art pass, from the mistakes it actually made. Note that `sunwardBand` is a
+  *single-tile* device: pointed at a shape two tiles long it draws a band across the middle
+  instead of along the lit edge, and the crescent that replaces it has to be **contained**
+  within the silhouette or it leaves a stray line lying beside the object.
 
 **Data flow is a one-way loop.** UI never mutates sim state. Input dispatches `Command` objects onto a
 queue the sim drains at the start of each tick. The sim publishes a read-only `SimSnapshot` at ~10Hz

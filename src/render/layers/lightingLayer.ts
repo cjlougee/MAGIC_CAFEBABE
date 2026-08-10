@@ -17,6 +17,7 @@
 
 import { Container, Sprite, Texture } from 'pixi.js';
 import { buildingDef } from '../../sim/defs/buildings';
+import { footprintOfBuilding, sizeOf } from '../../sim/world/footprint';
 import { BUILDING_LIGHT } from '../art/buildingArt';
 import type { World } from '../../sim/world/world';
 import { buildGlowTexture } from '../art/glow';
@@ -79,7 +80,14 @@ export class LightingLayer {
       const radius = buildingDef(building.def).lightRadius;
       if (radius <= 0) continue;
 
-      const at = tileToWorld(building.pos.x, building.pos.y, building.pos.z);
+      // The middle of the footprint, not its anchor. A 2x2 hearth lit from one corner
+      // throws its glow half a tile off the fire that is drawn inside it.
+      const { w, h } = sizeOf(footprintOfBuilding(building.def), building.rotation);
+      const at = tileToWorld(
+        building.pos.x + (w - 1) / 2,
+        building.pos.y + (h - 1) / 2,
+        building.pos.z,
+      );
       const sprite = this.spriteAt(used++);
       // Radius is in cells; a tile is TILE_W wide, so this is the lit span in pixels.
       // Halved vertically because a circle of ground is an ellipse in 2:1 projection —

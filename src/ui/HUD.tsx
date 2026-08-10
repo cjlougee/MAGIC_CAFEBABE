@@ -54,6 +54,7 @@ export function HUD({ store, engine }: HUDProps) {
     selectedBenchId,
     tool,
     buildable,
+    buildRotation,
     showWorkPanel,
     showMenu,
     showDebug,
@@ -89,6 +90,13 @@ export function HUD({ store, engine }: HUDProps) {
 
       if (event.code === 'Backquote' && import.meta.env.DEV) {
         store.update({ showDebug: !state.showDebug });
+        return;
+      }
+
+      // R turns the pending blueprint. Only meaningful with the build tool up, and
+      // deliberately silent otherwise rather than stealing the key from anything later.
+      if (event.code === 'KeyR' && state.tool === 'build') {
+        engine.rotateBuildable();
         return;
       }
 
@@ -181,9 +189,11 @@ export function HUD({ store, engine }: HUDProps) {
       <Toolbar
         active={tool}
         buildable={buildable}
+        buildRotation={buildRotation}
         workPanelOpen={showWorkPanel}
         onPick={(next) => engine?.setTool(next)}
         onPickBuildable={(next) => engine?.setBuildable(next)}
+        onRotate={() => engine?.rotateBuildable()}
         onToggleWork={() => store.update({ showWorkPanel: !showWorkPanel })}
       />
 

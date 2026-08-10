@@ -23,6 +23,7 @@ import type { PlantId } from '../defs/plants';
 import type { PoiId } from '../defs/pois';
 import type { RecipeId } from '../defs/recipes';
 import { createBuilding, type Building } from '../entities/building';
+import type { Rotation } from '../world/footprint';
 import { createSite, type ConstructionSite } from '../entities/constructionSite';
 import { createItem, type Item } from '../entities/item';
 import { createPawn, type Pawn, type PawnAppearance } from '../entities/pawn';
@@ -40,7 +41,7 @@ import type { World } from '../world/world';
 import { Zones } from '../world/zones';
 
 /** Bumped whenever the save shape changes. See migrate.ts. */
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 // ── Run-length encoding for the map grids ───────────────────────────────────────
 // Terrain is enormously repetitive — long runs of the same value — so RLE turns tens of
@@ -143,6 +144,7 @@ export interface SaveData {
   readonly nextPlantId: number;
   readonly buildings: {
     id: number;
+    rotation: number;
     def: number;
     pos: SavedPos;
     owner: number | null;
@@ -156,6 +158,7 @@ export interface SaveData {
     id: number;
     def: number;
     pos: SavedPos;
+    rotation: number;
     delivered: number[];
     workDone: number;
   }[];
@@ -237,6 +240,7 @@ export function serializeWorld(world: World): SaveData {
       id: b.id,
       def: b.def,
       pos: at(b.pos),
+      rotation: b.rotation,
       owner: b.owner,
       bills: b.bills.map((bill) => ({ recipe: bill.recipe, untilCount: bill.untilCount })),
       loaded: [...b.loaded],
@@ -246,6 +250,7 @@ export function serializeWorld(world: World): SaveData {
       id: s.id,
       def: s.def,
       pos: at(s.pos),
+      rotation: s.rotation,
       delivered: [...s.delivered],
       workDone: s.workDone,
     })),
@@ -314,7 +319,7 @@ export function deserializeWorld(save: SaveData): World {
 
   const buildings = new EntityStore<Building>();
   for (const saved of save.buildings) {
-    const building = createBuilding(saved.id, saved.def as BuildingId, saved.pos);
+    const building = createBuilding(saved.id, saved.def as BuildingId, saved.pos, saved.rotation as Rotation);
     building.owner = saved.owner;
     for (const bill of saved.bills) {
       building.bills.push({ recipe: bill.recipe as RecipeId, untilCount: bill.untilCount });
@@ -330,7 +335,7 @@ export function deserializeWorld(save: SaveData): World {
 
   const sites = new EntityStore<ConstructionSite>();
   for (const saved of save.sites) {
-    const site = createSite(saved.id, saved.def as BuildableId, saved.pos);
+    const site = createSite(saved.id, saved.def as BuildableId, saved.pos, saved.rotation as Rotation);
     saved.delivered.forEach((count, def) => {
       site.delivered[def] = count;
     });

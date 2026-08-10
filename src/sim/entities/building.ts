@@ -15,6 +15,7 @@ import type { EntityId } from '../core/entityStore';
 import type { TilePos } from '../core/position';
 import { buildingDef, type BuildingId } from '../defs/buildings';
 import { recipeDef, recipesFor, type RecipeId } from '../defs/recipes';
+import { cellsOf, footprintOfBuilding, type Rotation } from '../world/footprint';
 import { emptyLedger, hasAllOf, missingOf } from './materials';
 
 /**
@@ -34,7 +35,15 @@ export interface Bill {
 export interface Building {
   readonly id: EntityId;
   readonly def: BuildingId;
+  /**
+   * The **anchor**: the minimum x and y of the rotated footprint, not a centre.
+   *
+   * Which cells follow from it is `world/footprint.ts`'s business and is never stored —
+   * a saved copy could disagree with the def it came from, and nothing could say which
+   * was right.
+   */
   readonly pos: TilePos;
+  readonly rotation: Rotation;
   /** Colonist this belongs to, or null if unclaimed. */
   owner: EntityId | null;
   /** Standing orders, in the order they should be worked. Empty for anything not a bench. */
@@ -43,8 +52,18 @@ export interface Building {
   readonly loaded: number[];
 }
 
-export function createBuilding(id: EntityId, def: BuildingId, pos: TilePos): Building {
-  return { id, def, pos, owner: null, bills: [], loaded: emptyLedger() };
+export function createBuilding(
+  id: EntityId,
+  def: BuildingId,
+  pos: TilePos,
+  rotation: Rotation = 0,
+): Building {
+  return { id, def, pos, rotation, owner: null, bills: [], loaded: emptyLedger() };
+}
+
+/** The cells this building stands on. Derived every time; never cached, never saved. */
+export function buildingCells(building: Building): TilePos[] {
+  return cellsOf(building.pos, footprintOfBuilding(building.def), building.rotation);
 }
 
 export function isBed(building: Building): boolean {

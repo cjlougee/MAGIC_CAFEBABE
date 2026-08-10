@@ -13,6 +13,9 @@ import type { ItemDefId } from '../../sim/defs/items';
 import { TERRAIN_DEFS, type TerrainId } from '../../sim/defs/terrain';
 import type { PawnAppearance } from '../../sim/entities/pawn';
 import { HALF_TILE_H, HALF_TILE_W, TILE_H, TILE_W } from '../constants';
+import { GROUND_LEVEL } from '../../sim/core/position';
+import { footprintOfBuilding, sizeOf, type Rotation } from '../../sim/world/footprint';
+import { footprintBounds } from '../iso';
 import { BUILDING_HEIGHT, buildBuildingGraphics, buildSiteGraphics } from './buildingArt';
 import { buildContactShadow } from './contactShadow';
 import { buildItemGraphics } from './itemArt';
@@ -96,18 +99,29 @@ export class ArtProvider {
   }
 
   /**
-   * Texture for a structure.
+   * Texture for a structure, in the orientation it was placed.
    *
    * The frame is stated rather than inferred, because `generateTexture` otherwise crops
    * to whatever the Graphics happened to draw — and `ObjectLayer` positions every
-   * building as though its texture were exactly `TILE_W x (TILE_H + height)` anchored at
-   * its top-left. A structure that doesn't paint into all four corners would come out
+   * building as though its texture were exactly its footprint's bounding box anchored at
+   * the top-left. A structure that doesn't paint into all four corners would come out
    * smaller and land shifted up and left, which is precisely how the campfire first
    * appeared as a small square in the corner of its tile.
+   *
+   * The frame now comes from `footprintBounds` rather than being `TILE_W` by assumption,
+   * and **rotation is part of the cache key** — two rotations of a bed are two different
+   * pictures, and sharing one entry would draw every bed the way the first one placed
+   * happened to face.
    */
-  building(def: BuildingId): Texture {
-    const frame = new Rectangle(0, 0, TILE_W, TILE_H + BUILDING_HEIGHT[def]);
-    return this.cached(`building:${def}`, () => buildBuildingGraphics(def), frame);
+  building(def: BuildingId, rotation: Rotation = 0): Texture {
+    const { w, h } = sizeOf(footprintOfBuilding(def), rotation);
+    const bounds = footprintBounds(0, 0, w, h, GROUND_LEVEL, BUILDING_HEIGHT[def]);
+    const frame = new Rectangle(0, 0, bounds.width, bounds.height);
+    return this.cached(
+      `building:${def}:${rotation}`,
+      () => buildBuildingGraphics(def, rotation),
+      frame,
+    );
   }
 
   /** A blueprint or part-built frame, at one of a few progress stages. */

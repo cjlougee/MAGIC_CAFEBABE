@@ -12,13 +12,14 @@ import { recipeDef } from '../defs/recipes';
 import { plantDef } from '../defs/plants';
 import { terrainDef } from '../defs/terrain';
 import { Thought } from '../defs/thoughts';
-import { hasIngredientsFor } from '../entities/building';
-import { hasAllMaterials, outstanding } from '../entities/constructionSite';
+import { buildingCells, hasIngredientsFor } from '../entities/building';
+import { hasAllMaterials, outstanding, siteCells } from '../entities/constructionSite';
 import { outstandingOf } from '../entities/materials';
 import { isRipe } from '../entities/plant';
 import { builtHere, completeConstruction, deconstruct } from '../world/construction';
 import { Designation } from '../world/designations';
 import { buildingAt, countHeld, pawnOccupies } from '../world/lookup';
+import type { World } from '../world/world';
 import type { Job, JobKind } from './job';
 import { addThought } from './mood';
 import { consumeFood } from './needs';
@@ -223,7 +224,10 @@ const DELIVER_TOILS: readonly Toil[] = [
   // Delivered from *beside* the site, not standing on it. A colonist who parks on a
   // planned wall to drop stone can be sealed inside it the moment someone else finishes
   // the job — and an entombed pawn can reach nothing, ever again.
-  toilWalkAdjacentTo((job, world) => world.sites.get(asDeliver(job).site)?.pos ?? null),
+  toilWalkAdjacentTo((job, world) => {
+    const site = world.sites.get(asDeliver(job).site);
+    return site ? siteCells(site) : null;
+  }),
   toilDeposit((ctx, item) => {
     const site = ctx.world.sites.get(asDeliver(ctx.job).site);
     if (!site) return 0;
@@ -242,7 +246,10 @@ const CONSTRUCT_TOILS: readonly Toil[] = [
   ),
   // Built from beside it, not on top of it: a colonist standing where a wall completes
   // would end up sealed inside their own masonry.
-  toilWalkAdjacentTo((job, world) => world.sites.get(asConstruct(job).site)?.pos ?? null),
+  toilWalkAdjacentTo((job, world) => {
+    const site = world.sites.get(asConstruct(job).site);
+    return site ? siteCells(site) : null;
+  }),
   toilWork({
     workNeeded: (ctx) => {
       const site = ctx.world.sites.get(asConstruct(ctx.job).site);
@@ -275,6 +282,19 @@ function deconstructTargetIndex(ctx: ToilContext): number {
 }
 
 /**
+ * The cells the demolition job is really about.
+ *
+ * A deconstruct job names one cell, because that is what the player marked. When a
+ * building stands there the job is about the *whole* building — falling back to the bare
+ * cell covers a floor, which has no building and is genuinely one cell.
+ */
+function deconstructCells(job: Job, world: World): TilePos[] {
+  const cell = asDeconstruct(job).cell;
+  const building = buildingAt(world, world.map.idx(cell.x, cell.y, cell.z));
+  return building ? buildingCells(building) : [cell];
+}
+
+/**
  * Taking a finished structure back down.
  *
  * Needs no `canProgress` guard, unlike its opposite number: deconstruction only ever
@@ -295,9 +315,11 @@ const DECONSTRUCT_TOILS: readonly Toil[] = [
     },
     (ctx, id) => ctx.world.buildings.get(id) !== undefined,
   ),
-  toilWalkAdjacentTo((job) => asDeconstruct(job).cell),
+  // The marked cell names the *structure*, so the pawn stands beside all of it. Beside
+  // the marked cell alone would be satisfied by another cell of the same 2x2 hearth.
+  toilWalkAdjacentTo((job, world) => deconstructCells(job, world)),
   toilWork({
-    besides: (job) => asDeconstruct(job).cell,
+    besides: (job, world) => deconstructCells(job, world),
     workNeeded: (ctx) => {
       const buildable = builtHere(ctx.world, deconstructTargetIndex(ctx));
       return buildable === undefined ? 0 : deconstructWork(buildable);
@@ -340,7 +362,10 @@ const STOCK_BENCH_TOILS: readonly Toil[] = [
   toilPickUp((job) => asStockBench(job).item),
   // Loaded from beside the bench: a campfire's own cell is impassable, so there is
   // nowhere to stand on it in the first place.
-  toilWalkAdjacentTo((job, world) => world.buildings.get(asStockBench(job).bench)?.pos ?? null),
+  toilWalkAdjacentTo((job, world) => {
+    const bench = world.buildings.get(asStockBench(job).bench);
+    return bench ? buildingCells(bench) : null;
+  }),
   toilDeposit((ctx, item) => {
     const bench = ctx.world.buildings.get(asStockBench(ctx.job).bench);
     if (!bench) return 0;
@@ -364,9 +389,15 @@ const CRAFT_TOILS: readonly Toil[] = [
     (job) => asCraft(job).bench,
     (ctx, id) => ctx.world.buildings.get(id) !== undefined,
   ),
-  toilWalkAdjacentTo((job, world) => world.buildings.get(asCraft(job).bench)?.pos ?? null),
+  toilWalkAdjacentTo((job, world) => {
+    const bench = world.buildings.get(asCraft(job).bench);
+    return bench ? buildingCells(bench) : null;
+  }),
   toilWork({
-    besides: (job, world) => world.buildings.get(asCraft(job).bench)?.pos ?? null,
+    besides: (job, world) => {
+      const bench = world.buildings.get(asCraft(job).bench);
+      return bench ? buildingCells(bench) : null;
+    },
     workNeeded: (ctx) => recipeDef(asCraft(ctx.job).recipe).work,
 
     // Re-checked every tick: the player may have deleted the bill, another cook may have

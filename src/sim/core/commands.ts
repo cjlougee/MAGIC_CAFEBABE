@@ -12,6 +12,7 @@
  */
 
 import type { BuildableId } from '../defs/buildables';
+import type { Rotation } from '../world/footprint';
 import type { ItemDefId } from '../defs/items';
 import type { RecipeId } from '../defs/recipes';
 import type { WorkTypeId } from '../defs/workTypes';
@@ -105,6 +106,13 @@ export interface BuildCommand {
   readonly type: 'build';
   readonly buildable: BuildableId;
   readonly area: TileRectangle;
+  /**
+   * Quarter turns clockwise, carried through construction to the finished structure.
+   *
+   * Optional so every existing caller and test keeps meaning what it meant. Absent is
+   * zero, which is the orientation every def is written in.
+   */
+  readonly rotation?: Rotation;
   /**
    * Skip the blueprint entirely and raise the finished structure.
    *

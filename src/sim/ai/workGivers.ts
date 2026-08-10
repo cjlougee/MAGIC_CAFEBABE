@@ -26,10 +26,12 @@ import type { Pawn } from '../entities/pawn';
 import { isRipe, type Plant } from '../entities/plant';
 import { builtHere } from '../world/construction';
 import { Designation } from '../world/designations';
+import { buildingCells } from '../entities/building';
+import { siteCells } from '../entities/constructionSite';
 import { buildingAt, countHeld } from '../world/lookup';
 import type { World } from '../world/world';
 import type { Job } from './job';
-import { bestAdjacentCell } from './toils';
+import { bestAdjacentCell, bestCellBeside } from './toils';
 
 export interface WorkGiver {
   readonly id: string;
@@ -206,7 +208,7 @@ const ConstructGiver: WorkGiver = {
 
       const distance = roughDistance(pawn.pos, site.pos);
       if (distance >= bestDistance) continue;
-      if (!bestAdjacentCell(world, site.pos, pawn.pos)) continue;
+      if (!bestCellBeside(world, siteCells(site), pawn.pos)) continue;
 
       bestDistance = distance;
       best = site;
@@ -247,8 +249,10 @@ const DeconstructGiver: WorkGiver = {
       if (distance >= bestDistance) continue;
 
       // Reachability last: the most expensive check, so only pay it for a candidate
-      // that would actually win.
-      if (!bestAdjacentCell(world, cell, pawn.pos)) continue;
+      // that would actually win. Beside the whole structure, matching the driver — a
+      // giver that judged by the marked cell alone would hand out jobs the driver then
+      // failed, or skip ones it could have done.
+      if (!bestCellBeside(world, building ? buildingCells(building) : [cell], pawn.pos)) continue;
 
       bestDistance = distance;
       best = cell;
@@ -331,7 +335,7 @@ const CookGiver: WorkGiver = {
         if (hasIngredientsFor(bench, bill)) {
           // Only the crafting is exclusive.
           if (!world.reservations.canReserveEntity(bench.id, pawn.id)) continue;
-          if (!bestAdjacentCell(world, bench.pos, pawn.pos)) continue;
+          if (!bestCellBeside(world, buildingCells(bench), pawn.pos)) continue;
           return { kind: 'craft', bench: bench.id, recipe: bill.recipe };
         }
 
@@ -353,7 +357,7 @@ const CookGiver: WorkGiver = {
         }
 
         if (!best) continue;
-        if (!bestAdjacentCell(world, bench.pos, pawn.pos)) continue;
+        if (!bestCellBeside(world, buildingCells(bench), pawn.pos)) continue;
 
         return { kind: 'stockBench', bench: bench.id, item: best.id };
       }

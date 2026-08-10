@@ -265,23 +265,43 @@ an undivided list that already strains at four entries. **Footprints come first 
 not one tile** — items 8 and 9 are both gated on it.
 
 ### M10 — Footprints *(item 6)*
-- [ ] `BuildingDef.footprint {w, h}`; `Building` and `ConstructionSite` carry a saved `rotation`,
-      with cells **derived** in one new `sim/world/footprint.ts` and never stored
-- [ ] Placement legality, occupancy lookup, grid stamping, walk-adjacent and deconstruct all move
+- [x] `BuildingDef.footprint {w, h}`; `Building` and `ConstructionSite` carry a saved `rotation`,
+      with cells **derived** in one new `sim/world/footprint.ts` and never stored — [ADR
+      0009](decisions/0009-footprints.md)
+- [x] Placement legality, occupancy lookup, grid stamping, walk-adjacent and deconstruct all move
       from "the cell" to "every cell" — `markDirtyAt` per cell, never the blanket `markDirty()`
-- [ ] Room flood-fill changes **not at all**, which is the test that the shape of the fix is right:
-      it reads `sealsRoomAt` off the grid, so stamping every cell is the whole of it
-- [ ] Save v6, rotation in **both** `serialize.ts` and `hashWorld()`. The v5 → v6 step widens
-      existing bedrolls and must rotate rather than overlap a wall the player built — using the
-      save's own blocks grid and frozen literals, never a live def
-- [ ] **Bedroll → 2×1**, plus a buildable **Bed** (2×1) and **Hearth** (2×2, impassable, does not
-      seal). Without one impassable multi-cell structure nothing exercises blocking across cells or
-      a footprint correctly failing to cut a room in two
+- [x] Room flood-fill changed **not at all**, which is the test that the shape of the fix was right:
+      it reads `sealsRoomAt` off the grid, so stamping every cell is the whole of it. Reachability,
+      A\* and the light wash came along for free for the same reason
+- [x] Save v6, rotation in **both** `serialize.ts` and `hashWorld()`. Two of the four rotations
+      cover identical cells, so a bed restored facing backwards round-trips perfectly by every
+      other measure — the hash is the only thing that would notice
+- [x] The v5 → v6 step widens existing bedrolls and **turns one rather than dropping it on a wall
+      the player built after landing**, reading the save's own blocks grid and frozen literals
+- [x] **Bedroll → 2×1**, plus a buildable **Bed** (2×1, on legs) and **Hearth** (2×2, impassable,
+      does not seal, carries the campfire's recipes). Without one impassable multi-cell structure
+      nothing exercises blocking across cells or a footprint correctly failing to cut a room in two
+- [x] **`sprites.html`** — the filmstrip's companion, every structure at every rotation over an
+      outline of the cells it claims. It found both real art bugs in the milestone within a minute
+      of existing, and both were invisible at play zoom: a capsule that drew as a bow-tie for two
+      of four facings, and a hearth drawn a whole storey above its own footprint
 - [ ] **Sleeping colonists lie down** — render-only, off the `asleep` flag the snapshot already
       carries. A separate change in the same milestone, not bundled into the footprint work
-- **Playable check:** place a bed, rotate it before committing, watch it get built; put a hearth in
-  a hut and the hut is still one room; mark half of it and the whole thing tints; deconstruct and
-  count the salvage once.
+- **Playable check:** ✅ placed a bed, rotated it before committing, watched two colonists deliver
+  scrap and stone and raise it — 200/100 stone/scrap went to 196/92, exactly its cost. Hearth lights
+  a night camp from the middle of its four cells rather than a corner. Asserted headless in
+  `tests/footprint.test.ts`; the projection's 1×1 equivalence in `tests/iso.test.ts`.
+
+**The constant sweep, run and reported.** Third milestone running that this has caught something,
+so both outstanding suspects were measured rather than assumed, over 24 seeds at 512²:
+
+- **`BUSH_DENSITY` is cleared.** It is a probability *per grass cell* (0.045), not a count per map,
+  and it measured 0.0451 — so it scaled with the world exactly as phrased. The suspicion was wrong,
+  which is worth as much as a finding.
+- **The landing-site search radius is confirmed, with a number.** `SEARCH_RADIUS` is 28 around the
+  map centre: a 57×57 box, **1.2% of the map's area**, so the chooser cannot even see a better site.
+  The consequence is measurable — nearest rock from the landing site has a median of 19 tiles and a
+  **max of 73**, and a quarter of seeds put the first stone 50+ tiles from home. Fix is M14's.
 
 See [`superpowers/specs/2026-08-10-multi-tile-footprints-design.md`](superpowers/specs/2026-08-10-multi-tile-footprints-design.md).
 

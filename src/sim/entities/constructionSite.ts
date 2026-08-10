@@ -14,26 +14,41 @@ import type { EntityId } from '../core/entityStore';
 import type { TilePos } from '../core/position';
 import { buildableDef, type BuildableId } from '../defs/buildables';
 import { type ItemDefId } from '../defs/items';
+import { cellsOf, footprintOfBuildable, type Rotation } from '../world/footprint';
 import { emptyLedger, hasAllOf, missingOf, outstandingOf } from './materials';
 
 export interface ConstructionSite {
   readonly id: EntityId;
   readonly def: BuildableId;
+  /** The anchor of the footprint this will become — see `entities/building.ts`. */
   readonly pos: TilePos;
+  /** Carried through construction so the finished building faces the way it was placed. */
+  readonly rotation: Rotation;
   /** Materials delivered so far, indexed by ItemDefId. */
   readonly delivered: number[];
   /** Construction effort accumulated once materials are complete. */
   workDone: number;
 }
 
-export function createSite(id: EntityId, def: BuildableId, pos: TilePos): ConstructionSite {
+export function createSite(
+  id: EntityId,
+  def: BuildableId,
+  pos: TilePos,
+  rotation: Rotation = 0,
+): ConstructionSite {
   return {
     id,
     def,
     pos,
+    rotation,
     delivered: emptyLedger(),
     workDone: 0,
   };
+}
+
+/** The cells this site occupies — the footprint of whatever it is becoming. */
+export function siteCells(site: ConstructionSite): TilePos[] {
+  return cellsOf(site.pos, footprintOfBuildable(site.def), site.rotation);
 }
 
 // The three questions below are the *same* three a workbench asks about its ingredients,

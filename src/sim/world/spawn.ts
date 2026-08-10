@@ -18,6 +18,7 @@ import { Terrain } from '../defs/terrain';
 import { createBuilding, type Building as BuildingEntity } from '../entities/building';
 import { createPawn, type Pawn, type PawnAppearance } from '../entities/pawn';
 import { createPlant, type Plant } from '../entities/plant';
+import { cellsOf, footprintOfBuilding, type Rotation } from '../world/footprint';
 import type { TileMap } from '../world/tilemap';
 
 /** Radius of the openness sample around a candidate site. */
@@ -198,17 +199,53 @@ function rollName(rng: Rng, used: Set<string>): string {
   return `${rng.pick(FIRST_NAMES)} ${rng.pick(SURNAMES)}`;
 }
 
-/** Bedrolls the party brought with them, laid out around the landing site. */
+/**
+ * Bedrolls the party brought with them, laid out around the landing site.
+ *
+ * A bedroll is 2×1, so "a storable cell" is no longer enough — the *pair* has to be
+ * clear, and clear of the bedrolls already laid. The fit test therefore claims as it
+ * accepts, and is passed **into** the search rather than applied to its results: taking
+ * the nearest N cells and filtering afterwards returns fewer than were asked for instead
+ * of looking further out, which is how a party landing beside a pond once lost the
+ * bedrolls it arrived with.
+ *
+ * Only rotations 0 and 1 are tried. 2 and 3 cover exactly the same cells and differ only
+ * in which end the pillow is at, so testing them would be testing the same two cells
+ * twice.
+ */
 export function placeBedrolls(
   map: TileMap,
   buildings: EntityStore<BuildingEntity>,
   site: TilePos,
   count: number,
 ): void {
-  const cells = nearbyCells(map, site, count, (m, x, y, z) => m.isStorable(x, y, z));
+  const footprint = footprintOfBuilding(Building.Bedroll);
+  const claimed = new Set<number>();
+  const chosen = new Map<number, Rotation>();
 
-  for (let i = 0; i < count && i < cells.length; i++) {
-    buildings.add((id) => createBuilding(id, Building.Bedroll, cells[i]));
+  const fits: CellTest = (m, x, y, z) => {
+    const anchor = { x, y, z };
+    for (const rotation of [0, 1] as const) {
+      const cells = cellsOf(anchor, footprint, rotation);
+      const clear = cells.every(
+        (cell) =>
+          m.isStorable(cell.x, cell.y, cell.z) && !claimed.has(m.idx(cell.x, cell.y, cell.z)),
+      );
+      if (!clear) continue;
+
+      for (const cell of cells) claimed.add(m.idx(cell.x, cell.y, cell.z));
+      chosen.set(m.idx(x, y, z), rotation);
+      return true;
+    }
+    return false;
+  };
+
+  const anchors = nearbyCells(map, site, count, fits);
+
+  for (let i = 0; i < count && i < anchors.length; i++) {
+    const anchor = anchors[i];
+    const rotation = chosen.get(map.idx(anchor.x, anchor.y, anchor.z)) ?? 0;
+    buildings.add((id) => createBuilding(id, Building.Bedroll, anchor, rotation));
   }
 }
 

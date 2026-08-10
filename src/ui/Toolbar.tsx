@@ -8,6 +8,7 @@
 
 import type { Tool } from '../input/worldInput';
 import { BUILDABLE_DEFS, type BuildableId } from '../sim/defs/buildables';
+import { footprintOfBuildable, isSingleCell, type Rotation } from '../sim/world/footprint';
 import { ITEM_DEFS } from '../sim/defs/items';
 
 interface ToolOption {
@@ -37,18 +38,25 @@ function costLabel(id: BuildableId): string {
 interface ToolbarProps {
   readonly active: Tool;
   readonly buildable: BuildableId;
+  readonly buildRotation: Rotation;
   readonly workPanelOpen: boolean;
   readonly onPick: (tool: Tool) => void;
   readonly onPickBuildable: (buildable: BuildableId) => void;
+  readonly onRotate: () => void;
   readonly onToggleWork: () => void;
 }
+
+/** Which way a footprint runs on screen, in words the player can check against the map. */
+const FACING = ['SE', 'SW', 'NW', 'NE'] as const;
 
 export function Toolbar({
   active,
   buildable,
+  buildRotation,
   workPanelOpen,
   onPick,
   onPickBuildable,
+  onRotate,
   onToggleWork,
 }: ToolbarProps) {
   return (
@@ -68,6 +76,21 @@ export function Toolbar({
               <span className="toolbar__cost">{costLabel(def.id)}</span>
             </button>
           ))}
+          {/*
+            Only shown for a blueprint that has a long axis. A rotate button on a wall is
+            a control that visibly does nothing, which teaches the player it is broken.
+          */}
+          {!isSingleCell(footprintOfBuildable(buildable)) && (
+            <button
+              type="button"
+              title="Turn the blueprint a quarter turn (R)"
+              className="toolbar__button"
+              onClick={onRotate}
+            >
+              Rotate ⟳
+              <span className="toolbar__cost">{FACING[buildRotation]}</span>
+            </button>
+          )}
         </nav>
       )}
 

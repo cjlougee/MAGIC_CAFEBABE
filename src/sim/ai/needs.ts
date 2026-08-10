@@ -15,6 +15,7 @@ import { thoughtDef } from '../defs/thoughts';
 import { isBed, type Building } from '../entities/building';
 import { isOnGround, type Item } from '../entities/item';
 import type { Pawn } from '../entities/pawn';
+import { footprintOfBuilding, headCellOf } from '../world/footprint';
 import type { World } from '../world/world';
 import type { Job } from './job';
 import { addThought } from './mood';
@@ -86,6 +87,11 @@ function findFood(world: World, pawn: Pawn): Item | null {
   return best;
 }
 
+/** Where a colonist lies on this bed — its facing end. */
+function bedHeadCell(bed: Building): TilePos {
+  return headCellOf(bed.pos, footprintOfBuilding(bed.def), bed.rotation);
+}
+
 /** Nearest reachable bed nobody else has claimed or owns. */
 function findBed(world: World, pawn: Pawn): Building | null {
   let best: Building | null = null;
@@ -131,8 +137,11 @@ export function findNeedJob(world: World, pawn: Pawn): Job | null {
     return {
       kind: 'sleep',
       bed: bed ? bed.id : null,
+      // The head end, not the anchor: on a 2x1 bed those differ for two of the four
+      // rotations, and lying at the foot is the sort of thing nobody notices until the
+      // sleeping pose lands on top of it.
       // Sleeping rough is worse than a bed, but far better than not sleeping.
-      spot: bed ? bed.pos : ({ ...pawn.pos } as TilePos),
+      spot: bed ? bedHeadCell(bed) : ({ ...pawn.pos } as TilePos),
     };
   }
 

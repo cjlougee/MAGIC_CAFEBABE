@@ -16,8 +16,8 @@ import {
 } from '../defs/buildables';
 import { buildingDef } from '../defs/buildings';
 import type { ItemDefId } from '../defs/items';
-import { createBuilding } from '../entities/building';
-import type { ConstructionSite } from '../entities/constructionSite';
+import { buildingCells, createBuilding } from '../entities/building';
+import { siteCells, type ConstructionSite } from '../entities/constructionSite';
 import { ledgerContents } from '../entities/materials';
 import { Designation } from './designations';
 import { buildingAt } from './lookup';
@@ -30,8 +30,18 @@ export function completeConstruction(world: World, site: ConstructionSite): void
   const result = def.result;
   if (result.kind === 'building') {
     const structure = buildingDef(result.building);
-    world.buildings.add((id) => createBuilding(id, result.building, site.pos));
-    world.map.setBuildingAt(index, !structure.passable, structure.blocksRoom);
+    const building = world.buildings.add((id) =>
+      createBuilding(id, result.building, site.pos, site.rotation),
+    );
+    // Every cell the structure stands on, not just the anchor. A 2×2 hearth that only
+    // stamped one cell would be walked through on the other three.
+    for (const cell of buildingCells(building)) {
+      world.map.setBuildingAt(
+        world.map.idx(cell.x, cell.y, cell.z),
+        !structure.passable,
+        structure.blocksRoom,
+      );
+    }
   } else {
     // A *surface*, laid over ground that is remembered. Deconstructing the floor later
     // has to put back sand where there was sand, not a default we invented.
@@ -41,9 +51,12 @@ export function completeConstruction(world: World, site: ConstructionSite): void
   world.sites.remove(site.id);
 
   // Both change for the same reason — the shape of the world just changed. Reachability
-  // is told *which* cell, because on a 512² map a blanket invalidation is a 60 ms stall
-  // and there are sixteen of them in a hut. See ADR 0007.
-  world.reachability.markDirtyAt(index);
+  // is told *which* cells, because on a 512² map a blanket invalidation is a 60 ms stall
+  // and there are sixteen of them in a hut. Per cell rather than per structure, for the
+  // same reason. See ADR 0007.
+  for (const cell of siteCells(site)) {
+    world.reachability.markDirtyAt(world.map.idx(cell.x, cell.y, cell.z));
+  }
   world.rooms.markDirty();
 }
 
@@ -85,8 +98,6 @@ export function deconstruct(world: World, index: number): boolean {
   const buildable = builtHere(world, index);
   if (buildable === undefined) return false;
 
-  const pos = { x: world.map.xOf(index), y: world.map.yOf(index), z: world.map.zOf(index) };
-
   const building = buildingAt(world, index);
   // Read before the structure comes down, dropped after — a workbench may be holding
   // ingredients somebody carried across the map, and demolishing a stocked campfire must
@@ -94,21 +105,37 @@ export function deconstruct(world: World, index: number): boolean {
   // it obeys the same rule: nothing is placed until the cell is free to receive it.
   const stranded = building ? ledgerContents(building.loaded) : [];
 
+  // A multi-tile structure comes down as one thing however many of its cells were
+  // marked, and the salvage lands at its anchor rather than wherever the mark was
+  // clicked. Refunding per marked cell would let a 2×2 hearth pay out four times.
+  const cells = building ? buildingCells(building) : [cellOf(world, index)];
+  const pos = cells[0];
+
   if (building) {
     world.buildings.remove(building.id);
-    world.map.setBuildingAt(index, false, false);
+    for (const cell of cells) {
+      world.map.setBuildingAt(world.map.idx(cell.x, cell.y, cell.z), false, false);
+    }
   } else {
     // Back to the ground it was laid over, which the map remembered for exactly this.
     world.map.setSurfaceAt(index, world.map.naturalTerrainAt(index));
   }
 
-  world.designations.remove(Designation.Deconstruct, index);
+  for (const cell of cells) {
+    world.designations.remove(Designation.Deconstruct, world.map.idx(cell.x, cell.y, cell.z));
+  }
 
   for (const salvage of [...refundFor(buildable), ...stranded]) {
     world.items.spawn(world.map, salvage.def, salvage.count, pos);
   }
 
-  world.reachability.markDirtyAt(index);
+  for (const cell of cells) {
+    world.reachability.markDirtyAt(world.map.idx(cell.x, cell.y, cell.z));
+  }
   world.rooms.markDirty();
   return true;
+}
+
+function cellOf(world: World, index: number) {
+  return { x: world.map.xOf(index), y: world.map.yOf(index), z: world.map.zOf(index) };
 }

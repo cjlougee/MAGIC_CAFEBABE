@@ -19,10 +19,11 @@ import { isOnGround } from '../../sim/entities/item';
 import { pawnVisualPos, type Pawn, type PawnAppearance } from '../../sim/entities/pawn';
 import { ripeness } from '../../sim/entities/plant';
 import { Designation } from '../../sim/world/designations';
+import { footprintOfBuilding, sizeOf } from '../../sim/world/footprint';
 import type { World } from '../../sim/world/world';
 import type { ArtProvider } from '../art/artProvider';
 import { Palette } from '../art/palette';
-import { buildProgress } from '../../sim/entities/constructionSite';
+import { buildProgress, siteCells } from '../../sim/entities/constructionSite';
 import { BUILDING_HEIGHT, siteStageFor } from '../art/buildingArt';
 import { ITEM_GROUND_Y, ITEM_H, ITEM_W } from '../art/itemArt';
 import { PAWN_GROUND_Y, PAWN_H } from '../art/pawnArt';
@@ -31,7 +32,7 @@ import { terrainHeight, variantForCell } from '../art/terrainArt';
 import type { TerrainTintField } from '../art/terrainTint';
 import type { TileRect, WorldRect } from '../camera/camera';
 import { HALF_TILE_H, HALF_TILE_W } from '../constants';
-import { tileToWorld } from '../iso';
+import { footprintBounds, tileToWorld } from '../iso';
 import { collectOccluders } from '../occlusion';
 
 /** How transparent an occluding tile becomes. Low enough to clearly read the pawn. */
@@ -113,12 +114,20 @@ export class ObjectLayer {
 
     for (const building of world.buildings.values()) {
       const height = BUILDING_HEIGHT[building.def] ?? 0;
-      const at = tileToWorld(building.pos.x, building.pos.y, building.pos.z);
-      if (at.x + HALF_TILE_W < visible.x0 || at.x - HALF_TILE_W > visible.x1) continue;
-      if (at.y + HALF_TILE_H < visible.y0 || at.y - HALF_TILE_H - height > visible.y1) continue;
+      const { w, h } = sizeOf(footprintOfBuilding(building.def), building.rotation);
+      const box = footprintBounds(
+        building.pos.x,
+        building.pos.y,
+        w,
+        h,
+        building.pos.z,
+        height,
+      );
+      if (box.left + box.width < visible.x0 || box.left > visible.x1) continue;
+      if (box.top + box.height < visible.y0 || box.top > visible.y1) continue;
 
       const sprite = this.fromPool(this.buildingPool, used++, 0, 0);
-      sprite.texture = this.art.building(building.def);
+      sprite.texture = this.art.building(building.def, building.rotation);
 
       /*
        * Marked-for-demolition is shown *on the structure*, because it cannot be shown
@@ -136,16 +145,21 @@ export class ObjectLayer {
         : 0xffffff;
       // Same offset rule as raised terrain: the texture's base diamond sits `height`
       // pixels down from its top edge, so the footprint lands on the ground plane.
-      sprite.position.set(at.x - HALF_TILE_W, at.y - HALF_TILE_H - height);
+      sprite.position.set(box.left, box.top);
       /*
        * Raised structures sort with the *pawn* bias, not the floor bias.
        *
        * A wall is a tall thing standing on a cell, exactly like a rock — sorting it
        * under items would draw a stone pile in front of the wall behind it. Flat
        * buildings keep the floor bias so a bedroll stays under whoever sleeps on it.
+       *
+       * Depth is the footprint's *nearest* corner, not its anchor: one sprite covering
+       * several cells has to draw after everything behind all of them, or a 2x2 hearth
+       * would be overdrawn by the very tiles it stands on.
        */
       const bias = height > 0 ? ENTITY_BIAS - 1 : BUILDING_BIAS;
-      sprite.zIndex = (building.pos.x + building.pos.y) * DEPTH_SCALE + bias;
+      const depth = building.pos.x + w - 1 + (building.pos.y + h - 1);
+      sprite.zIndex = depth * DEPTH_SCALE + bias;
       sprite.visible = true;
     }
 
@@ -156,15 +170,22 @@ export class ObjectLayer {
     let used = 0;
 
     for (const site of world.sites.values()) {
-      const at = tileToWorld(site.pos.x, site.pos.y, site.pos.z);
-      if (at.x + HALF_TILE_W < visible.x0 || at.x - HALF_TILE_W > visible.x1) continue;
-      if (at.y + HALF_TILE_H < visible.y0 || at.y - HALF_TILE_H > visible.y1) continue;
+      const texture = this.art.site(siteStageFor(buildProgress(site)));
 
-      const sprite = this.fromPool(this.sitePool, used++, 0, 0);
-      sprite.texture = this.art.site(siteStageFor(buildProgress(site)));
-      sprite.position.set(at.x - HALF_TILE_W, at.y - HALF_TILE_H);
-      sprite.zIndex = (site.pos.x + site.pos.y) * DEPTH_SCALE + BUILDING_BIAS + 1;
-      sprite.visible = true;
+      // One marker per cell rather than one stretched sprite. A blueprint is a promise
+      // about *ground*, and saying so cell by cell is both honest and free — the site
+      // texture is flat, so nothing about it needs to know the footprint's shape.
+      for (const cell of siteCells(site)) {
+        const at = tileToWorld(cell.x, cell.y, cell.z);
+        if (at.x + HALF_TILE_W < visible.x0 || at.x - HALF_TILE_W > visible.x1) continue;
+        if (at.y + HALF_TILE_H < visible.y0 || at.y - HALF_TILE_H > visible.y1) continue;
+
+        const sprite = this.fromPool(this.sitePool, used++, 0, 0);
+        sprite.texture = texture;
+        sprite.position.set(at.x - HALF_TILE_W, at.y - HALF_TILE_H);
+        sprite.zIndex = (cell.x + cell.y) * DEPTH_SCALE + BUILDING_BIAS + 1;
+        sprite.visible = true;
+      }
     }
 
     this.hideRest(this.sitePool, used);

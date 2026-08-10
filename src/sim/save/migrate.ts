@@ -10,7 +10,7 @@
  * a file as it was *then*. Freeze the literal in the step and say what it was.
  */
 
-import { SAVE_VERSION, type SaveData } from './serialize';
+import { decodeRle, SAVE_VERSION, type SaveData } from './serialize';
 
 export class SaveVersionError extends Error {
   constructor(message: string) {
@@ -137,12 +137,61 @@ function addDraftAndPlayerCharacter(save: Record<string, unknown>): Record<strin
   };
 }
 
+// Frozen as they stood at save version 5. `Bedroll` was building id 0, and v6 is the
+// version that widened it from one cell to two. Deliberately literals rather than
+// `Building.Bedroll` or `footprintOfBuilding(...)`: those describe the game now, and if
+// the building table is ever renumbered this step must still read an old file correctly.
+const V5_BEDROLL = 0;
+const V5_BEDROLL_WIDTH = 2;
+
+/**
+ * v5 → v6: buildings and sites gain a rotation, and the bedroll gains a second cell.
+ *
+ * Rotation is simply zero for everything: nothing could be rotated before this version,
+ * so every structure was in its default orientation and saying so is not a guess.
+ *
+ * The bedroll is a guess, and it is the interesting half. Widening it to 2×1 extends it
+ * one cell east, and in an old colony that cell may hold a wall the player built after
+ * landing. So the step reads the save's *own* blocking grid — it must not consult the
+ * live map, which does not exist yet at migration time — and turns the bedroll a quarter
+ * turn if east is occupied. If south is occupied too, the bedroll stays where it is and
+ * overlaps: a bedroll is passable and seals no room, so a residual overlap is untidy on
+ * screen rather than a corrupt grid, and refusing to load a colony over it would be a
+ * far worse trade.
+ */
+function addRotationAndWidenBedrolls(save: Record<string, unknown>): Record<string, unknown> {
+  const map = save.map as { width: number; height: number; blocks: number[] };
+  const blocks = decodeRle(map.blocks, map.width * map.height);
+  const buildings = save.buildings as Record<string, unknown>[];
+
+  const occupied = (x: number, y: number): boolean => {
+    if (x < 0 || y < 0 || x >= map.width || y >= map.height) return true;
+    return blocks[y * map.width + x] !== 0;
+  };
+
+  return {
+    ...save,
+    version: 6,
+    buildings: buildings.map((building) => {
+      if (building.def !== V5_BEDROLL) return { ...building, rotation: 0 };
+
+      const pos = building.pos as { x: number; y: number };
+      const eastClear = !occupied(pos.x + V5_BEDROLL_WIDTH - 1, pos.y);
+      const southClear = !occupied(pos.x, pos.y + V5_BEDROLL_WIDTH - 1);
+
+      return { ...building, rotation: eastClear || !southClear ? 0 : 1 };
+    }),
+    sites: (save.sites as Record<string, unknown>[]).map((site) => ({ ...site, rotation: 0 })),
+  };
+}
+
 /** Keyed by the version being upgraded *from*. */
 const STEPS: Record<number, MigrationStep> = {
   1: addNaturalTerrain,
   2: addWorkbenchesAndCook,
   3: addPointsOfInterest,
   4: addDraftAndPlayerCharacter,
+  5: addRotationAndWidenBedrolls,
 };
 
 /**

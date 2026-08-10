@@ -10,8 +10,10 @@
  * shallow ford but must not leave a crate in it. See docs/decisions/0004-water.md.
  */
 
-import { buildableProducing, buildableProducingTerrain } from '../defs/buildables';
+import type { TilePos } from '../core/position';
+import { buildableProducing, buildableProducingTerrain, type BuildableId } from '../defs/buildables';
 import { isMineable } from '../defs/terrain';
+import { cellsOf, footprintOfBuildable, type Rotation } from './footprint';
 import { buildingAt, siteAt } from './lookup';
 import type { TileMap } from './tilemap';
 import type { World } from './world';
@@ -57,7 +59,26 @@ export function canPlaceStockpile(map: TileMap, cellIndex: number): boolean {
  * Uses `isStorableAt` for the same reason stockpiles do — you cannot build in a river,
  * and bridges are a later problem. The occupancy checks stop a drag across an existing
  * wall from queueing a second wall on top of it.
+ *
+ * **Every cell of the footprint must pass, and one failure is enough.** A 2×2 hearth
+ * with three good cells and one in a stream is not three-quarters placeable; it is
+ * refused. Getting this wrong would let the player build across a river bank and then
+ * wonder why the salvage from deconstructing it vanished.
  */
+export function canPlaceFootprint(
+  world: World,
+  anchor: TilePos,
+  buildable: BuildableId,
+  rotation: Rotation,
+): boolean {
+  for (const cell of cellsOf(anchor, footprintOfBuildable(buildable), rotation)) {
+    if (!world.map.inBounds(cell.x, cell.y, cell.z)) return false;
+    if (!canPlaceBlueprint(world, world.map.idx(cell.x, cell.y, cell.z))) return false;
+  }
+  return true;
+}
+
+/** Whether a single cell could take a blueprint. The footprint check above calls it per cell. */
 export function canPlaceBlueprint(world: World, cellIndex: number): boolean {
   if (!world.map.isStorableAt(cellIndex)) return false;
   if (buildingAt(world, cellIndex)) return false;

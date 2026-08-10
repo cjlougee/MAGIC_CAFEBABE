@@ -11,12 +11,12 @@
  * that is the signal a toil is missing.
  */
 
-import { GROUND_LEVEL, samePos, type TilePos } from '../core/position';
+import { samePos, type TilePos } from '../core/position';
 import { Need } from '../defs/needs';
 import type { Item } from '../entities/item';
 import type { Pawn } from '../entities/pawn';
 import { clearPath } from '../entities/pawn';
-import { DIRECTIONS } from '../pathfind/neighbours';
+import { cellsAdjacentTo, isAdjacentToFootprint } from '../world/footprint';
 import type { World } from '../world/world';
 import type { ActiveJob, Job } from './job';
 
@@ -37,12 +37,6 @@ export interface Toil {
 /** Give up after this many failed route attempts within one toil. */
 const MAX_PATH_ATTEMPTS = 3;
 
-function isAdjacent(a: TilePos, b: TilePos): boolean {
-  return (
-    a.z === b.z && Math.abs(a.x - b.x) <= 1 && Math.abs(a.y - b.y) <= 1 && !samePos(a, b)
-  );
-}
-
 /**
  * The reachable open cell beside `target` that is nearest to `from`.
  *
@@ -51,13 +45,26 @@ function isAdjacent(a: TilePos, b: TilePos): boolean {
  * be eight searches to answer a question one search can settle.
  */
 export function bestAdjacentCell(world: World, target: TilePos, from: TilePos): TilePos | null {
-  const z = target.z ?? GROUND_LEVEL;
+  return bestCellBeside(world, [target], from);
+}
+
+/**
+ * The same, for something standing on more than one cell.
+ *
+ * Candidates come from `cellsAdjacentTo`, which excludes the footprint itself — so a
+ * colonist told to work on a 2×2 hearth stands outside it rather than discovering that
+ * one of its own cells is "adjacent" to another.
+ */
+export function bestCellBeside(
+  world: World,
+  cells: readonly TilePos[],
+  from: TilePos,
+): TilePos | null {
   let best: TilePos | null = null;
   let bestDistance = Infinity;
 
-  for (const [dx, dy] of DIRECTIONS) {
-    const cell = { x: target.x + dx, y: target.y + dy, z };
-    if (!world.map.isPassable(cell.x, cell.y, z)) continue;
+  for (const cell of cellsAdjacentTo(cells)) {
+    if (!world.map.isPassable(cell.x, cell.y, cell.z)) continue;
     if (!world.reachability.canReach(from, cell)) continue;
 
     const distance = Math.abs(cell.x - from.x) + Math.abs(cell.y - from.y);
@@ -189,25 +196,35 @@ export function toilWalkTo(pick: (job: Job, world: World) => TilePos | null): To
 }
 
 /**
- * Walks to any open cell touching the target.
+ * Walks to any open cell touching the target, recomputed each tick rather than fixed on
+ * arrival — a colonist whose chosen approach gets blocked mid-walk picks another instead
+ * of failing the job.
  *
- * Recomputed each tick rather than fixed on arrival, so a colonist whose chosen
- * approach gets blocked mid-walk simply picks another instead of failing the job.
+ * The picker may return one cell or a whole footprint. Callers that own a building or a
+ * site hand over its cells, so "beside it" means beside the *structure* rather than
+ * beside whichever cell happened to be its anchor — otherwise a colonist told to work on
+ * a 2×2 hearth would stand at the far corner of it, reach nothing, and never say why.
  */
-export function toilWalkAdjacentTo(pick: (job: Job, world: World) => TilePos | null): Toil {
+export function toilWalkAdjacentTo(
+  pick: (job: Job, world: World) => TilePos | readonly TilePos[] | null,
+): Toil {
   return {
     name: 'walkAdjacentTo',
     tick: (ctx) => {
       const target = pick(ctx.job, ctx.world);
       if (!target) return 'failed';
-      if (isAdjacent(ctx.pawn.pos, target) && !ctx.pawn.moveTarget) {
+
+      const cells = Array.isArray(target) ? (target as readonly TilePos[]) : [target as TilePos];
+      if (cells.length === 0) return 'failed';
+
+      if (isAdjacentToFootprint(ctx.pawn.pos, cells) && !ctx.pawn.moveTarget) {
         // See toilWalkTo: a stale route would walk the pawn away from its own work.
         clearPath(ctx.pawn);
         return 'done';
       }
       if (ctx.pawn.moveTarget || ctx.pawn.pathIndex < ctx.pawn.path.length) return 'running';
 
-      const stand = bestAdjacentCell(ctx.world, target, ctx.pawn.pos);
+      const stand = bestCellBeside(ctx.world, cells, ctx.pawn.pos);
       if (!stand) return 'failed';
       return routeTo(ctx, stand);
     },
@@ -228,13 +245,14 @@ export function toilWork(options: {
   readonly complete: (ctx: ToilContext) => void;
   readonly rate?: number;
   /**
-   * Cell the pawn must stay beside. Work stops if they end up somewhere else.
+   * Cell — or footprint — the pawn must stay beside. Work stops if they end up
+   * somewhere else, including *on* the structure.
    *
    * Takes the world for the same reason `toilReserveEntity`'s `pick` does: some targets
    * are named by id and have to be looked up. `null` means the target is gone, which is
    * a failure rather than a licence to work next to nothing.
    */
-  readonly besides?: (job: Job, world: World) => TilePos | null;
+  readonly besides?: (job: Job, world: World) => TilePos | readonly TilePos[] | null;
   /**
    * Whether work may advance right now.
    *
@@ -254,7 +272,9 @@ export function toilWork(options: {
       // alternative is mining a rock from across the map with no visible cause.
       if (options.besides) {
         const beside = options.besides(ctx.job, ctx.world);
-        if (!beside || !isAdjacent(ctx.pawn.pos, beside)) return 'failed';
+        if (!beside) return 'failed';
+        const cells = Array.isArray(beside) ? (beside as readonly TilePos[]) : [beside as TilePos];
+        if (!isAdjacentToFootprint(ctx.pawn.pos, cells)) return 'failed';
       }
 
       ctx.active.workDone += options.rate ?? 1;

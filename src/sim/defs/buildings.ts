@@ -1,17 +1,35 @@
 /**
  * Buildings.
  *
- * Only bedrolls so far, and they arrive *with* the landing party rather than being
- * constructed. Construction is M4; giving the player a placeholder build tool now would
- * mean writing code M4 immediately deletes. A landing party carrying bedrolls is honest
- * fiction, and it leaves M4 free to deliver proper beds as a genuine upgrade.
+ * Bedrolls arrive *with* the landing party rather than being constructed — honest
+ * fiction, and it left M4 free to deliver proper beds as a genuine upgrade. M10 is where
+ * that upgrade finally arrives, because a bed is 2×1 and until footprints existed there
+ * was no way to say so.
+ *
+ * **Ids are append-only.** They are written into every save, so inserting one in the
+ * middle silently reinterprets every building in every existing colony.
  */
+
+/**
+ * Cells a structure stands on, before rotation, `w` along +x.
+ *
+ * Declared here rather than beside the arithmetic in `world/footprint.ts` so the
+ * dependency runs one way: content declares the shape, the world layer interprets it.
+ */
+export interface Footprint {
+  readonly w: number;
+  readonly h: number;
+}
+
+export const SINGLE_CELL: Footprint = { w: 1, h: 1 };
 
 export const Building = {
   Bedroll: 0,
   Wall: 1,
   Door: 2,
   Campfire: 3,
+  Bed: 4,
+  Hearth: 5,
 } as const;
 
 export type BuildingId = (typeof Building)[keyof typeof Building];
@@ -19,6 +37,13 @@ export type BuildingId = (typeof Building)[keyof typeof Building];
 export interface BuildingDef {
   readonly id: BuildingId;
   readonly name: string;
+  /**
+   * Cells this stands on, before rotation, `w` along +x.
+   *
+   * The cells themselves are derived from this plus the instance's rotation and never
+   * saved — see `world/footprint.ts`, which is the only place that arithmetic lives.
+   */
+  readonly footprint: Footprint;
   /** Colonists can sleep here, and sleeping here is better than the ground. */
   readonly isBed: boolean;
   /**
@@ -42,17 +67,52 @@ export interface BuildingDef {
 
 /** Indexed by BuildingId — array position must equal `id`. */
 export const BUILDING_DEFS: readonly BuildingDef[] = [
-  { id: Building.Bedroll, name: 'Bedroll', isBed: true, lightRadius: 0, passable: true, blocksRoom: false },
-  { id: Building.Wall, name: 'Wall', isBed: false, lightRadius: 0, passable: false, blocksRoom: true },
-  { id: Building.Door, name: 'Door', isBed: false, lightRadius: 0, passable: true, blocksRoom: true },
+  // 2×1, and always was in fiction — a person does not sleep folded in half. It read as
+  // one cell only because one cell was all a building could be.
+  {
+    id: Building.Bedroll,
+    name: 'Bedroll',
+    footprint: { w: 2, h: 1 },
+    isBed: true,
+    lightRadius: 0,
+    passable: true,
+    blocksRoom: false,
+  },
+  { id: Building.Wall, name: 'Wall', footprint: SINGLE_CELL, isBed: false, lightRadius: 0, passable: false, blocksRoom: true },
+  { id: Building.Door, name: 'Door', footprint: SINGLE_CELL, isBed: false, lightRadius: 0, passable: true, blocksRoom: true },
   // Impassable but not a room edge: you cannot walk through a fire, and a fire in the
   // middle of a hut must not cut the hut into two rooms. Exactly the case those two
   // flags were kept separate for.
   {
     id: Building.Campfire,
     name: 'Campfire',
+    footprint: SINGLE_CELL,
     isBed: false,
     lightRadius: 6,
+    passable: false,
+    blocksRoom: false,
+  },
+  // The upgrade the roadmap promised in M4 and could not deliver until a building was
+  // allowed to be longer than it is wide. Passable, because you walk onto a bed to
+  // sleep in it.
+  {
+    id: Building.Bed,
+    name: 'Bed',
+    footprint: { w: 2, h: 1 },
+    isBed: true,
+    lightRadius: 0,
+    passable: true,
+    blocksRoom: false,
+  },
+  // The first structure that is impassable across *several* cells, which is the case a
+  // 2×1 bedroll cannot exercise: blocking, standing beside rather than on, and a solid
+  // object inside a hut that must not cut the hut into two rooms.
+  {
+    id: Building.Hearth,
+    name: 'Hearth',
+    footprint: { w: 2, h: 2 },
+    isBed: false,
+    lightRadius: 9,
     passable: false,
     blocksRoom: false,
   },

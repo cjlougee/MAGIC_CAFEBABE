@@ -6,7 +6,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { HALF_TILE_H, HALF_TILE_W, LEVEL_HEIGHT, TILE_H, TILE_W } from '../src/render/constants';
-import { tileDepth, tileToWorld, worldDeltaToTile, worldToTile } from '../src/render/iso';
+import { footprintBounds, tileDepth, tileToWorld, worldDeltaToTile, worldToTile } from '../src/render/iso';
+import { GROUND_LEVEL } from '../src/sim/core/position';
 
 describe('isometric projection', () => {
   it('puts the origin tile at the world origin', () => {
@@ -119,6 +120,60 @@ describe('draw order', () => {
         expect(indexOf(x, y + 1)).toBeGreaterThan(indexOf(x, y));
         expect(tileDepth(x + 1, y)).toBeGreaterThan(tileDepth(x, y));
         expect(tileDepth(x, y + 1)).toBeGreaterThan(tileDepth(x, y));
+      }
+    }
+  });
+});
+
+describe('footprint bounds', () => {
+  it('reduces to a single tile at 1x1', () => {
+    // The check the whole multi-tile generalisation rests on: every existing single-tile
+    // sprite must land exactly where it always did. `ObjectLayer` used to position
+    // buildings at `(centre.x - HALF_TILE_W, centre.y - HALF_TILE_H - height)` with a
+    // frame of `TILE_W x (TILE_H + height)`, so that is what 1x1 has to produce.
+    for (const [x, y, rise] of [
+      [0, 0, 0],
+      [7, 3, 22],
+      [40, 41, 14],
+    ]) {
+      const centre = tileToWorld(x, y);
+      const box = footprintBounds(x, y, 1, 1, GROUND_LEVEL, rise);
+
+      expect(box.left).toBe(centre.x - HALF_TILE_W);
+      expect(box.top).toBe(centre.y - HALF_TILE_H - rise);
+      expect(box.width).toBe(TILE_W);
+      expect(box.height).toBe(TILE_H + rise);
+    }
+  });
+
+  it('grows along both screen diagonals, not along one tile axis', () => {
+    // A 2x1 and a 1x2 occupy the same *area* and the same bounding box size, because in
+    // 2:1 isometric both are one tile along each screen diagonal. Getting this wrong
+    // gives a rotated bed a frame that crops it.
+    const along = footprintBounds(10, 10, 2, 1);
+    const across = footprintBounds(10, 10, 1, 2);
+
+    expect(along.width).toBe(3 * HALF_TILE_W);
+    expect(along.height).toBe(3 * HALF_TILE_H);
+    expect(across.width).toBe(along.width);
+    expect(across.height).toBe(along.height);
+
+    // They are not in the same place, though: the 1x2 reaches further down-left.
+    expect(across.left).toBeLessThan(along.left);
+  });
+
+  it('covers every cell of the footprint it describes', () => {
+    const w = 2;
+    const h = 2;
+    const box = footprintBounds(5, 6, w, h);
+
+    for (let dy = 0; dy < h; dy++) {
+      for (let dx = 0; dx < w; dx++) {
+        const centre = tileToWorld(5 + dx, 6 + dy);
+        expect(centre.x - HALF_TILE_W).toBeGreaterThanOrEqual(box.left);
+        expect(centre.x + HALF_TILE_W).toBeLessThanOrEqual(box.left + box.width);
+        expect(centre.y - HALF_TILE_H).toBeGreaterThanOrEqual(box.top);
+        expect(centre.y + HALF_TILE_H).toBeLessThanOrEqual(box.top + box.height);
       }
     }
   });

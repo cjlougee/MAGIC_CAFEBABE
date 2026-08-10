@@ -10,11 +10,23 @@
 import type { ItemDefId } from '../defs/items';
 import type { Building } from '../entities/building';
 import type { ConstructionSite } from '../entities/constructionSite';
+import { coversCell, footprintOfBuildable, footprintOfBuilding } from './footprint';
 import type { World } from './world';
 
+/**
+ * The building standing on this cell, if any.
+ *
+ * Asks each building whether its *footprint* covers the cell, not whether its anchor is
+ * the cell. Converting the index once and comparing coordinates is also cheaper than the
+ * `map.idx()` per building this used to do.
+ */
 export function buildingAt(world: World, cellIndex: number): Building | undefined {
+  const x = world.map.xOf(cellIndex);
+  const y = world.map.yOf(cellIndex);
+  const z = world.map.zOf(cellIndex);
+
   for (const building of world.buildings.values()) {
-    if (world.map.idx(building.pos.x, building.pos.y, building.pos.z) === cellIndex) {
+    if (coversCell(building.pos, footprintOfBuilding(building.def), building.rotation, x, y, z)) {
       return building;
     }
   }
@@ -35,8 +47,12 @@ export function pawnOccupies(world: World, cellIndex: number): boolean {
 }
 
 export function siteAt(world: World, cellIndex: number): ConstructionSite | undefined {
+  const x = world.map.xOf(cellIndex);
+  const y = world.map.yOf(cellIndex);
+  const z = world.map.zOf(cellIndex);
+
   for (const site of world.sites.values()) {
-    if (world.map.idx(site.pos.x, site.pos.y, site.pos.z) === cellIndex) return site;
+    if (coversCell(site.pos, footprintOfBuildable(site.def), site.rotation, x, y, z)) return site;
   }
   return undefined;
 }

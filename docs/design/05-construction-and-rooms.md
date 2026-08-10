@@ -98,6 +98,53 @@ registered, and nothing on screen said so. Buildings marked for demolition are t
 **tinted**, in the object layer, where nothing can cover them. Floors, being flat, keep the
 ordinary floor marker.
 
+## A building may be bigger than a cell
+
+A structure stores **an anchor and a rotation**; which cells it stands on is worked out
+from its def. `sim/world/footprint.ts` is the only place that arithmetic lives, and the
+cells are never stored — see [ADR 0009](../decisions/0009-footprints.md) for why an anchor
+rather than a centre, and why all four rotations are kept when only two shapes exist.
+
+```
+BuildingDef.footprint {w, h}   the shape, unrotated, w along +x
+Building.pos                   the anchor: min x and y of the ROTATED footprint
+Building.rotation              0-3 quarter turns, saved and hashed
+```
+
+Rotations **0 and 2 cover identical cells** and differ only in *facing* — which end of a
+bed you sleep at. `headCellOf` is the only thing that can tell them apart, and without it
+"rotate the bed" would be a control that visibly does nothing.
+
+**The three grids did not change, and that is the test that the fix is shaped right.**
+`walkCost`, `buildingBlocks` and `buildingSealsRoom` are per-cell, so a multi-tile
+structure stamps every cell it stands on and everything downstream — rooms, reachability,
+A\*, the light wash — keeps working without knowing footprints exist. If room detection had
+needed to learn about them, the change would have been in the wrong place.
+
+What *did* have to change is everything that used to say "the cell":
+
+- **Legality is all-or-nothing.** A 2×2 with three good cells and one in a stream is
+  refused. `canPlaceFootprint` checks every cell, and the drag preview greys out the whole
+  shape rather than the one offending cell — half-placing is not a thing that can happen,
+  so showing it would be a lie.
+- **Adjacency means beside the *footprint*, and excludes it.** A pawn standing on one end
+  of a 2×1 bed is genuinely next to the other end, and an any-cell test would call that
+  "beside it" — which is exactly how a deliverer ends up parked on the site it is about to
+  be sealed into. `isAdjacentToFootprint` returns false for anyone inside.
+- **A structure is marked for demolition whole.** Buildings show the mark by tinting the
+  sprite, so a hearth with one cell marked would tint entirely while three of its cells
+  carried no designation — a finished order to the player, a quarter of one to the givers.
+- **Deconstruct refunds once**, not once per cell, and clears every cell's grid entry and
+  every cell's designation.
+- **Multi-tile blueprints place one per click.** The simulation would happily tile them
+  across a drag; the restraint lives in the input layer, where the preview can show what
+  will actually happen. Rect-drag stays for anything 1×1, because walls are laid in runs.
+
+**Bedrolls arrive 2×1 and have to be laid out as pairs.** `placeBedrolls` passes a fit test
+*into* the ring search rather than filtering its results — taking the nearest N cells and
+discarding the ones that don't fit returns fewer bedrolls than the party brought instead of
+looking further out, which is the same shape as the bug that once landed everyone in a lake.
+
 ## Rooms
 
 A flood fill over open ground, stopping at anything that seals. A space is a room when

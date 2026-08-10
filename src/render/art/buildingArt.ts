@@ -8,6 +8,7 @@
 
 import { Graphics } from 'pixi.js';
 import { Building, type BuildingId } from '../../sim/defs/buildings';
+import type { Rotation } from '../../sim/world/footprint';
 import { HALF_TILE_H, HALF_TILE_W, TILE_H, TILE_W } from '../constants';
 import {
   diamond,
@@ -34,6 +35,13 @@ export const BUILDING_HEIGHT: Record<BuildingId, number> = {
   // Tall enough for a flame to read as a flame, short enough not to occlude the
   // colonists standing around it — which is exactly what you want to watch.
   [Building.Campfire]: 14,
+  // Low: a bed is furniture, and the colonist lying on it is the thing to look at.
+  // High enough that the legs read as legs under a 3px frame, and no higher.
+  [Building.Bed]: 11,
+  // Grander than a campfire and still well under LEVEL_HEIGHT (24). Anything at or above
+  // that would be indistinguishable from a genuine storey — see ADR 0003, and M13, which
+  // is where that argument comes due.
+  [Building.Hearth]: 18,
 };
 
 /**
@@ -45,26 +53,296 @@ export const BUILDING_HEIGHT: Record<BuildingId, number> = {
  */
 export const BUILDING_LIGHT: Partial<Record<BuildingId, number>> = {
   [Building.Campfire]: Palette.firelight,
+  [Building.Hearth]: Palette.firelight,
 };
 
+// ── Footprint geometry ──────────────────────────────────────────────────────────
+//
+// A structure's texture covers its whole footprint, so nothing may assume the frame is
+// one tile any more. These two helpers are the only place that assumption is replaced;
+// the drawing functions below work in cell offsets and never touch frame pixels.
+
+/**
+ * Ground centre of footprint cell `(dx, dy)`, in frame pixels.
+ *
+ * `h` is the *rotated* height of the footprint, which is what decides how far right the
+ * frame's leftmost point pushes the anchor. Mirrors `footprintBounds` in `iso.ts`; at
+ * `dx = dy = 0, h = 1` it gives `(HALF_TILE_W, HALF_TILE_H + rise)`, exactly where
+ * single-tile art has always drawn.
+ */
+function cellCentre(dx: number, dy: number, h: number, rise = 0): { x: number; y: number } {
+  return {
+    x: (dx - dy + h) * HALF_TILE_W,
+    y: (dx + dy + 1) * HALF_TILE_H + rise,
+  };
+}
+
+interface Point {
+  readonly x: number;
+  readonly y: number;
+}
+
+/**
+ * The outline of two adjacent tile diamonds merged into one long shape.
+ *
+ * A 2×1 object is not a rectangle on screen, it is a stretched hexagon, and which way it
+ * leans depends on which screen diagonal the footprint runs along. Drawing two separate
+ * diamonds instead leaves a visible waist where they meet.
+ */
+function isoCapsule(g: Graphics, p: Point, q: Point, rw: number, rh: number): Graphics {
+  // Ordered by screen depth first, so the shape does not depend on which end was named
+  // first. Rotations 2 and 3 hand over the head *second*, and branching on the raw
+  // argument order drew a self-intersecting bow-tie for exactly those two facings —
+  // which is invisible at play zoom and unmissable on the sprite sheet.
+  const [a, b] = p.y <= q.y ? [p, q] : [q, p];
+
+  const points =
+    b.x > a.x
+      ? [a.x - rw, a.y, a.x, a.y - rh, b.x, b.y - rh, b.x + rw, b.y, b.x, b.y + rh, a.x, a.y + rh]
+      : [a.x, a.y - rh, a.x + rw, a.y, b.x + rw, b.y, b.x, b.y + rh, b.x - rw, b.y, a.x - rw, a.y];
+  return g.poly(points);
+}
+
+function shifted(p: Point, dx: number, dy: number): Point {
+  return { x: p.x + dx, y: p.y + dy };
+}
+
+/** Toward the sun, in frame pixels: up and to the right, as everything else here. */
+const SUNWARD = { x: 2, y: -1 };
+
+/**
+ * A long flat form with the one sun on it.
+ *
+ * `sunwardBand` works on a single tile diamond and has nothing sensible to say about a
+ * shape two tiles long — pointed at the midpoint it draws a band across the middle of the
+ * object instead of along its lit edge.
+ *
+ * The first attempt at a replacement laid the lit tone down full size and cut it back
+ * with the body nudged *away* from the sun, which is the crescent bushes and pawn heads
+ * use. On a round mass that leaves a rim; on a shape two tiles long it leaves a two-pixel
+ * sliver running the entire length **outside** the body, which reads as a stray line
+ * lying next to the bed rather than as light on it.
+ *
+ * So the highlight is **contained**: three concentric capsules, the innermost inset far
+ * enough that nudging it sunward can never push it past the body. Light lands on the
+ * upper-right because that inset shape is offset that way, and the base tone survives as
+ * a margin on the lower-left. Nothing escapes the silhouette, so there is no line to
+ * misread.
+ */
+function litCapsule(
+  g: Graphics,
+  a: Point,
+  b: Point,
+  rw: number,
+  rh: number,
+  base: number,
+): void {
+  isoCapsule(g, a, b, rw, rh).fill({ color: shade(base, SHADED_SHIFT * 0.5) });
+  isoCapsule(g, a, b, rw - 1.5, rh - 0.8).fill({ color: base });
+  isoCapsule(
+    g,
+    shifted(a, SUNWARD.x, SUNWARD.y),
+    shifted(b, SUNWARD.x, SUNWARD.y),
+    rw - 4.5,
+    rh - 2.4,
+  ).fill({ color: shade(base, LIT_SHIFT) });
+}
+
+/**
+ * The four corners of a capsule's footprint rectangle, pulled in toward its middle.
+ *
+ * Where the legs of a bed go. The capsule's own hull has six vertices — two of them are
+ * mid-points along the long sides — so the corners have to be named rather than taken
+ * off the outline.
+ */
+function capsuleCorners(a: Point, b: Point, rw: number, rh: number): Point[] {
+  const [near, far] = a.y <= b.y ? [a, b] : [b, a];
+  const corners =
+    far.x > near.x
+      ? [
+          { x: near.x - rw, y: near.y },
+          { x: near.x, y: near.y - rh },
+          { x: far.x + rw, y: far.y },
+          { x: far.x, y: far.y + rh },
+        ]
+      : [
+          { x: near.x, y: near.y - rh },
+          { x: near.x + rw, y: near.y },
+          { x: far.x, y: far.y + rh },
+          { x: far.x - rw, y: far.y },
+        ];
+
+  const cx = (a.x + b.x) / 2;
+  const cy = (a.y + b.y) / 2;
+  const INSET = 0.26;
+  return corners.map((c) => ({
+    x: c.x + (cx - c.x) * INSET,
+    y: c.y + (cy - c.y) * INSET,
+  }));
+}
+
+/** One post, standing on the ground plane at `at` and reaching `height` up to the frame. */
+function drawLeg(g: Graphics, at: Point, height: number, colour: number): void {
+  const halfW = 2.5;
+  g.rect(at.x - halfW, at.y - height, halfW * 2, height + 1).fill({
+    color: shade(colour, RIGHT_FACE_SHADE - 0.08),
+  });
+  // Sunward half catches the light, same as every other pair of faces here.
+  g.rect(at.x - halfW, at.y - height, halfW, height + 1).fill({
+    color: shade(colour, LEFT_FACE_SHADE - 0.06),
+  });
+}
+
+/**
+ * A capsule extruded downward — a slab with a visible thickness, not a solid block.
+ *
+ * The lower silhouette splits at the south vertex: everything before it faces down-left
+ * and takes the darker shade, everything after faces down-right. Spelled out per branch
+ * rather than derived, because the capsule already branches on which screen diagonal it
+ * runs along and there are only two cases.
+ */
+function isoCapsuleSlab(
+  g: Graphics,
+  a: Point,
+  b: Point,
+  rw: number,
+  rh: number,
+  thickness: number,
+  base: number,
+): void {
+  const [near, far] = a.y <= b.y ? [a, b] : [b, a];
+  const down = (p: Point) => shifted(p, 0, thickness);
+
+  if (far.x > near.x) {
+    const west = { x: near.x - rw, y: near.y };
+    const nearBottom = { x: near.x, y: near.y + rh };
+    const south = { x: far.x, y: far.y + rh };
+    const east = { x: far.x + rw, y: far.y };
+
+    g.poly([
+      west.x, west.y, nearBottom.x, nearBottom.y, south.x, south.y,
+      down(south).x, down(south).y, down(nearBottom).x, down(nearBottom).y, down(west).x, down(west).y,
+    ]).fill({ color: shade(base, LEFT_FACE_SHADE) });
+    g.poly([
+      south.x, south.y, east.x, east.y, down(east).x, down(east).y, down(south).x, down(south).y,
+    ]).fill({ color: shade(base, RIGHT_FACE_SHADE) });
+  } else {
+    const east = { x: near.x + rw, y: near.y };
+    const farRight = { x: far.x + rw, y: far.y };
+    const south = { x: far.x, y: far.y + rh };
+    const west = { x: far.x - rw, y: far.y };
+
+    g.poly([
+      east.x, east.y, farRight.x, farRight.y, south.x, south.y,
+      down(south).x, down(south).y, down(farRight).x, down(farRight).y, down(east).x, down(east).y,
+    ]).fill({ color: shade(base, RIGHT_FACE_SHADE) });
+    g.poly([
+      south.x, south.y, west.x, west.y, down(west).x, down(west).y, down(south).x, down(south).y,
+    ]).fill({ color: shade(base, LEFT_FACE_SHADE) });
+  }
+
+  isoCapsule(g, a, b, rw, rh).fill({ color: base });
+}
+
+/**
+ * A raised block on an arbitrary diamond, with the one sun on it.
+ *
+ * `isoShapes`' `leftFace` / `rightFace` are hard-wired to a single tile; a 2×2 hearth
+ * needs the same geometry at twice the size, so the faces are built here from the
+ * diamond's own vertices. Same shading constants, so it sits in the same light as
+ * everything else.
+ */
+function isoBlock(
+  g: Graphics,
+  c: Point,
+  hw: number,
+  hh: number,
+  height: number,
+  base: number,
+): void {
+  const bottom = { x: c.x, y: c.y + hh };
+  const left = { x: c.x - hw, y: c.y };
+  const right = { x: c.x + hw, y: c.y };
+
+  // Sides first — the top face overdraws their upper edge for a clean silhouette.
+  g.poly([left.x, left.y - height, bottom.x, bottom.y - height, bottom.x, bottom.y, left.x, left.y])
+    .fill({ color: shade(base, LEFT_FACE_SHADE) });
+  g.poly([bottom.x, bottom.y - height, right.x, right.y - height, right.x, right.y, bottom.x, bottom.y])
+    .fill({ color: shade(base, RIGHT_FACE_SHADE) });
+
+  diamond(g, c.x, c.y - height, hw, hh).fill({ color: base });
+}
+
+/** The two cells a 2×1 footprint covers, head end first. */
+function longAxisCells(rotation: Rotation, rise = 0): { head: Point; foot: Point } {
+  const h = rotation % 2 === 0 ? 1 : 2;
+  const a = cellCentre(0, 0, h, rise);
+  const b = rotation % 2 === 0 ? cellCentre(1, 0, h, rise) : cellCentre(0, 1, h, rise);
+  // Rotations 0 and 2 cover identical cells; the pillow moving end to end is the entire
+  // visible difference between them, and the reason four facings exist at all.
+  return rotation < 2 ? { head: a, foot: b } : { head: b, foot: a };
+}
+
 const BEDROLL = 0x6f5a48;
+const MATTRESS = 0x8a7a63;
 
-function drawBedroll(g: Graphics): void {
-  const cx = HALF_TILE_W;
-  const cy = HALF_TILE_H;
+/** How thick the bed's frame is. Much less than its height — the rest is leg. */
+const BED_SLAB = 3;
 
-  diamond(g, cx, cy, HALF_TILE_W - 6, HALF_TILE_H - 3).fill({
-    color: shade(BEDROLL, SHADED_SHIFT * 0.5),
-  });
-  diamond(g, cx, cy, HALF_TILE_W - 8, HALF_TILE_H - 4).fill({ color: shade(BEDROLL, 0.12) });
-  // A bedroll is discrete rather than tiled, so it can take the highlight on its own
-  // edge — nothing abuts it to draw a line against.
-  sunwardBand(g, cx, cy, HALF_TILE_W - 6, HALF_TILE_H - 3, 0.22).fill({
-    color: shade(BEDROLL, LIT_SHIFT),
-  });
-  // A pillow at the head end, so the bedroll has an orientation and doesn't read as a rug.
-  diamond(g, cx - 8, cy - 4, 6, 3).fill({ color: shade(Palette.text, -0.25) });
-  diamond(g, cx - 8, cy - 5, 5, 2.2).fill({ color: shade(Palette.text, -0.1) });
+function drawBedroll(g: Graphics, rotation: Rotation): void {
+  const { head, foot } = longAxisCells(rotation);
+  // No legs and no frame: a bedroll is a roll of cloth on the ground, and that contrast
+  // with the bed is the only thing telling the player the upgrade was worth building.
+  litCapsule(g, head, foot, HALF_TILE_W - 10, HALF_TILE_H - 5, BEDROLL);
+  drawPillow(g, head);
+}
+
+/** The accent that says which end you sleep at. */
+function drawPillow(g: Graphics, at: Point): void {
+  diamond(g, at.x, at.y - 3, 9, 4.5).fill({ color: shade(Palette.text, -0.32) });
+  diamond(g, at.x, at.y - 4.5, 7.5, 3.6).fill({ color: shade(Palette.text, -0.12) });
+}
+
+/**
+ * A built bed: four legs, a slab frame, a mattress, a pillow.
+ *
+ * The legs are the whole point of the sprite. A bedroll and a bed occupy the same two
+ * cells and lie at the same angle, so without something that says *made of parts* the
+ * upgrade the colony spent scrap and labour on looks like a bedroll drawn slightly
+ * paler. Posts under the corners are the cheapest possible reading of "somebody built
+ * this", and they are what the slab's thickness exists to leave room for.
+ */
+function drawBed(g: Graphics, rotation: Rotation): void {
+  const rise = BUILDING_HEIGHT[Building.Bed];
+  const { head, foot } = longAxisCells(rotation, rise);
+  const rw = HALF_TILE_W - 9;
+  const rh = HALF_TILE_H - 4.5;
+
+  const frame = shade(Palette.wall, -0.26);
+  const top = -rise;
+
+  // Legs first, so the frame lands on top of them. The two at the back end up entirely
+  // behind it, which is correct — you cannot see the far legs of a bed either.
+  for (const corner of capsuleCorners(head, foot, rw, rh)) {
+    drawLeg(g, corner, rise, frame);
+  }
+
+  // A slab, not a block: its thickness is a fraction of the height it stands at, and
+  // that gap is where the legs show. Extruding the full `rise` would bury them and turn
+  // the bed back into a solid lump.
+  isoCapsuleSlab(g, shifted(head, 0, top), shifted(foot, 0, top), rw, rh, BED_SLAB, frame);
+
+  // Mattress, inset so the frame reads as a rail around it, and carrying the light.
+  const mattressY = top - 2;
+  litCapsule(
+    g,
+    shifted(head, 0, mattressY),
+    shifted(foot, 0, mattressY),
+    rw - 3.5,
+    rh - 1.8,
+    MATTRESS,
+  );
+  drawPillow(g, shifted(head, 0, mattressY - 1));
 }
 
 function drawRaised(g: Graphics, base: number, height: number, cap: number): void {
@@ -179,11 +457,71 @@ function drawCampfire(g: Graphics): void {
   }
 }
 
-export function buildBuildingGraphics(def: BuildingId): Graphics {
+/**
+ * A built fire: a raised stone kerb two cells square with a pit sunk into it.
+ *
+ * Deliberately the campfire's language at a larger scale rather than a new idea — same
+ * ash bed, same crossed logs, same flame tongues — so the pair read as a tier rather than
+ * as two unrelated objects. What makes it the upgrade is that it is *built*: a kerb with
+ * real faces on it instead of a ring of loose stones dropped on the grass.
+ *
+ * A 2×2 block of tiles is exactly one diamond at twice the linear size, which is why the
+ * kerb is a single `isoBlock` and not four.
+ */
+function drawHearth(g: Graphics): void {
+  const height = BUILDING_HEIGHT[Building.Hearth];
+  // Centre of a 2×2 footprint: midway between the anchor and the far corner, **on the
+  // ground plane**, which for a raised structure sits `height` below the frame's top.
+  // Omitting that term draws the whole hearth one storey up with its own footprint
+  // visibly floating underneath it — the same mistake that first put the campfire in the
+  // corner of its tile.
+  const c = { x: TILE_W, y: TILE_H + height };
+  const hw = TILE_W - 6;
+  const hh = TILE_H - 3;
+  const stone = Palette.wall;
+
+  isoBlock(g, c, hw, hh, height, stone);
+
+  // The rim highlight sits on the kerb's *top face*, which is already inset from the
+  // footprint, so nothing abutting the hearth picks up a lit line against it.
+  sunwardBand(g, c.x, c.y - height, hw, hh, 0.2).fill({ color: shade(stone, LIT_SHIFT) });
+
+  // The pit, sunk into the top face. Two diamonds: the shadowed throat and the ash in it.
+  const pitTop = c.y - height + 3;
+  diamond(g, c.x, pitTop, hw - 12, hh - 6).fill({ color: shade(Palette.void, 0.18) });
+  diamond(g, c.x, pitTop + 2, hw - 17, hh - 9).fill({ color: shade(Palette.void, 0.34) });
+  diamond(g, c.x, pitTop + 3, hw - 24, hh - 13).fill({ color: shade(Palette.hazard, -0.55) });
+
+  const fireY = pitTop + 3;
+  const log = shade(Palette.dirt, -0.15);
+  g.poly([c.x - 20, fireY + 1, c.x + 16, fireY - 8, c.x + 19, fireY - 4, c.x - 17, fireY + 5]).fill({
+    color: log,
+  });
+  g.poly([c.x - 16, fireY - 8, c.x + 20, fireY + 1, c.x + 17, fireY + 5, c.x - 19, fireY - 4]).fill({
+    color: shade(log, 0.12),
+  });
+
+  // Same five-tongue build as the campfire, scaled up. Leaning apart so the silhouette
+  // is not a symmetrical cone.
+  flame(g, c.x - 7, fireY - 3, 6, height * 0.8, -3, shade(Palette.hazard, -0.2));
+  flame(g, c.x + 7, fireY - 3, 6, height * 0.9, 3, shade(Palette.hazard, -0.1));
+  flame(g, c.x, fireY - 2, 9, height * 1.3, 0, Palette.hazard);
+  flame(g, c.x, fireY - 2, 5, height * 1.0, 0, shade(Palette.gold, 0.05));
+  flame(g, c.x, fireY - 1, 2.5, height * 0.65, 0, shade(Palette.gold, 0.45));
+}
+
+/**
+ * The sprite for a structure, in the orientation it was placed.
+ *
+ * Rotation reaches only the two defs that have a long axis. Everything else covers one
+ * cell and looks identical from every side, so taking a rotation it ignores keeps the
+ * caller from having to know which is which.
+ */
+export function buildBuildingGraphics(def: BuildingId, rotation: Rotation = 0): Graphics {
   const g = new Graphics();
   switch (def) {
     case Building.Bedroll:
-      drawBedroll(g);
+      drawBedroll(g, rotation);
       break;
     case Building.Wall:
       drawWall(g);
@@ -193,6 +531,12 @@ export function buildBuildingGraphics(def: BuildingId): Graphics {
       break;
     case Building.Campfire:
       drawCampfire(g);
+      break;
+    case Building.Bed:
+      drawBed(g, rotation);
+      break;
+    case Building.Hearth:
+      drawHearth(g);
       break;
   }
   return g;

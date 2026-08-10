@@ -12,11 +12,14 @@ import { Building, type BuildingId } from './buildings';
 import { ItemDef, type ItemDefId } from './items';
 import { Terrain, type TerrainId } from './terrain';
 
+/** Append-only: these ids are written into every save. */
 export const Buildable = {
   Wall: 0,
   Door: 1,
   Floor: 2,
   Campfire: 3,
+  Bed: 4,
+  Hearth: 5,
 } as const;
 
 export type BuildableId = (typeof Buildable)[keyof typeof Buildable];
@@ -77,6 +80,27 @@ export const BUILDABLE_DEFS: readonly BuildableDef[] = [
     cost: [{ def: ItemDef.Stone, count: 8 }],
     work: 180,
     result: { kind: 'building', building: Building.Campfire },
+  },
+  {
+    id: Buildable.Bed,
+    name: 'Bed',
+    description: 'Two cells long. Sleeping here beats a bedroll.',
+    // Scrap and stone: a frame salvaged from the wreckage, which is what this colony
+    // makes anything decent out of.
+    cost: [
+      { def: ItemDef.Scrap, count: 8 },
+      { def: ItemDef.Stone, count: 4 },
+    ],
+    work: 400,
+    result: { kind: 'building', building: Building.Bed },
+  },
+  {
+    id: Buildable.Hearth,
+    name: 'Hearth',
+    description: 'A walled fire, two by two. Cooks the same meals and lights further.',
+    cost: [{ def: ItemDef.Stone, count: 24 }],
+    work: 520,
+    result: { kind: 'building', building: Building.Hearth },
   },
 ];
 

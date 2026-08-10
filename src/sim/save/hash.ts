@@ -135,6 +135,10 @@ export function hashWorld(world: World): string {
     h = mixInt32(h, building.def);
     h = mixInt32(h, building.pos.x);
     h = mixInt32(h, building.pos.y);
+    // Rotation is saved, so it is hashed. Two of the four rotations cover identical
+    // cells, so a bed restored facing the wrong way would round-trip *perfectly* by
+    // every other measure — this is the only thing that would notice.
+    h = mixInt32(h, building.rotation);
     h = mixInt32(h, building.owner ?? -1);
     // Bills and loaded ingredients are saved, so they are hashed. A field in one and not
     // the other passes the round-trip test while guarding nothing.
@@ -151,6 +155,7 @@ export function hashWorld(world: World): string {
     h = mixInt32(h, site.def);
     h = mixInt32(h, site.pos.x);
     h = mixInt32(h, site.pos.y);
+    h = mixInt32(h, site.rotation);
     h = mixInt32(h, site.workDone);
     for (const delivered of site.delivered) h = mixInt32(h, delivered);
   }

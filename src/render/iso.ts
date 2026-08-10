@@ -70,6 +70,47 @@ export function worldDeltaToTile(dx: number, dy: number): Point {
   return worldToTile(dx, dy);
 }
 
+export interface FootprintBounds {
+  /** Top-left of the sprite frame, in world pixels. */
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * The screen box a `w × h` block of tiles occupies, plus whatever it rises by.
+ *
+ * A footprint is a rhombus on screen, not a rectangle of tiles, so its bounding box is
+ * driven by the diagonals: the leftmost point is the far-`y` corner, the rightmost the
+ * far-`x` one, which is why both dimensions come out as `(w + h)` half-tiles rather than
+ * `w` or `h` alone.
+ *
+ * **At `w = h = 1` this reduces exactly to `TILE_W × TILE_H` at the offsets single-tile
+ * sprites already used.** That equivalence is the check that the generalisation is right,
+ * and it is asserted in `tests/iso.test.ts` — every existing sprite must land where it
+ * always did, or the whole map shifts by half a tile and nothing says why.
+ */
+export function footprintBounds(
+  anchorX: number,
+  anchorY: number,
+  w: number,
+  h: number,
+  anchorZ: number = GROUND_LEVEL,
+  rise: number = 0,
+): FootprintBounds {
+  // Leftmost tile centre is the one with the largest y; topmost is the anchor itself.
+  const left = tileToWorld(anchorX, anchorY + h - 1, anchorZ).x - HALF_TILE_W;
+  const top = tileToWorld(anchorX, anchorY, anchorZ).y - HALF_TILE_H - rise;
+
+  return {
+    left,
+    top,
+    width: (w + h) * HALF_TILE_W,
+    height: (w + h) * HALF_TILE_H + rise,
+  };
+}
+
 /**
  * Painter's-algorithm depth *within a level*. Larger draws later (nearer the viewer).
  *

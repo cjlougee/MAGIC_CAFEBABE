@@ -1,0 +1,146 @@
+<!doctype html>
+<!--
+  Sprite review harness — the filmstrip's companion.
+
+  `filmstrip.html` samples an *animation* across time so the whole motion can be judged as
+  one still. A building sprite has no time axis, but it does have a rotation axis and a
+  footprint, and both are just as impossible to review by squinting at the game at play
+  zoom: the thing that goes wrong is a few pixels of overhang past the tile diamond, and
+  at 1x on a busy map that reads as nothing at all.
+
+  So: every structure, every rotation, drawn over an outline of the footprint cells it
+  claims. Art that escapes its footprint is then obvious rather than subtle, which is the
+  whole point.
+
+  Delete when buildings stop being drawn procedurally, which is to say never.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Building sprites</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        background: #3b4a52;
+        color: #dfe6ee;
+        font: 12px ui-monospace, monospace;
+      }
+      h1 { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; margin: 18px 0 8px; }
+      .row { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+      .cell { text-align: center; }
+      .cell canvas { display: block; image-rendering: pixelated; }
+      .label { margin-top: 4px; opacity: 0.75; }
+      .controls { display: flex; gap: 14px; align-items: center; margin-bottom: 4px; }
+    </style>
+  </head>
+  <body>
+    <div class="controls">
+      <label><input type="checkbox" id="grid" checked /> footprint outline</label>
+      <label><input type="checkbox" id="night" /> night wash</label>
+      <span id="status">rendering…</span>
+    </div>
+    <div id="sheets"></div>
+
+    <script type="module">
+      import { Application, Container, Graphics, Rectangle } from 'pixi.js';
+      import { BUILDING_DEFS } from '/src/sim/defs/buildings.ts';
+      import { sizeOf } from '/src/sim/world/footprint.ts';
+      import { buildBuildingGraphics, BUILDING_HEIGHT } from '/src/render/art/buildingArt.ts';
+      import { footprintBounds } from '/src/render/iso.ts';
+      import { HALF_TILE_H, HALF_TILE_W } from '/src/render/constants.ts';
+
+      const SCALE = 3;
+      const PAD = 6;
+
+      const app = new Application();
+      await app.init({ width: 1, height: 1, backgroundAlpha: 0, antialias: false });
+
+      /** The diamond outline of one footprint cell, in the frame's own pixel space. */
+      function outlineCells(size, rise) {
+        const g = new Graphics();
+        for (let dy = 0; dy < size.h; dy++) {
+          for (let dx = 0; dx < size.w; dx++) {
+            const cx = (dx - dy + size.h) * HALF_TILE_W;
+            const cy = (dx + dy + 1) * HALF_TILE_H + rise;
+            g.poly([
+              cx, cy - HALF_TILE_H,
+              cx + HALF_TILE_W, cy,
+              cx, cy + HALF_TILE_H,
+              cx - HALF_TILE_W, cy,
+            ]).stroke({ width: 1, color: 0x7fe3d4, alpha: 0.5 });
+          }
+        }
+        return g;
+      }
+
+      async function draw(def, rotation, showGrid) {
+        const size = sizeOf(def.footprint, rotation);
+        const rise = BUILDING_HEIGHT[def.id];
+        const box = footprintBounds(0, 0, size.w, size.h, 0, rise);
+
+        const stage = new Container();
+        if (showGrid) stage.addChild(outlineCells(size, rise));
+        stage.addChild(buildBuildingGraphics(def.id, rotation));
+
+        const canvas = app.renderer.extract.canvas({
+          target: stage,
+          // Stated rather than inferred, exactly as ArtProvider does it — otherwise the
+          // extract crops to the ink and the overhang this page exists to reveal is
+          // silently trimmed away.
+          frame: new Rectangle(0, 0, box.width, box.height),
+        });
+
+        const shown = document.createElement('canvas');
+        shown.width = box.width * SCALE + PAD * 2;
+        shown.height = box.height * SCALE + PAD * 2;
+        const ctx = shown.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        ctx.fillStyle = 'rgba(0,0,0,0.22)';
+        ctx.fillRect(0, 0, shown.width, shown.height);
+        ctx.drawImage(canvas, PAD, PAD, box.width * SCALE, box.height * SCALE);
+
+        if (document.getElementById('night').checked) {
+          ctx.globalCompositeOperation = 'multiply';
+          ctx.fillStyle = '#3d4a75';
+          ctx.fillRect(0, 0, shown.width, shown.height);
+        }
+        return shown;
+      }
+
+      async function render() {
+        const showGrid = document.getElementById('grid').checked;
+        const sheets = document.getElementById('sheets');
+        sheets.replaceChildren();
+
+        for (const def of BUILDING_DEFS) {
+          const heading = document.createElement('h1');
+          const { w, h } = def.footprint;
+          heading.textContent = `${def.name} — ${w}x${h}, rises ${BUILDING_HEIGHT[def.id]}px`;
+          const row = document.createElement('div');
+          row.className = 'row';
+
+          // Rotations 0 and 2 share cells and differ only in facing, so all four are
+          // shown: the pair that looks identical is the bug, not the pair that doesn't.
+          for (const rotation of [0, 1, 2, 3]) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.append(await draw(def, rotation, showGrid));
+            const label = document.createElement('div');
+            label.className = 'label';
+            label.textContent = `rot ${rotation}`;
+            cell.append(label);
+            row.append(cell);
+          }
+
+          sheets.append(heading, row);
+        }
+        document.getElementById('status').textContent = `${BUILDING_DEFS.length} structures`;
+      }
+
+      document.getElementById('grid').addEventListener('change', render);
+      document.getElementById('night').addEventListener('change', render);
+      await render();
+    </script>
+  </body>
+</html>

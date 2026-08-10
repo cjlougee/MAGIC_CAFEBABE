@@ -27,8 +27,15 @@ export interface RecipeIngredient {
 export interface RecipeDef {
   readonly id: RecipeId;
   readonly name: string;
-  /** The bench this is made at. A bill can only be placed on a matching building. */
-  readonly workAt: BuildingId;
+  /**
+   * The benches this can be made at. A bill can only be placed on a matching building.
+   *
+   * A list rather than one building, because a simple meal is a simple meal whether it
+   * is cooked on a campfire or a hearth. Duplicating the recipe per bench would let the
+   * two drift — different ingredients for the same dish, decided by which fire you
+   * happened to build.
+   */
+  readonly workAt: readonly BuildingId[];
   readonly ingredients: readonly RecipeIngredient[];
   readonly product: { readonly def: ItemDefId; readonly count: number };
   /** Ticks of labour once every ingredient has been loaded. */
@@ -47,7 +54,7 @@ export const RECIPE_DEFS: readonly RecipeDef[] = [
   {
     id: Recipe.SimpleMeal,
     name: 'Simple meal',
-    workAt: Building.Campfire,
+    workAt: [Building.Campfire, Building.Hearth],
     // Four berries for one meal, which is a real loss of raw nutrition (4 x 0.14 = 0.56
     // becomes 0.3) paid for in mood. Cooking should be a choice about how the colony
     // lives, not free food.
@@ -64,5 +71,5 @@ export function recipeDef(id: RecipeId): RecipeDef {
 
 /** Every recipe this building can produce. Drives the "add a bill" menu. */
 export function recipesFor(building: BuildingId): readonly RecipeDef[] {
-  return RECIPE_DEFS.filter((def) => def.workAt === building);
+  return RECIPE_DEFS.filter((def) => def.workAt.includes(building));
 }

@@ -11,10 +11,18 @@
 
 import { Container, Sprite } from 'pixi.js';
 import { Designation } from '../../sim/world/designations';
+import type { BuildableId } from '../../sim/defs/buildables';
+import {
+  cellsOf,
+  footprintOfBuildable,
+  isSingleCell,
+  type Rotation,
+} from '../../sim/world/footprint';
 import {
   canDesignateDeconstruct,
   canDesignateMine,
   canPlaceBlueprint,
+  canPlaceFootprint,
   canPlaceStockpile,
 } from '../../sim/world/placement';
 import type { World } from '../../sim/world/world';
@@ -42,6 +50,9 @@ export interface DragPreview {
   readonly y1: number;
   readonly z: number;
   readonly tool: PreviewTool;
+  /** Set only for the build tool. Decides the footprint drawn under the cursor. */
+  readonly buildable?: BuildableId;
+  readonly rotation?: Rotation;
 }
 
 const REJECTED_TINT = Palette.danger;
@@ -129,8 +140,30 @@ export class OverlayLayer {
 
     if (preview) {
       const previewTexture = this.art.previewTile();
+      const footprint =
+        preview.buildable === undefined ? null : footprintOfBuildable(preview.buildable);
+
       for (let y = preview.y0; y <= preview.y1; y++) {
         for (let x = preview.x0; x <= preview.x1; x++) {
+          if (footprint && !isSingleCell(footprint)) {
+            // A footprint is legal or it is not — there is no half-placing it, so the
+            // whole shape greys out together. Marking only the offending cell would
+            // suggest the rest is going to be built.
+            const anchor = { x, y, z: preview.z };
+            const rotation = preview.rotation ?? 0;
+            const rejected = !canPlaceFootprint(
+              world,
+              anchor,
+              preview.buildable as BuildableId,
+              rotation,
+            );
+            for (const cell of cellsOf(anchor, footprint, rotation)) {
+              if (!world.map.inBounds(cell.x, cell.y, cell.z)) continue;
+              place(cell.x, cell.y, previewTexture, rejected);
+            }
+            continue;
+          }
+
           if (!world.map.inBounds(x, y, preview.z)) continue;
           // Cells the tool will skip are marked before the player commits, rather than
           // silently doing nothing and leaving them to wonder whether it registered.

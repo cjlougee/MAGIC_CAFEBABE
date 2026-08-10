@@ -132,7 +132,19 @@ export class Engine {
     this.toolRef.current = 'build';
     this.input.setBuildable(buildable);
     this.renderer.setCursor('crosshair');
-    this.store.update({ tool: 'build', buildable });
+    this.store.update({ tool: 'build', buildable, buildRotation: this.input.buildRotation });
+  }
+
+  /**
+   * Turns the pending blueprint a quarter turn.
+   *
+   * Published to the store so the toolbar can say which way it is facing. Two of the four
+   * rotations cover the same cells, so for anything but a bed the only visible effect is
+   * on the sprite — which is exactly why it needs saying somewhere other than the sprite.
+   */
+  rotateBuildable(): void {
+    this.input.rotateBuildable();
+    this.store.update({ buildRotation: this.input.buildRotation });
   }
 
   /**

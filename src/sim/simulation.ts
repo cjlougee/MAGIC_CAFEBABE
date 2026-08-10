@@ -29,9 +29,10 @@ import {
   type TileRectangle,
   type ZoneCommand,
 } from './core/commands';
+import { buildingCells } from './entities/building';
 import { createSite, type ConstructionSite } from './entities/constructionSite';
 import { cancelConstruction, completeConstruction } from './world/construction';
-import { pawnOccupies, siteAt } from './world/lookup';
+import { buildingAt, pawnOccupies, siteAt } from './world/lookup';
 import { clearPath, type Pawn } from './entities/pawn';
 import { GROUND_LEVEL, type TilePos } from './core/position';
 
@@ -47,7 +48,7 @@ import { Designation } from './world/designations';
 import {
   canDesignateDeconstruct,
   canDesignateMine,
-  canPlaceBlueprint,
+  canPlaceFootprint,
   canPlaceStockpile,
 } from './world/placement';
 import { createWorld, type World, type WorldOptions } from './world/world';
@@ -247,14 +248,21 @@ export class Simulation {
   private applyBuild(command: BuildCommand): void {
     const world = this.worldState;
 
+    const rotation = command.rotation ?? 0;
+
     this.forEachCell(command.area, (index) => {
-      if (!canPlaceBlueprint(world, index)) return;
       const pos = {
         x: world.map.xOf(index),
         y: world.map.yOf(index),
         z: world.map.zOf(index),
       };
-      const site = world.sites.add((id) => createSite(id, command.buildable, pos));
+      // The whole footprint has to be free, not just the cell under the cursor. Checked
+      // per candidate rather than once for the area, because a drag places many and each
+      // one is its own question — and because sites placed earlier in the same drag are
+      // already in the world for the next one to collide with.
+      if (!canPlaceFootprint(world, pos, command.buildable, rotation)) return;
+
+      const site = world.sites.add((id) => createSite(id, command.buildable, pos, rotation));
       if (command.instant) this.finishSite(site);
     });
   }
@@ -447,7 +455,13 @@ export class Simulation {
       if (command.action === 'cancel') {
         world.designations.remove(Designation.Mine, index);
         // Clearing a demolition mark is undoing a mark, so it belongs here. Erase never
-        // takes down anything finished — a standing wall is not a mark.
+        // takes down anything finished — a standing wall is not a mark. Cleared across
+        // the whole structure for the same reason it was marked across it: half a mark
+        // on a hearth is a state the player cannot see or act on.
+        const marked = buildingAt(world, index);
+        for (const cell of marked ? buildingCells(marked) : []) {
+          world.designations.remove(Designation.Deconstruct, world.map.idx(cell.x, cell.y, cell.z));
+        }
         world.designations.remove(Designation.Deconstruct, index);
         // Erasing should undo whatever the player put here, including a blueprint they
         // no longer want — with the delivered materials handed back.
@@ -460,7 +474,16 @@ export class Simulation {
         // Marking natural rock or an empty field would create work no colonist can do
         // and a mark the player can't explain.
         if (!canDesignateDeconstruct(world, index)) return;
-        world.designations.add(Designation.Deconstruct, index);
+
+        // A structure is marked whole. Buildings are shown as marked by *tinting the
+        // sprite*, so a 2x2 hearth with one cell marked would tint entirely while three
+        // of its cells carried no designation — the player would see a finished order
+        // and the givers would see a quarter of one.
+        const building = buildingAt(world, index);
+        for (const cell of building ? buildingCells(building) : []) {
+          world.designations.add(Designation.Deconstruct, world.map.idx(cell.x, cell.y, cell.z));
+        }
+        if (!building) world.designations.add(Designation.Deconstruct, index);
         return;
       }
 
