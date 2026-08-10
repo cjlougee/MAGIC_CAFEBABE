@@ -14,6 +14,7 @@ import type { EntityId } from '../sim/core/entityStore';
 import type { PawnSummary, ResourceSummary } from '../sim/snapshot';
 import { AlertsPanel } from './AlertsPanel';
 import { BillPanel } from './BillPanel';
+import { StructurePanel } from './StructurePanel';
 import { ColonistPanel } from './ColonistPanel';
 import { DebugPanel } from './DebugPanel';
 import { Minimap } from './Minimap';
@@ -51,7 +52,7 @@ export function HUD({ store, engine }: HUDProps) {
     fps,
     ready,
     selectedPawnIds,
-    selectedBenchId,
+    selectedStructureId,
     tool,
     buildable,
     buildRotation,
@@ -118,9 +119,13 @@ export function HUD({ store, engine }: HUDProps) {
   // The colonist panel is for *a* colonist. With a party selected the party panel takes
   // over, because per-pawn needs and thoughts for six people is a wall, not information.
   const selected = party.length === 1 ? party[0] : null;
-  // Looked up fresh each snapshot rather than held, so a bench that is deconstructed
+  // Looked up fresh each snapshot rather than held, so a structure that is deconstructed
   // while its panel is open simply closes instead of describing something gone.
-  const selectedBench = snapshot?.benches.find((bench) => bench.id === selectedBenchId) ?? null;
+  const selectedStructure =
+    snapshot?.structures.find((s) => s.id === selectedStructureId) ?? null;
+  // A bench gets both panels. "What is this" and "what should it make" are different
+  // questions, and the second is far longer than the first.
+  const selectedBench = snapshot?.benches.find((bench) => bench.id === selectedStructureId) ?? null;
 
   if (!ready || !snapshot) {
     return (
@@ -232,7 +237,7 @@ export function HUD({ store, engine }: HUDProps) {
         selecting a single colonist hid the very controls that acted on them — and closing
         the sheet cleared the selection, which took the party panel with it.
       */}
-      {!showWorkPanel && (party.length > 0 || selectedBench) && (
+      {!showWorkPanel && (party.length > 0 || selectedStructure) && (
         <div className="side-rail">
           {party.length > 0 && engine && (
             <PartyPanel
@@ -247,6 +252,18 @@ export function HUD({ store, engine }: HUDProps) {
 
           {selected && <ColonistPanel pawn={selected} onClose={() => engine?.select(null)} />}
 
+          {selectedStructure && engine && (
+            <StructurePanel
+              structure={selectedStructure}
+              onDeconstruct={() => engine.markDeconstruct(selectedStructure.x, selectedStructure.y)}
+              onCancelDeconstruct={() =>
+                engine.cancelDesignation(selectedStructure.x, selectedStructure.y)
+              }
+              onSetLocked={(locked) => engine.setLocked(selectedStructure.id, locked)}
+              onClose={() => engine.selectStructure(null)}
+            />
+          )}
+
           {selectedBench && (
             <BillPanel
               bench={selectedBench}
@@ -255,7 +272,7 @@ export function HUD({ store, engine }: HUDProps) {
               onSetCount={(recipe, untilCount) =>
                 engine?.setBillCount(selectedBench.id, recipe, untilCount)
               }
-              onClose={() => engine?.selectBench(null)}
+              onClose={() => engine?.selectStructure(null)}
             />
           )}
         </div>

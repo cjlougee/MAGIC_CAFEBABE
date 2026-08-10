@@ -1375,3 +1375,111 @@ body {
   pointer-events: none;
   z-index: 30;
 }
+
+/* ── Structure panel ───────────────────────────────────────────────────────────
+   Deliberately the bill panel's shape and metrics: on a bench the two stack in the
+   rail, and two panels about the same object that disagreed about their own width
+   would read as a layout bug rather than as one thing described twice. */
+
+.structure-panel {
+  width: 268px;
+  background: color-mix(in srgb, var(--c-panel) 94%, transparent);
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 6px;
+  backdrop-filter: blur(8px);
+  user-select: none;
+}
+
+.structure-panel__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--c-panelEdge);
+}
+
+.structure-panel__name {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-relic);
+}
+
+.structure-panel__where {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--c-textDim);
+}
+
+.structure-panel__size {
+  opacity: 0.75;
+}
+
+.structure-panel__close {
+  margin-left: auto;
+  padding: 0 3px;
+  font-size: 12px;
+  color: var(--c-textDim);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.structure-panel__close:hover {
+  color: var(--c-danger);
+}
+
+.structure-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px 11px 11px;
+}
+
+.structure-panel__toggle,
+.structure-panel__demolish,
+.structure-panel__cancel {
+  padding: 6px 9px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-panelEdge) 45%, transparent);
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.structure-panel__toggle:hover,
+.structure-panel__demolish:hover,
+.structure-panel__cancel:hover {
+  border-color: var(--c-relic);
+}
+
+/* A barred door is a wall the player made. Say so in the colour walls are marked in. */
+.structure-panel__toggle.is-on {
+  color: var(--c-hazard);
+  border-color: color-mix(in srgb, var(--c-hazard) 60%, transparent);
+}
+
+.structure-panel__demolish {
+  color: var(--c-danger);
+}
+
+.structure-panel__demolish:hover {
+  border-color: var(--c-danger);
+}
+
+/* Already ordered: the button is now an undo, so it reads as state rather than action. */
+.structure-panel__cancel {
+  color: var(--c-danger);
+  background: color-mix(in srgb, var(--c-danger) 18%, transparent);
+  border-color: color-mix(in srgb, var(--c-danger) 50%, transparent);
+}
+
+.structure-panel__note {
+  margin: 0;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--c-textDim);
+}

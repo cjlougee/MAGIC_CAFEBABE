@@ -41,7 +41,7 @@ import type { World } from '../world/world';
 import { Zones } from '../world/zones';
 
 /** Bumped whenever the save shape changes. See migrate.ts. */
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 // ── Run-length encoding for the map grids ───────────────────────────────────────
 // Terrain is enormously repetitive — long runs of the same value — so RLE turns tens of
@@ -145,6 +145,7 @@ export interface SaveData {
   readonly buildings: {
     id: number;
     rotation: number;
+    locked: boolean;
     def: number;
     pos: SavedPos;
     owner: number | null;
@@ -241,6 +242,7 @@ export function serializeWorld(world: World): SaveData {
       def: b.def,
       pos: at(b.pos),
       rotation: b.rotation,
+      locked: b.locked,
       owner: b.owner,
       bills: b.bills.map((bill) => ({ recipe: bill.recipe, untilCount: bill.untilCount })),
       loaded: [...b.loaded],
@@ -320,6 +322,7 @@ export function deserializeWorld(save: SaveData): World {
   const buildings = new EntityStore<Building>();
   for (const saved of save.buildings) {
     const building = createBuilding(saved.id, saved.def as BuildingId, saved.pos, saved.rotation as Rotation);
+    building.locked = saved.locked;
     building.owner = saved.owner;
     for (const bill of saved.bills) {
       building.bills.push({ recipe: bill.recipe as RecipeId, untilCount: bill.untilCount });

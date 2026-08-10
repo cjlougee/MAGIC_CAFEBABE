@@ -153,7 +153,17 @@ tests rather than by structure:
   tomorrow) must guarantee a door onto ground that connects to the colony. See ADR 0008.
 - **Blocking, sealing, and terrain cost are three separate questions.** `walkCost` is
   terrain; `buildingBlocks` is obstruction; `buildingSealsRoom` is room edges. A door is
-  walkable *and* a room edge, which is why the last two can't be one flag.
+  walkable *and* a room edge, which is why the last two can't be one flag — and **locking
+  a door flips only the first**, so a barred hut is still indoors. Anything that changes
+  blocking owes `reachability.markDirtyAt` per cell; anything that changes sealing owes
+  `rooms.markDirty()`. Locking owes the first and not the second, and `setLocked` lives
+  beside `completeConstruction` and `deconstruct` so all three are read together.
+- **A pawn sealed into a district is invisible to every existing guard.** `escapeIfTrapped`
+  only catches a pawn on an *impassable* cell. Someone shut inside a walled room is
+  standing somewhere perfectly walkable, in a legitimate reachability district, and
+  `canReach` correctly answers "no" to everything the colony has. `buildAlerts` says
+  *"X is cut off from the colony"*; anything new that can enclose ground must not remove
+  that check.
 - **A building stores an anchor and a rotation; its cells are derived.**
   `sim/world/footprint.ts` is the only place that turns a def plus a rotation into cells,
   and a second copy of that arithmetic will disagree the first time the convention moves.

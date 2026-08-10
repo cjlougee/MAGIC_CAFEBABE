@@ -161,6 +161,19 @@ export interface BillCommand {
   readonly untilCount?: number;
 }
 
+/**
+ * Bars or unbars a door.
+ *
+ * A command rather than a direct mutation because it changes what is passable, and every
+ * change to the shape of the world has to go through the tick so the invalidations happen
+ * exactly once, in order, on the simulation's own clock.
+ */
+export interface SetLockedCommand {
+  readonly type: 'setLocked';
+  readonly building: EntityId;
+  readonly locked: boolean;
+}
+
 export type Command =
   | RegenerateCommand
   | MoveToCommand
@@ -170,6 +183,7 @@ export type Command =
   | ZoneCommand
   | SetWorkPriorityCommand
   | BuildCommand
+  | SetLockedCommand
   | BillCommand
   | DebugCommand;
 

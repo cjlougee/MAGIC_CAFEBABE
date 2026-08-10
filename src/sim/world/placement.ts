@@ -11,8 +11,14 @@
  */
 
 import type { TilePos } from '../core/position';
-import { buildableProducing, buildableProducingTerrain, type BuildableId } from '../defs/buildables';
+import {
+  buildableDef,
+  buildableProducing,
+  buildableProducingTerrain,
+  type BuildableId,
+} from '../defs/buildables';
 import { isMineable } from '../defs/terrain';
+import { buildingDef } from '../defs/buildings';
 import { cellsOf, footprintOfBuildable, type Rotation } from './footprint';
 import { buildingAt, siteAt } from './lookup';
 import type { TileMap } from './tilemap';
@@ -76,6 +82,47 @@ export function canPlaceFootprint(
     if (!canPlaceBlueprint(world, world.map.idx(cell.x, cell.y, cell.z))) return false;
   }
   return true;
+}
+
+/**
+ * Which way a blueprint should face, given what is already around it.
+ *
+ * Only meaningful for something that is **passable and still seals a room** — which is
+ * to say a door, and which is exactly the flag pair M4 kept separate. A door is one cell,
+ * so the toolbar offers no Rotate button for it and there is otherwise no way at all for
+ * the player to say which way it runs; orienting from the neighbouring walls is not a
+ * convenience, it is the only chance the sprite has of lining up with the run it
+ * interrupts.
+ *
+ * Reads `sealsRoomAt` rather than "is there a wall", so a door lines up with a run of
+ * walls, with other doors, and with a compound's stamped bulkheads alike. Ties keep the
+ * requested rotation, so a free-standing door is still placed rather than refused.
+ */
+export function orientToNeighbours(
+  world: World,
+  anchor: TilePos,
+  buildable: BuildableId,
+  requested: Rotation,
+): Rotation {
+  const result = buildableDef(buildable).result;
+  if (result.kind !== 'building') return requested;
+
+  const def = buildingDef(result.building);
+  if (!def.blocksRoom || !def.passable) return requested;
+
+  const seals = (dx: number, dy: number): number => {
+    const x = anchor.x + dx;
+    const y = anchor.y + dy;
+    if (!world.map.inBounds(x, y, anchor.z)) return 0;
+    return world.map.sealsRoomAt(world.map.idx(x, y, anchor.z)) ? 1 : 0;
+  };
+
+  const alongX = seals(1, 0) + seals(-1, 0);
+  const alongY = seals(0, 1) + seals(0, -1);
+
+  if (alongX > alongY) return 0;
+  if (alongY > alongX) return 1;
+  return requested;
 }
 
 /** Whether a single cell could take a blueprint. The footprint check above calls it per cell. */

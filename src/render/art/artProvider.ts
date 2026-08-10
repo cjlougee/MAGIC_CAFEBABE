@@ -135,13 +135,16 @@ export class ArtProvider {
    * pictures, and sharing one entry would draw every bed the way the first one placed
    * happened to face.
    */
-  building(def: BuildingId, rotation: Rotation = 0): Texture {
+  building(def: BuildingId, rotation: Rotation = 0, locked = false): Texture {
     const { w, h } = sizeOf(footprintOfBuilding(def), rotation);
     const bounds = footprintBounds(0, 0, w, h, GROUND_LEVEL, BUILDING_HEIGHT[def]);
     const frame = new Rectangle(0, 0, bounds.width, bounds.height);
+    // Locked is in the key for the same reason rotation is: it is a different picture,
+    // and sharing one entry would draw every door the way the first one drawn happened
+    // to be set.
     return this.cached(
-      `building:${def}:${rotation}`,
-      () => buildBuildingGraphics(def, rotation),
+      `building:${def}:${rotation}:${locked ? 'locked' : 'open'}`,
+      () => buildBuildingGraphics(def, rotation, locked),
       frame,
     );
   }

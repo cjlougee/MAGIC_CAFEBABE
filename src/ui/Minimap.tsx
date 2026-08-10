@@ -111,11 +111,53 @@ export function Minimap({
     }
   }, [engine, mapWidth, mapHeight, pois, landingSite, pawns, tick]);
 
-  const jumpTo = (event: React.MouseEvent<HTMLCanvasElement>): void => {
+  /**
+   * Where a pointer event lands, in tiles.
+   *
+   * Clamped, because a drag that leaves the canvas keeps delivering events — pointer
+   * capture is the whole point — and an unclamped read would fling the camera off the
+   * map when the cursor overshoots the edge.
+   */
+  const tileUnder = (event: React.PointerEvent<HTMLCanvasElement>): { x: number; y: number } => {
     const bounds = event.currentTarget.getBoundingClientRect();
     const x = ((event.clientX - bounds.left) / bounds.width) * mapWidth;
     const y = ((event.clientY - bounds.top) / bounds.height) * mapHeight;
-    engine.centreCameraOn(Math.round(x), Math.round(y));
+    return {
+      x: Math.round(Math.min(mapWidth - 1, Math.max(0, x))),
+      y: Math.round(Math.min(mapHeight - 1, Math.max(0, y))),
+    };
+  };
+
+  /**
+   * Press and drag to scrub the camera, rather than click-to-jump only.
+   *
+   * Pointer capture on the canvas, so the drag survives the cursor leaving it. On a
+   * 512-tile map the minimap is the only way to cross the world quickly, and jumping in
+   * discrete hops meant losing your bearings between each one — scrubbing keeps the
+   * relationship between where you are and where you are going visible the whole way.
+   */
+  const scrubTo = (event: React.PointerEvent<HTMLCanvasElement>): void => {
+    const at = tileUnder(event);
+    engine.centreCameraOn(at.x, at.y);
+  };
+
+  const beginScrub = (event: React.PointerEvent<HTMLCanvasElement>): void => {
+    // Left button only. The right button is the camera everywhere else in the game and
+    // must not quietly mean something different here — see ADR 0005.
+    if (event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    scrubTo(event);
+  };
+
+  const continueScrub = (event: React.PointerEvent<HTMLCanvasElement>): void => {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    scrubTo(event);
+  };
+
+  const endScrub = (event: React.PointerEvent<HTMLCanvasElement>): void => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   };
 
   return (
@@ -126,8 +168,11 @@ export function Minimap({
         width={mapWidth}
         height={mapHeight}
         style={{ width: VIEW_PX, height: VIEW_PX }}
-        onClick={jumpTo}
-        title="Click to jump the camera"
+        onPointerDown={beginScrub}
+        onPointerMove={continueScrub}
+        onPointerUp={endScrub}
+        onPointerCancel={endScrub}
+        title="Click to jump the camera, or drag to scrub it"
       />
       <ul className="minimap__places">
         {pois.length === 0 && <li className="minimap__empty">No places found</li>}

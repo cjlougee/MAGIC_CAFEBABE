@@ -24,7 +24,7 @@ import { footprintOfBuilding, sizeOf } from '../../sim/world/footprint';
 import { buildingAt } from '../../sim/world/lookup';
 import type { World } from '../../sim/world/world';
 import type { ArtProvider } from '../art/artProvider';
-import { Palette } from '../art/palette';
+import { mixColors, Palette } from '../art/palette';
 import { buildProgress, siteCells } from '../../sim/entities/constructionSite';
 import { BUILDING_HEIGHT, siteStageFor } from '../art/buildingArt';
 import { ITEM_GROUND_Y, ITEM_H, ITEM_W } from '../art/itemArt';
@@ -129,7 +129,7 @@ export class ObjectLayer {
       if (box.top + box.height < visible.y0 || box.top > visible.y1) continue;
 
       const sprite = this.fromPool(this.buildingPool, used++, 0, 0);
-      sprite.texture = this.art.building(building.def, building.rotation);
+      sprite.texture = this.art.building(building.def, building.rotation, building.locked);
 
       /*
        * Marked-for-demolition is shown *on the structure*, because it cannot be shown
@@ -255,7 +255,20 @@ export class ObjectLayer {
         // The texture's base diamond sits `height` pixels down from its top edge, so
         // offsetting by height puts the tile's footprint on the ground plane.
         sprite.position.set(pos.x - HALF_TILE_W, pos.y - HALF_TILE_H - height);
-        sprite.tint = this.tint.at(index);
+        /*
+         * A mine mark is shown *on the rock*, for the reason a demolition mark is shown
+         * on the wall: the overlay marker is drawn on the ground plane, and this tile
+         * stands 14px above it, so the mark landed at the base of the block it referred
+         * to and read as nothing at all against dark stone.
+         *
+         * Mixed with the terrain tint field rather than replacing it — that field is what
+         * stops large areas of one terrain reading as flat colour, and overwriting it
+         * would trade one invisible thing for another.
+         */
+        const marked = world.designations.has(Designation.Mine, index);
+        sprite.tint = marked
+          ? mixColors(this.tint.at(index), Palette.markedForMine, 0.6)
+          : this.tint.at(index);
         sprite.zIndex = (x + y) * DEPTH_SCALE;
         sprite.alpha = this.occluders.has(index) ? OCCLUDED_ALPHA : 1;
         sprite.visible = true;

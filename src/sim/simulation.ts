@@ -31,7 +31,7 @@ import {
 } from './core/commands';
 import { buildingCells } from './entities/building';
 import { createSite, type ConstructionSite } from './entities/constructionSite';
-import { cancelConstruction, completeConstruction } from './world/construction';
+import { cancelConstruction, completeConstruction, setLocked } from './world/construction';
 import { buildingAt, pawnOccupies, siteAt } from './world/lookup';
 import { clearPath, type Pawn } from './entities/pawn';
 import { GROUND_LEVEL, type TilePos } from './core/position';
@@ -49,6 +49,7 @@ import {
   canDesignateDeconstruct,
   canDesignateMine,
   canPlaceFootprint,
+  orientToNeighbours,
   canPlaceStockpile,
 } from './world/placement';
 import { createWorld, type World, type WorldOptions } from './world/world';
@@ -186,6 +187,11 @@ export class Simulation {
         case 'bill':
           this.applyBill(command);
           break;
+        case 'setLocked': {
+          const door = this.worldState.buildings.get(command.building);
+          if (door) setLocked(this.worldState, door, command.locked);
+          break;
+        }
         case 'debug':
           this.applyDebug(command);
           break;
@@ -262,7 +268,10 @@ export class Simulation {
       // already in the world for the next one to collide with.
       if (!canPlaceFootprint(world, pos, command.buildable, rotation)) return;
 
-      const site = world.sites.add((id) => createSite(id, command.buildable, pos, rotation));
+      // A door lines itself up with the wall run it interrupts. Per cell, because a drag
+      // along a wall can lay several and each one answers for its own neighbours.
+      const facing = orientToNeighbours(world, pos, command.buildable, rotation);
+      const site = world.sites.add((id) => createSite(id, command.buildable, pos, facing));
       if (command.instant) this.finishSite(site);
     });
   }

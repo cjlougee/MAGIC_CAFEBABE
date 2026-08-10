@@ -74,6 +74,17 @@ export const Palette = {
    * wall, and pushed toward `danger` so it reads as the same warning the floor mark uses.
    */
   markedForDeconstruct: 0xe09b96,
+
+  /**
+   * Multiplied over raised terrain marked for mining.
+   *
+   * The same problem as `markedForDeconstruct` and the same answer, arrived at a
+   * milestone later: designation marks are drawn on the ground plane, and rock stands
+   * 14px above it, so a mine mark sat at the *base* of the block it referred to and was
+   * all but invisible against dark stone. Orange rather than red, matching the floor
+   * marker — cutting the landscape is a different order from undoing your own work.
+   */
+  markedForMine: 0xe0b384,
 } as const;
 
 export type PaletteColor = (typeof Palette)[keyof typeof Palette];

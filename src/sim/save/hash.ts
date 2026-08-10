@@ -139,6 +139,10 @@ export function hashWorld(world: World): string {
     // cells, so a bed restored facing the wrong way would round-trip *perfectly* by
     // every other measure — this is the only thing that would notice.
     h = mixInt32(h, building.rotation);
+    // A locked door is a wall. Restoring one unlocked changes what the colony can reach
+    // and nothing else about the save would differ, so this is the only thing that
+    // would notice.
+    h = mixInt32(h, building.locked ? 1 : 0);
     h = mixInt32(h, building.owner ?? -1);
     // Bills and loaded ingredients are saved, so they are hashed. A field in one and not
     // the other passes the round-trip test while guarding nothing.

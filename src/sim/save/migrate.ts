@@ -185,6 +185,26 @@ function addRotationAndWidenBedrolls(save: Record<string, unknown>): Record<stri
   };
 }
 
+/**
+ * v6 → v7: doors can be barred.
+ *
+ * Nothing was lockable before this version, so `false` everywhere is simply true rather
+ * than a guess. Unlike the bedroll widening one step earlier, this changes no geometry
+ * and needs to consult nothing.
+ *
+ * Note that `buildingBlocks` is *not* touched. It is derived — `deserializeWorld`
+ * rebuilds walkCost and the grids come straight off the save — and every door in a v6
+ * file was passable, which is exactly what `locked: false` means.
+ */
+function addDoorLocks(save: Record<string, unknown>): Record<string, unknown> {
+  const buildings = save.buildings as Record<string, unknown>[];
+  return {
+    ...save,
+    version: 7,
+    buildings: buildings.map((building) => ({ ...building, locked: false })),
+  };
+}
+
 /** Keyed by the version being upgraded *from*. */
 const STEPS: Record<number, MigrationStep> = {
   1: addNaturalTerrain,
@@ -192,6 +212,7 @@ const STEPS: Record<number, MigrationStep> = {
   3: addPointsOfInterest,
   4: addDraftAndPlayerCharacter,
   5: addRotationAndWidenBedrolls,
+  6: addDoorLocks,
 };
 
 /**

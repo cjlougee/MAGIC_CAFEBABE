@@ -16,6 +16,8 @@ import { isWorkbench, missingIngredientsFor } from './entities/building';
 import { recipeDef, recipesFor, type RecipeId } from './defs/recipes';
 import { countHeld } from './world/lookup';
 import { buildAlerts, type Alert } from './alerts';
+import { sizeOf } from './world/footprint';
+import { canDesignateDeconstruct } from './world/placement';
 import { buildingDef } from './defs/buildings';
 import { NEED_DEFS } from './defs/needs';
 import { thoughtDef } from './defs/thoughts';
@@ -93,6 +95,32 @@ export interface BenchSummary {
   readonly available: readonly { readonly recipe: RecipeId; readonly name: string }[];
 }
 
+/**
+ * A placed structure, as the panel needs to describe it.
+ *
+ * One per building, published every snapshot. That is a few hundred small objects at
+ * 10Hz on a built-up colony — cheaper than the render layer, which walks the same list
+ * every *frame* — and it keeps selection on the UI side of the wall where it belongs.
+ * The panel finds its structure by id rather than the simulation being told what is
+ * selected.
+ */
+export interface StructureSummary {
+  readonly id: number;
+  readonly name: string;
+  readonly x: number;
+  readonly y: number;
+  /** Cells it stands on, so the panel can say "2x1" without knowing the projection. */
+  readonly width: number;
+  readonly height: number;
+  /** False for anything the colony did not put up — a bedroll came with the party. */
+  readonly canDeconstruct: boolean;
+  readonly markedForDeconstruct: boolean;
+  /** Null when this is not something that can be barred. */
+  readonly locked: boolean | null;
+  /** True when a bill panel should appear beneath this one. */
+  readonly isBench: boolean;
+}
+
 export interface PoiSummary {
   readonly id: number;
   /** The generated name — "Kessler Relay", not "listening post". */
@@ -127,6 +155,8 @@ export interface SimSnapshot {
   readonly constructionSites: number;
   /** Every workbench, with its standing orders. Small — there are never many. */
   readonly benches: readonly BenchSummary[];
+  /** Every placed structure, for the panel that describes the selected one. */
+  readonly structures: readonly StructureSummary[];
   /** Named places, for the minimap and the places list. Never more than a handful. */
   readonly pois: readonly PoiSummary[];
   readonly landingSite: { readonly x: number; readonly y: number };
@@ -167,6 +197,38 @@ function benchSummaries(world: World): BenchSummary[] {
   }
 
   return benches;
+}
+
+/**
+ * Every building, worded.
+ *
+ * `canDeconstruct` asks the same question the deconstruct *tool* asks, through the same
+ * predicate, so the panel's ✕ can never offer something a drag over the same cell would
+ * refuse.
+ */
+function structureSummaries(world: World): StructureSummary[] {
+  const structures: StructureSummary[] = [];
+
+  for (const building of world.buildings.values()) {
+    const def = buildingDef(building.def);
+    const index = world.map.idx(building.pos.x, building.pos.y, building.pos.z);
+    const { w, h } = sizeOf(def.footprint, building.rotation);
+
+    structures.push({
+      id: building.id,
+      name: def.name,
+      x: building.pos.x,
+      y: building.pos.y,
+      width: w,
+      height: h,
+      canDeconstruct: canDesignateDeconstruct(world, index),
+      markedForDeconstruct: world.designations.has(Designation.Deconstruct, index),
+      locked: def.lockable ? building.locked : null,
+      isBench: isWorkbench(building),
+    });
+  }
+
+  return structures;
 }
 
 export function buildSnapshot(world: World): SimSnapshot {
@@ -236,6 +298,7 @@ export function buildSnapshot(world: World): SimSnapshot {
     rooms: world.rooms.enclosedCount,
     constructionSites: world.sites.size,
     benches: benchSummaries(world),
+    structures: structureSummaries(world),
     pois: [...world.pois.values()].map((poi) => ({
       id: poi.id,
       name: poi.name,

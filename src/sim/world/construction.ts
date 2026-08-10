@@ -16,7 +16,7 @@ import {
 } from '../defs/buildables';
 import { buildingDef } from '../defs/buildings';
 import type { ItemDefId } from '../defs/items';
-import { buildingCells, createBuilding } from '../entities/building';
+import { blocksMovement, buildingCells, createBuilding, isLockable, type Building } from '../entities/building';
 import { siteCells, type ConstructionSite } from '../entities/constructionSite';
 import { ledgerContents } from '../entities/materials';
 import { Designation } from './designations';
@@ -38,7 +38,7 @@ export function completeConstruction(world: World, site: ConstructionSite): void
     for (const cell of buildingCells(building)) {
       world.map.setBuildingAt(
         world.map.idx(cell.x, cell.y, cell.z),
-        !structure.passable,
+        blocksMovement(building),
         structure.blocksRoom,
       );
     }
@@ -138,4 +138,24 @@ export function deconstruct(world: World, index: number): boolean {
 
 function cellOf(world: World, index: number) {
   return { x: world.map.xOf(index), y: world.map.yOf(index), z: world.map.zOf(index) };
+}
+
+/**
+ * Bars or unbars a door, and tells the world the shape of it changed.
+ *
+ * Sealing is untouched — a locked door is still a room edge — so `rooms` never needs
+ * invalidating here. **Reachability does**, and per cell rather than wholesale: a locked
+ * door is a wall, and forgetting to say so leaves colonists pathing straight through it
+ * forever, which looks like the lock silently failed.
+ */
+export function setLocked(world: World, building: Building, locked: boolean): void {
+  if (!isLockable(building) || building.locked === locked) return;
+  building.locked = locked;
+
+  const structure = buildingDef(building.def);
+  for (const cell of buildingCells(building)) {
+    const index = world.map.idx(cell.x, cell.y, cell.z);
+    world.map.setBuildingAt(index, blocksMovement(building), structure.blocksRoom);
+    world.reachability.markDirtyAt(index);
+  }
 }

@@ -413,3 +413,113 @@ function rle(values: readonly number[]): number[] {
   }
   return out;
 }
+
+describe('barring a door', () => {
+  /** A hut with one door, raised instantly, and the cell inside it. */
+  function hutWithDoor() {
+    const { sim, world } = yard(1);
+    const x0 = 15;
+    const y0 = 15;
+
+    for (let x = x0; x <= x0 + 4; x++) {
+      // The doorway is left as a gap; walling it first would mean the door is refused
+      // and the whole hut silently has no way in.
+      if (x !== x0 + 2) placeFinished(sim, Buildable.Wall, x, y0);
+      placeFinished(sim, Buildable.Wall, x, y0 + 4);
+    }
+    for (let y = y0 + 1; y <= y0 + 3; y++) {
+      for (const x of [x0, x0 + 4]) placeFinished(sim, Buildable.Wall, x, y);
+    }
+    placeFinished(sim, Buildable.Door, x0 + 2, y0);
+
+    const door = [...world.buildings.values()].find((b) => b.def === Building.Door)!;
+    return { sim, world, door, inside: pos(x0 + 2, y0 + 1), outside: pos(x0 + 2, y0 - 2) };
+  }
+
+  function lock(sim: Simulation, door: { id: number }, locked: boolean) {
+    sim.dispatch({ type: 'setLocked', building: door.id, locked });
+    sim.tick();
+  }
+
+  it('lets colonists through until it is barred', () => {
+    const { sim, world, door, inside, outside } = hutWithDoor();
+    expect(world.reachability.canReach(outside, inside)).toBe(true);
+
+    lock(sim, door, true);
+    expect(world.reachability.canReach(outside, inside)).toBe(false);
+
+    lock(sim, door, false);
+    expect(world.reachability.canReach(outside, inside)).toBe(true);
+  });
+
+  it('still seals the room when barred', () => {
+    // The whole reason `blocksRoom` and `passable` are separate flags. A locked door that
+    // stopped sealing would silently take the roof away from everyone sleeping inside.
+    const { sim, world, door, inside } = hutWithDoor();
+    expect(world.rooms.isIndoors(inside)).toBe(true);
+
+    lock(sim, door, true);
+    expect(world.rooms.isIndoors(inside)).toBe(true);
+  });
+
+  it('says out loud when it cuts a colonist off', () => {
+    // The quietest failure in the game, and M11 adds a way to cause it on purpose.
+    const { sim, world, door, inside } = hutWithDoor();
+    const pawn = [...world.pawns.values()][0];
+    pawn.pos = { ...inside };
+    world.reachability.markDirty();
+
+    expect(sim.snapshot().alerts.some((a) => a.id === `cutoff:${pawn.id}`)).toBe(false);
+
+    lock(sim, door, true);
+    expect(sim.snapshot().alerts.some((a) => a.id === `cutoff:${pawn.id}`)).toBe(true);
+  });
+
+  it('refuses to bar anything that is not lockable', () => {
+    const { sim, world } = yard(1);
+    placeFinished(sim, Buildable.Wall, 20, 20);
+    const wall = [...world.buildings.values()][0];
+
+    sim.dispatch({ type: 'setLocked', building: wall.id, locked: true });
+    sim.tick();
+
+    expect(wall.locked).toBe(false);
+  });
+
+  it('round-trips a barred door, and notices one that comes back open', () => {
+    const { sim, world, door } = hutWithDoor();
+    lock(sim, door, true);
+
+    const save = JSON.parse(JSON.stringify(serializeWorld(world)));
+    expect(hashWorld(deserializeWorld(save))).toBe(hashWorld(world));
+
+    const saved = save.buildings.find((b: { id: number }) => b.id === door.id);
+    saved.locked = false;
+    expect(hashWorld(deserializeWorld(save))).not.toBe(hashWorld(world));
+  });
+});
+
+describe('a door lines up with its wall', () => {
+  it('faces along the run it interrupts', () => {
+    const { sim, world } = yard(1);
+
+    // A run along x, with a gap for the door.
+    for (const x of [19, 21]) placeFinished(sim, Buildable.Wall, x, 20);
+    placeFinished(sim, Buildable.Door, 20, 20);
+    const alongX = [...world.buildings.values()].find((b) => b.def === Building.Door)!;
+    expect(alongX.rotation).toBe(0);
+
+    // And a run along y, placed with the same default rotation of 0.
+    for (const y of [29, 31]) placeFinished(sim, Buildable.Wall, 30, y);
+    placeFinished(sim, Buildable.Door, 30, 30);
+    const alongY = [...world.buildings.values()].filter((b) => b.def === Building.Door)[1];
+    expect(alongY.rotation).toBe(1);
+  });
+
+  it('leaves a free-standing door as asked', () => {
+    const { sim, world } = yard(1);
+    placeFinished(sim, Buildable.Door, 20, 20, 1);
+    const door = [...world.buildings.values()].find((b) => b.def === Building.Door)!;
+    expect(door.rotation).toBe(1);
+  });
+});

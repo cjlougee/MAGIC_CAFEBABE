@@ -44,6 +44,13 @@ export interface Building {
    */
   readonly pos: TilePos;
   readonly rotation: Rotation;
+  /**
+   * Barred against colonists. Only ever true for something whose def is `lockable`.
+   *
+   * Flips `buildingBlocks` and leaves `buildingSealsRoom` alone: a locked door is still
+   * a room edge, because it is still a door in a wall.
+   */
+  locked: boolean;
   /** Colonist this belongs to, or null if unclaimed. */
   owner: EntityId | null;
   /** Standing orders, in the order they should be worked. Empty for anything not a bench. */
@@ -58,7 +65,7 @@ export function createBuilding(
   pos: TilePos,
   rotation: Rotation = 0,
 ): Building {
-  return { id, def, pos, rotation, owner: null, bills: [], loaded: emptyLedger() };
+  return { id, def, pos, rotation, locked: false, owner: null, bills: [], loaded: emptyLedger() };
 }
 
 /** The cells this building stands on. Derived every time; never cached, never saved. */
@@ -68,6 +75,16 @@ export function buildingCells(building: Building): TilePos[] {
 
 export function isBed(building: Building): boolean {
   return buildingDef(building.def).isBed;
+}
+
+export function isLockable(building: Building): boolean {
+  return buildingDef(building.def).lockable;
+}
+
+/** Whether this structure stops movement *right now*, locking included. */
+export function blocksMovement(building: Building): boolean {
+  const def = buildingDef(building.def);
+  return !def.passable || building.locked;
 }
 
 /** Whether anything can be made here at all. Drives the bill panel appearing. */

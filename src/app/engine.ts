@@ -65,7 +65,7 @@ export class Engine {
     this.input = new WorldInput(this.renderer.canvas, this.renderer.camera, {
       onSelect: (id, mode) => this.select(id, mode),
       onSelectMany: (ids, additive) => this.selectMany(ids, additive),
-      onSelectBench: (id) => this.selectBench(id),
+      onSelectStructure: (id) => this.selectStructure(id),
       onCancelTool: () => this.setTool('select'),
       onOrder: (target, screen) => this.orderPartyTo(target, screen),
       dispatch: (command) => this.dispatch(command),
@@ -270,8 +270,8 @@ export class Engine {
    * Unlike the pawn selection there is no local copy: nothing in the engine or the input
    * layer asks which bench is open, so the store is the only place it needs to live.
    */
-  selectBench(id: EntityId | null): void {
-    this.store.update({ selectedBenchId: id });
+  selectStructure(id: EntityId | null): void {
+    this.store.update({ selectedStructureId: id });
   }
 
   /**
@@ -290,6 +290,42 @@ export class Engine {
 
   setWorkPriority(pawnId: EntityId, workType: WorkTypeId, priority: number): void {
     this.dispatch({ type: 'setWorkPriority', pawnId, workType, priority });
+    this.store.update({ snapshot: this.sim.snapshot() });
+  }
+
+  /**
+   * Orders one structure taken down, from its panel rather than by dragging over it.
+   *
+   * Goes through the ordinary `designate` command over a one-cell area, so the panel and
+   * the deconstruct tool cannot end up meaning different things — the command already
+   * spreads the mark across a multi-tile footprint and already refuses anything the
+   * colony did not build.
+   */
+  markDeconstruct(x: number, y: number): void {
+    this.sim.dispatch({
+      type: 'designate',
+      action: 'deconstruct',
+      area: { x0: x, y0: y, x1: x, y1: y, z: GROUND_LEVEL },
+    });
+    this.sim.flushCommands();
+    this.store.update({ snapshot: this.sim.snapshot() });
+  }
+
+  /** Calls the mark off again. The same path the Erase tool takes. */
+  cancelDesignation(x: number, y: number): void {
+    this.sim.dispatch({
+      type: 'designate',
+      action: 'cancel',
+      area: { x0: x, y0: y, x1: x, y1: y, z: GROUND_LEVEL },
+    });
+    this.sim.flushCommands();
+    this.store.update({ snapshot: this.sim.snapshot() });
+  }
+
+  /** Bars or unbars a door. Changes what is passable, so it goes through the tick. */
+  setLocked(building: EntityId, locked: boolean): void {
+    this.sim.dispatch({ type: 'setLocked', building, locked });
+    this.sim.flushCommands();
     this.store.update({ snapshot: this.sim.snapshot() });
   }
 
@@ -436,7 +472,7 @@ export class Engine {
     // Everything the UI was pointing at belonged to the previous world — including any
     // open bench panel, whose id now means a different building or nothing at all.
     this.select(null);
-    this.selectBench(null);
+    this.selectStructure(null);
     this.setTool('select');
     this.worldEpoch++;
     this.renderer.onWorldReplaced();
@@ -451,7 +487,7 @@ export class Engine {
     // The old colonists no longer exist, so a held selection would dangle. Nor do the
     // old buildings, so the bench panel goes with them.
     this.select(null);
-    this.selectBench(null);
+    this.selectStructure(null);
     this.setTool('select');
     this.worldEpoch++;
     this.renderer.onWorldReplaced();

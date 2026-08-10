@@ -68,6 +68,30 @@ export function buildAlerts(world: World): Alert[] {
     });
   }
 
+  /*
+   * A colonist who can no longer get home.
+   *
+   * The same silence as the order above, arrived at from the other direction, and the
+   * one M8 wrote down and M11 finally made *reachable by accident*: bar the only door of
+   * a hut with somebody inside and they are not standing on an impassable cell — so
+   * `escapeIfTrapped` sees nothing wrong — they are in a perfectly legitimate
+   * reachability district with nothing in it. `canReach` answers "no" correctly to every
+   * target the colony has, and the colonist stops working, cannot eat, and eventually
+   * dies with nothing on screen having said a word.
+   *
+   * Measured against the landing site because that is the one cell the colony is
+   * *defined* around, and it costs one O(1) district comparison per colonist.
+   */
+  for (const pawn of living) {
+    if (world.reachability.canReach(pawn.pos, world.landingSite)) continue;
+
+    alerts.push({
+      id: `cutoff:${pawn.id}`,
+      level: 'danger',
+      text: `${pawn.name} is cut off from the colony`,
+    });
+  }
+
   if (edibleUnits === 0 && living.length > 0) {
     alerts.push({ id: 'nofood', level: 'danger', text: 'No food available' });
   } else if (edibleUnits < living.length * 4) {

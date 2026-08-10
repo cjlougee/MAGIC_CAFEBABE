@@ -24,18 +24,21 @@ import {
 import type { EntityId } from '../sim/core/entityStore';
 import { normaliseRect, type Command, type TileRectangle } from '../sim/core/commands';
 import { GROUND_LEVEL, type TilePos } from '../sim/core/position';
-import { isWorkbench } from '../sim/entities/building';
 import { buildingAt } from '../sim/world/lookup';
 import type { World } from '../sim/world/world';
 
 export type Tool = 'select' | 'mine' | 'deconstruct' | 'stockpile' | 'erase' | 'build';
 
-/** The workbench standing on a cell, if there is one. */
-function benchAt(world: World, cell: TilePos): EntityId | null {
-  const index = world.map.idx(cell.x, cell.y, cell.z);
-  const building = buildingAt(world, index);
-  if (!building || !isWorkbench(building)) return null;
-  return building.id;
+/**
+ * The structure standing on a cell, if there is one.
+ *
+ * Any structure, not only a workbench. A wall was not a click target until M11, which is
+ * why taking down one misplaced wall meant dragging a rectangle over it — the tool that
+ * exists for tidying a whole area was the only way to express a single mistake.
+ */
+function structureAt(world: World, cell: TilePos): EntityId | null {
+  if (!world.map.inBounds(cell.x, cell.y, cell.z)) return null;
+  return buildingAt(world, world.map.idx(cell.x, cell.y, cell.z))?.id ?? null;
 }
 
 /**
@@ -73,7 +76,7 @@ export interface WorldInputHandlers {
    * Separate from `onSelect` because pawns and buildings live in different entity
    * stores, so a single id could not say which of the two it meant.
    */
-  readonly onSelectBench: (id: EntityId | null) => void;
+  readonly onSelectStructure: (id: EntityId | null) => void;
   /** Returns to the select tool. Raised by a quick right-click while a tool is active. */
   readonly onCancelTool: () => void;
   /**
@@ -330,13 +333,12 @@ export class WorldInput {
     // A colonist standing at a bench wins: they move, so they are the harder thing to
     // click, and the bench is not going anywhere.
     if (closestId !== null) {
-      this.handlers.onSelectBench(null);
+      this.handlers.onSelectStructure(null);
       return;
     }
 
     const cell = { x: Math.round(tile.x), y: Math.round(tile.y), z: GROUND_LEVEL };
-    const bench = benchAt(world, cell);
-    this.handlers.onSelectBench(bench);
+    this.handlers.onSelectStructure(structureAt(world, cell));
   }
 
   /**
@@ -357,9 +359,19 @@ export class WorldInput {
       caught.push(pawn.id);
     }
 
-    // An empty drag across bare ground clears the party, matching click-on-nothing.
+    /*
+     * A drag that catches nobody leaves the party alone.
+     *
+     * It used to clear, on the grounds that it matched clicking on nothing — consistent,
+     * and wrong in practice. Once the marquee made drag-select inviting, a drag that
+     * missed by a tile threw away a party the player had spent several clicks building,
+     * with no undo. Clicking bare ground still clears, so there is still an obvious way
+     * to put the selection down; it just is not the *accidental* gesture any more.
+     */
+    if (caught.length === 0) return;
+
     this.handlers.onSelectMany(caught, additive);
-    if (caught.length > 0) this.handlers.onSelectBench(null);
+    this.handlers.onSelectStructure(null);
   }
 
   /**

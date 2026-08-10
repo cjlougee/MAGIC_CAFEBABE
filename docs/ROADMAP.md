@@ -313,21 +313,36 @@ so both outstanding suspects were measured rather than assumed, over 24 seeds at
 See [`superpowers/specs/2026-08-10-multi-tile-footprints-design.md`](superpowers/specs/2026-08-10-multi-tile-footprints-design.md).
 
 ### M11 — Things you can point at *(items 2, 3, 1)*
-- [ ] **Buildings as click targets** and a small panel for the selected structure. Pawns and benches
-      already are; a wall is not, which is why deconstructing one misplaced wall means dragging a
-      rectangle over it
-- [ ] A red ✕ on that panel, driving the existing `Designation.Deconstruct`
-- [ ] **Doors that look and act like doors** — a real sprite in the frame of the wall, a style
-      submenu *before* placing, and states: leave open, closed, locked. The data model is already
-      ready: `buildingSealsRoom` and `buildingBlocks` were split for exactly this
-- [ ] **Drag the minimap** to scrub the camera, rather than click-to-jump only
-- [ ] **A mine mark you can see.** Designations draw on the ground plane and rock is raised, so the
-      mark sits at the base of the block it refers to. Deconstruction solved this for buildings by
-      tinting them; mining gets the same treatment
-- [ ] Dragging over empty ground no longer clears the party — correct and consistent, and far too
-      easy to do by accident now the marquee makes drag-select inviting
-- **Playable check:** click a wall, see what it is, press ✕, watch it come down. Lock a door and
-  watch a colonist route around it.
+- [x] **Buildings are click targets**, and a `StructurePanel` describes the selected one.
+      `selectedBenchId` became `selectedStructureId`; a bench now gets two panels stacked in the
+      rail, because "what is this" and "what should it make" are different questions
+- [x] A red ✕ on that panel, going through the **ordinary designate command** over a one-cell area
+      rather than a private path — so it cannot mean anything different from the tool, and it
+      already spreads across a footprint and already refuses what the colony did not build. Marked
+      structures say so: the button becomes *"Marked — cancel"*
+- [x] **Doors that look and act like doors** — two jambs continuing the wall, a threshold across the
+      gap, and ground visible between them. `orientToNeighbours` faces a door along the run it
+      interrupts, which is not a convenience: a door is one cell, so no Rotate button is offered
+      and there is otherwise *no way* for the player to say which way it runs
+- [x] **Barring a door** flips `buildingBlocks` and leaves `buildingSealsRoom` alone — the clearest
+      use yet of the pair M4 kept separate. A locked hut is still indoors. Save v7
+- [x] **"X is cut off from the colony"**, because locking is the first thing that lets the player
+      seal a colonist in *on purpose*. `escapeIfTrapped` only catches a pawn on an impassable cell;
+      someone shut inside a room is standing somewhere perfectly walkable in a district of their
+      own, and `canReach` answers "no" correctly to everything while they quietly starve
+- [x] **Drag the minimap** to scrub the camera, with pointer capture so it survives leaving the
+      canvas. On a 512-tile map, jumping in discrete hops meant losing your bearings between each
+- [x] **A mine mark you can see.** Raised rock is tinted, exactly as deconstruction tints a
+      building, and mixed with the terrain tint field rather than replacing it — that field is what
+      stops large areas reading as flat colour, so overwriting it would trade one invisible thing
+      for another
+- [x] An empty marquee **no longer clears the party**. Consistent with clicking bare ground, and
+      wrong in practice: once the marquee made drag-select inviting, a drag that missed by a tile
+      threw away a party built up over several clicks, with no undo
+- **Playable check:** ✅ click a wall, see what it is, press ✕, watch it tint and a colonist take it
+  down. Doors placed into runs on both axes each faced their own run. Locked one and watched the bar
+  appear; colonists path around it and the room stays indoors. Asserted headless in
+  `tests/footprint.test.ts`.
 
 ### M12 — The asset pipeline *(new — process, not content)*
 
@@ -485,11 +500,10 @@ milestones in a committed order, and the backlog keeps only what is genuinely un
 **M10 is done.** Buildings can be bigger than a cell, colonists lie down to sleep, and the two
 constants the last three milestones warned about have been measured rather than assumed.
 
-**Start at M11 — things you can point at.** A wall is not a click target, so deconstructing one
-misplaced wall still means dragging a rectangle over it; a door is a passable square; a mine mark on
-raised rock is invisible. Small, and all of it feedback the player is currently owed.
+**M11 is done** — walls are click targets with a panel and a ✕, doors read as doors and can be
+barred, mine marks are visible, and the minimap scrubs.
 
-**Then M12 — the asset pipeline, and it is deliberately not content.** M13 to M15 are three
+**Start at M12 — the asset pipeline, and it is deliberately not content.** M13 to M15 are three
 milestones of almost nothing but new art, and M10's evidence is that the *judging* is what costs, not
 the drawing: all five bugs `sprites.html` caught were measurements a test could have made, and the
 only thing that genuinely needed a human eye was whether the shading read well. Building the harness
@@ -548,10 +562,8 @@ search radius (28 tiles, unchanged) and `BUSH_DENSITY` are the next two to look 
 - **Save size is now the constraint on world size**, where reachability used to be.
   475 KB at 512² against 1.9 MB at 1024², which starts crowding a multi-slot
   `localStorage` budget. Worth knowing before anyone raises `DEFAULT_MAP_SIZE` again.
-- **A mine mark on rock is nearly invisible.** *Scheduled in M11.* Designations draw on the
-  ground plane, and rock is raised, so the mark sits at the base of the block it refers to.
-  Deconstruction hit the same wall and solved it for *buildings* by tinting them; mining has
-  no equivalent yet, and the honest fix is probably the same one.
+- ~~**A mine mark on rock is nearly invisible.**~~ *Fixed in M11* — raised rock is tinted,
+  the same answer deconstruction reached for buildings a milestone earlier.
 - **`lookup.ts` scans linearly** over buildings and sites, and the work givers scan every item
   once per pawn per think tick. Fine at dozens, not at thousands — when it matters, put the index
   *inside* the store so it cannot desync. **Measured out of M7 rather than assumed out:** a

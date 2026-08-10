@@ -82,14 +82,14 @@
         return g;
       }
 
-      async function draw(def, rotation, showGrid) {
+      async function draw(def, rotation, showGrid, locked = false) {
         const size = sizeOf(def.footprint, rotation);
         const rise = BUILDING_HEIGHT[def.id];
         const box = footprintBounds(0, 0, size.w, size.h, 0, rise);
 
         const stage = new Container();
         if (showGrid) stage.addChild(outlineCells(size, rise));
-        stage.addChild(buildBuildingGraphics(def.id, rotation));
+        stage.addChild(buildBuildingGraphics(def.id, rotation, def.lockable && locked));
 
         const canvas = app.renderer.extract.canvas({
           target: stage,
@@ -130,15 +130,21 @@
 
           // Rotations 0 and 2 share cells and differ only in facing, so all four are
           // shown: the pair that looks identical is the bug, not the pair that doesn't.
-          for (const rotation of [0, 1, 2, 3]) {
-            const cell = document.createElement('div');
-            cell.className = 'cell';
-            cell.append(await draw(def, rotation, showGrid));
-            const label = document.createElement('div');
-            label.className = 'label';
-            label.textContent = `rot ${rotation}`;
-            cell.append(label);
-            row.append(cell);
+          // A lockable structure is two pictures, so both are shown — a lock the player
+          // cannot see is a setting they have to remember, which is the whole failure
+          // this milestone is about.
+          const states = def.lockable ? [false, true] : [false];
+          for (const locked of states) {
+            for (const rotation of [0, 1, 2, 3]) {
+              const cell = document.createElement('div');
+              cell.className = 'cell';
+              cell.append(await draw(def, rotation, showGrid, locked));
+              const label = document.createElement('div');
+              label.className = 'label';
+              label.textContent = `rot ${rotation}${locked ? ' · locked' : ''}`;
+              cell.append(label);
+              row.append(cell);
+            }
           }
 
           sheets.append(heading, row);

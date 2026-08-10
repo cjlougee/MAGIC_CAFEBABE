@@ -40,7 +40,7 @@ export interface UiState {
    */
   readonly selectedPawnIds: readonly EntityId[];
   /** The workbench whose bills are open, if any. */
-  readonly selectedBenchId: EntityId | null;
+  readonly selectedStructureId: EntityId | null;
   /** Debug panel visibility, and whether Build raises finished structures. */
   readonly showDebug: boolean;
   readonly instantBuild: boolean;
@@ -61,7 +61,7 @@ const INITIAL: UiState = {
   fps: 0,
   ready: false,
   selectedPawnIds: [],
-  selectedBenchId: null,
+  selectedStructureId: null,
   showDebug: false,
   instantBuild: false,
   tool: 'select',

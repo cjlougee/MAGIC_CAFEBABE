@@ -347,15 +347,81 @@ function drawWall(g: Graphics): void {
   }
 }
 
-function drawDoor(g: Graphics): void {
+/**
+ * A doorway: two jambs with a gap between them, not a shorter wall.
+ *
+ * The old door was `drawRaised` with a coloured strip on it, which made it a wall of a
+ * different colour — in a run of walls the one you could walk through was findable only
+ * by looking for the shade. A door has to read as an *opening*, so the tile is drawn as
+ * the two posts that continue the wall either side and a low threshold across the gap,
+ * with the ground visible between them.
+ *
+ * `rotation` says which way the run goes, so the jambs continue the wall rather than
+ * standing across it. It is placed facing whichever way the neighbouring walls run — see
+ * `orientDoor` in the input layer — and R overrides that.
+ */
+function drawDoor(g: Graphics, rotation: Rotation, locked: boolean): void {
   const height = BUILDING_HEIGHT[Building.Door];
+  const cx = HALF_TILE_W;
+  const cy = HALF_TILE_H + height;
   const base = 0x5d5148;
-  drawRaised(g, base, height, shade(base, 0.14));
 
-  // A relic-lit strip: doors are built from scrap, and this is where that shows.
-  const y = Math.round(height * 0.4);
-  leftFace(g, y, 3).fill({ color: shade(Palette.relic, -0.35) });
-  rightFace(g, y, 3).fill({ color: shade(Palette.relic, -0.12) });
+  // Along the wall run: +x is down-right on screen, +y down-left.
+  const along =
+    rotation % 2 === 0
+      ? { x: HALF_TILE_W * 0.5, y: HALF_TILE_H * 0.5 }
+      : { x: -HALF_TILE_W * 0.5, y: HALF_TILE_H * 0.5 };
+
+  // Threshold first, so the jambs overdraw its ends and it reads as running *under* them.
+  const sill = shade(base, -0.3);
+  diamond(g, cx, cy - 3, HALF_TILE_W - 8, HALF_TILE_H - 4).fill({ color: sill });
+  // The relic accent lives down here on the track rather than capping the posts. Capped,
+  // it made two glowing pillars and stopped reading as a doorway at all — the strip is
+  // meant to say "built out of the wreckage", not "this is the brightest thing on screen".
+  isoCapsule(
+    g,
+    { x: cx - along.x * 0.8, y: cy - along.y * 0.8 - 4 },
+    { x: cx + along.x * 0.8, y: cy + along.y * 0.8 - 4 },
+    3,
+    1.6,
+  ).fill({ color: shade(Palette.relic, -0.5) });
+
+  // The two jambs, each continuing the wall it interrupts.
+  for (const side of [-1, 1]) {
+    const at = { x: cx + along.x * side, y: cy + along.y * side };
+    isoBlock(g, at, HALF_TILE_W * 0.42, HALF_TILE_H * 0.42, height, base);
+    sunwardBand(g, at.x, at.y - height, HALF_TILE_W * 0.42, HALF_TILE_H * 0.42, 0.3).fill({
+      color: shade(base, LIT_SHIFT),
+    });
+  }
+
+  /*
+   * A locked door is a wall, and has to say so at a glance.
+   *
+   * Drawn **after** both jambs, not between the threshold and them. Behind the near post
+   * it was correct — a bar does sit between the frames — and all the player could see was
+   * a two-pixel sliver, which is a lock they have to remember rather than read. Across
+   * the front it is unmistakable, and this whole milestone is about being able to tell
+   * whether an order registered.
+   */
+  if (!locked) return;
+
+  const bar = { x: along.x * 1.15, y: along.y * 1.15 };
+  const barY = cy - height * 0.62;
+  isoCapsule(
+    g,
+    { x: cx - bar.x, y: barY - bar.y },
+    { x: cx + bar.x, y: barY + bar.y },
+    5,
+    3,
+  ).fill({ color: shade(Palette.relic, -0.55) });
+  isoCapsule(
+    g,
+    { x: cx - bar.x, y: barY - bar.y - 1.5 },
+    { x: cx + bar.x, y: barY + bar.y - 1.5 },
+    4,
+    2.2,
+  ).fill({ color: Palette.relic });
 }
 
 /** One tongue of flame: a leaning spike, widest at its base. */
@@ -491,7 +557,11 @@ function drawHearth(g: Graphics): void {
  * cell and looks identical from every side, so taking a rotation it ignores keeps the
  * caller from having to know which is which.
  */
-export function buildBuildingGraphics(def: BuildingId, rotation: Rotation = 0): Graphics {
+export function buildBuildingGraphics(
+  def: BuildingId,
+  rotation: Rotation = 0,
+  locked = false,
+): Graphics {
   const g = new Graphics();
   switch (def) {
     case Building.Bedroll:
@@ -501,7 +571,7 @@ export function buildBuildingGraphics(def: BuildingId, rotation: Rotation = 0): 
       drawWall(g);
       break;
     case Building.Door:
-      drawDoor(g);
+      drawDoor(g, rotation, locked);
       break;
     case Building.Campfire:
       drawCampfire(g);

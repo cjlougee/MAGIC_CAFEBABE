@@ -145,6 +145,60 @@ What *did* have to change is everything that used to say "the cell":
 discarding the ones that don't fit returns fewer bedrolls than the party brought instead of
 looking further out, which is the same shape as the bug that once landed everyone in a lake.
 
+## A door is an opening, and can be barred
+
+Until M11 a door was `drawRaised` with a coloured strip on it — a wall of a different
+shade. In a run of walls, the one you could walk through was findable only by looking for
+the colour. It is now drawn as what it is: two jambs continuing the wall either side, a
+threshold across the gap, and the ground visible between them.
+
+**A door orients itself to the run it interrupts.** `orientToNeighbours` counts sealing
+neighbours on each axis and faces the door along the busier one. This is not a
+convenience: a door is one cell, so the toolbar offers no Rotate button for it, and
+without this there is no way for the player to say which way it runs at all. Ties keep
+whatever was asked for, so a free-standing door is still placed rather than refused.
+
+**Locking flips `buildingBlocks` and leaves `buildingSealsRoom` alone** — the clearest
+possible use of the pair M4 kept separate. A barred door is a wall to a colonist and still
+a door to the room, so a hut with its door locked is still indoors and everyone sleeping
+in it keeps the roof bonus. `setLocked` sits beside `completeConstruction` and
+`deconstruct` for the same reason those two are neighbours: they are the only places the
+built shape of the world changes, and the invalidations they owe belong where a reader can
+see one is missing. Locking owes reachability, per cell, and owes rooms *nothing*.
+
+There is **no "hold open"**. It would have to mean walkable and non-sealing, and with no
+temperature and no cost to opening a door the only thing it could do is take the roof
+bonus away. A setting whose sole effect is to make things worse is a control nobody would
+ever use, and offering it is the same lie as a work column with no giver behind it.
+
+### Locking is the first thing that can seal a colonist in on purpose
+
+Bar the only door of an occupied hut and the colonist inside is not standing on an
+impassable cell — `escapeIfTrapped` sees nothing wrong — they are in a perfectly
+legitimate reachability district with nothing in it. `canReach` answers "no" correctly to
+every target the colony has, and they stop working, cannot eat, and eventually die with
+nothing on screen having said a word. This is the M8 lesson exactly, and M11 is the first
+milestone to hand the player a button that causes it.
+
+So `buildAlerts` gains **"X is cut off from the colony"**, measured against the landing
+site, at one O(1) district comparison per colonist. The lock is still allowed — sealing a
+room is a legitimate thing to want — it simply cannot happen silently.
+
+## Selecting a structure
+
+A wall was not a click target until M11. Everything selectable either moved or carried
+bills, so taking down one misplaced wall meant picking the deconstruct tool and dragging a
+rectangle over it: reaching for the tool built for tidying a whole area to express a single
+mistake, and hoping the drag caught nothing else.
+
+`selectedBenchId` became `selectedStructureId`, and the snapshot publishes a
+`StructureSummary` per building. The panel's ✕ goes through the **ordinary designate
+command** over a one-cell area rather than a private path, so it cannot mean anything
+different from the tool — it already spreads a mark across a multi-tile footprint and
+already refuses anything the colony did not build. A bench gets two panels stacked in the
+rail, because "what is this" and "what should it make" are different questions and the
+second is much longer.
+
 ## Rooms
 
 A flood fill over open ground, stopping at anything that seals. A space is a room when
