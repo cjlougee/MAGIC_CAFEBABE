@@ -41,9 +41,24 @@ const CLICK_SLOP = 5;
 /** How close to a pawn's tile a click must land to pick it, in tiles. */
 const PICK_RADIUS = 0.9;
 
+/**
+ * How a click should change the party, read off the keyboard modifiers.
+ *
+ * Ctrl toggles and shift takes a range, matching every file manager the player has ever
+ * used. Ctrl wins when both are held, because "add exactly this one" is the more precise
+ * intent and the one you meant if you went to the trouble of holding both.
+ */
+export type SelectMode = 'replace' | 'toggle' | 'range';
+
+function selectMode(event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }): SelectMode {
+  // metaKey so Command behaves as Ctrl on a Mac.
+  if (event.ctrlKey || event.metaKey) return 'toggle';
+  if (event.shiftKey) return 'range';
+  return 'replace';
+}
+
 export interface WorldInputHandlers {
-  /** `additive` is shift-click: toggle this colonist in the party rather than replace it. */
-  readonly onSelect: (id: EntityId | null, additive: boolean) => void;
+  readonly onSelect: (id: EntityId | null, mode: SelectMode) => void;
   /** Everyone inside a drag rectangle. Replaces the party unless `additive`. */
   readonly onSelectMany: (ids: readonly EntityId[], additive: boolean) => void;
   /**
@@ -55,6 +70,14 @@ export interface WorldInputHandlers {
   readonly onSelectBench: (id: EntityId | null) => void;
   /** Returns to the select tool. Raised by a quick right-click while a tool is active. */
   readonly onCancelTool: () => void;
+  /**
+   * The player asked the party to go somewhere.
+   *
+   * Raised rather than dispatched here so ordering has exactly one path: the engine
+   * both sends the command and drops the marker that acknowledges it, and the two can
+   * never come apart.
+   */
+  readonly onOrder: (target: TilePos, screen: { x: number; y: number }) => void;
   readonly dispatch: (command: Command) => void;
   readonly getSelected: () => readonly EntityId[];
   readonly getWorld: () => World;
@@ -171,19 +194,19 @@ export class WorldInput {
       if (this.tool === 'select' && travel <= CLICK_SLOP) {
         this.dragFrom = null;
         this.dragTo = null;
-        this.select(this.tileUnder(event), event.shiftKey);
+        this.select(this.tileUnder(event), selectMode(event));
         return;
       }
 
-      this.commitDrag(event.shiftKey);
+      this.commitDrag(event.ctrlKey || event.metaKey);
       return;
     }
 
     if (travel > CLICK_SLOP) return; // The player was panning, not clicking.
 
     const tile = this.tileUnder(event);
-    if (event.button === 0) this.select(tile, event.shiftKey);
-    else if (event.button === 2) this.order(tile);
+    if (event.button === 0) this.select(tile, selectMode(event));
+    else if (event.button === 2) this.order(tile, { x: event.clientX, y: event.clientY });
   };
 
   /** Turns the finished rectangle into the command the active tool implies. */
@@ -243,7 +266,7 @@ export class WorldInput {
     );
   }
 
-  private select(tile: { x: number; y: number }, additive: boolean): void {
+  private select(tile: { x: number; y: number }, mode: SelectMode): void {
     const world = this.handlers.getWorld();
     let closestId: EntityId | null = null;
     let closest = PICK_RADIUS;
@@ -257,13 +280,13 @@ export class WorldInput {
       }
     }
 
-    // Shift-clicking empty ground must not wipe a party the player just built up — the
-    // whole gesture means "add to what I have", and a near-miss is the common case.
-    if (closestId === null && additive) return;
+    // A modified click on empty ground must not wipe a party the player just built up —
+    // both gestures mean "adjust what I have", and a near-miss is the common case.
+    if (closestId === null && mode !== 'replace') return;
 
     // Clicking empty ground clears the selection, which is what makes right-click
     // orders feel safe — there is always a way to put the mouse down.
-    this.handlers.onSelect(closestId, additive);
+    this.handlers.onSelect(closestId, mode);
 
     // A colonist standing at a bench wins: they move, so they are the harder thing to
     // click, and the bench is not going anywhere.
@@ -308,7 +331,7 @@ export class WorldInput {
    * heavy: leaving a tool no longer requires travelling to the toolbar or remembering a
    * key.
    */
-  private order(tile: { x: number; y: number }): void {
+  private order(tile: { x: number; y: number }, screen: { x: number; y: number }): void {
     if (this.tool !== 'select') {
       this.handlers.onCancelTool();
       return;
@@ -326,8 +349,6 @@ export class WorldInput {
     const map = this.handlers.getWorld().map;
     if (!map.isPassable(target.x, target.y, target.z)) return;
 
-    // Always the party command, even for one colonist. One path through the simulation
-    // means the fan-out rule cannot differ between "a pawn" and "some pawns".
-    this.handlers.dispatch({ type: 'moveParty', pawnIds: [...selected], target });
+    this.handlers.onOrder(target, screen);
   }
 }

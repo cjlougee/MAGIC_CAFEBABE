@@ -24,6 +24,8 @@ const PAN_KEYS: Record<string, [number, number]> = {
 
 export class CameraController {
   private dragging = false;
+  /** Whether this press has moved the view yet. Decides when the grab hand appears. */
+  private panned = false;
   private lastX = 0;
   private lastY = 0;
   private restingCursor = 'default';
@@ -91,16 +93,30 @@ export class CameraController {
   private onPointerDown = (event: PointerEvent): void => {
     if (!this.shouldPan(event)) return;
     this.dragging = true;
+    this.panned = false;
     this.lastX = event.clientX;
     this.lastY = event.clientY;
     // Remembered rather than assumed, because the resting cursor depends on the active
     // tool and the camera has no business knowing which one that is.
     this.restingCursor = this.canvas.style.cursor;
-    this.canvas.style.cursor = 'grabbing';
   };
 
   private onPointerMove = (event: PointerEvent): void => {
     if (!this.dragging) return;
+
+    /*
+     * The grab hand waits until the view actually moves.
+     *
+     * The right button both pans and gives orders, and the cursor used to flip to
+     * `grabbing` the instant it went down — so every order the player issued was
+     * acknowledged by the camera cursor, which is feedback for the wrong action
+     * entirely. It now only appears once this is unambiguously a pan.
+     */
+    if (!this.panned) {
+      this.panned = true;
+      this.canvas.style.cursor = 'grabbing';
+    }
+
     this.camera.panByScreen(event.clientX - this.lastX, event.clientY - this.lastY);
     this.lastX = event.clientX;
     this.lastY = event.clientY;
@@ -109,7 +125,8 @@ export class CameraController {
   private onPointerUp = (): void => {
     if (!this.dragging) return;
     this.dragging = false;
-    this.canvas.style.cursor = this.restingCursor;
+    if (this.panned) this.canvas.style.cursor = this.restingCursor;
+    this.panned = false;
   };
 
   private onWheel = (event: WheelEvent): void => {

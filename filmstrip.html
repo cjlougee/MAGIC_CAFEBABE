@@ -1,0 +1,78 @@
+<!doctype html>
+<!--
+  TEMPORARY — animation preview harness. Delete once the order cursor is signed off.
+
+  An animation cannot be reviewed by screenshotting a running game: the whole thing is
+  over in under half a second, and every attempt is a race against a round-trip. Sampling
+  it into a strip shows the entire motion in one still image.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Order cursor filmstrip</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        background: #6d5a45;
+        color: #dfe6ee;
+        font: 12px ui-monospace, monospace;
+      }
+      h1 { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; }
+      .strip { display: flex; flex-wrap: wrap; gap: 6px; }
+      .frame { text-align: center; }
+      canvas { display: block; background: rgba(0, 0, 0, 0.18); }
+      .live { margin-top: 20px; }
+    </style>
+  </head>
+  <body>
+    <h1>A — "converge" (current)</h1>
+    <div class="strip" id="strip-converge"></div>
+
+    <h1 class="live">B — "arrows"</h1>
+    <div class="strip" id="strip-arrows"></div>
+
+    <h1 class="live">LOOPING AT SPEED — A then B</h1>
+    <canvas id="live" width="56" height="56" style="width: 112px; height: 112px; display:inline-block"></canvas>
+    <canvas id="live2" width="56" height="56" style="width: 112px; height: 112px; display:inline-block"></canvas>
+
+    <script type="module">
+      import { drawOrderCursor, ORDER_CURSOR_SIZE, ORDER_CURSOR_MS } from '/src/render/art/orderCursor.ts';
+
+      const FRAMES = 13;
+
+      for (const style of ['converge', 'arrows']) {
+        const strip = document.getElementById(`strip-${style}`);
+        for (let i = 0; i < FRAMES; i++) {
+          const t = (i + 0.5) / FRAMES;
+          const wrap = document.createElement('div');
+          wrap.className = 'frame';
+
+          const canvas = document.createElement('canvas');
+          canvas.width = ORDER_CURSOR_SIZE;
+          canvas.height = ORDER_CURSOR_SIZE;
+          canvas.style.width = `${ORDER_CURSOR_SIZE * 1.05}px`;
+          canvas.style.height = `${ORDER_CURSOR_SIZE * 1.05}px`;
+          drawOrderCursor(canvas.getContext('2d'), ORDER_CURSOR_SIZE, t, style);
+
+          const label = document.createElement('div');
+          label.textContent = t.toFixed(2);
+
+          wrap.append(canvas, label);
+          strip.append(wrap);
+        }
+      }
+
+      const live = document.getElementById('live').getContext('2d');
+      const live2 = document.getElementById('live2').getContext('2d');
+      const started = performance.now();
+      function loop(now) {
+        const t = ((now - started) % (ORDER_CURSOR_MS * 2)) / ORDER_CURSOR_MS;
+        drawOrderCursor(live, ORDER_CURSOR_SIZE, Math.min(t, 1), 'converge');
+        drawOrderCursor(live2, ORDER_CURSOR_SIZE, Math.min(t, 1), 'arrows');
+        requestAnimationFrame(loop);
+      }
+      requestAnimationFrame(loop);
+    </script>
+  </body>
+</html>

@@ -25,6 +25,7 @@ import { GroundLayer } from './layers/groundLayer';
 import { EmissiveLayer } from './layers/emissiveLayer';
 import { LightingLayer } from './layers/lightingLayer';
 import { ObjectLayer } from './layers/objectLayer';
+import { OrderMarkerLayer } from './layers/orderMarkerLayer';
 import { OverlayLayer, type DragPreview } from './layers/overlayLayer';
 
 export class GameRenderer {
@@ -35,6 +36,7 @@ export class GameRenderer {
   private readonly ground: GroundLayer;
   private readonly overlays: OverlayLayer;
   private readonly objects: ObjectLayer;
+  private readonly orderMarkers: OrderMarkerLayer;
   private readonly lighting = new LightingLayer();
   private readonly emissive = new EmissiveLayer();
   private readonly controller: CameraController;
@@ -49,9 +51,13 @@ export class GameRenderer {
     this.ground = new GroundLayer(art, this.tint);
     this.overlays = new OverlayLayer(art);
     this.objects = new ObjectLayer(art, this.tint);
+    this.orderMarkers = new OrderMarkerLayer(art);
 
     this.worldContainer.addChild(this.ground.container);
     this.worldContainer.addChild(this.overlays.container);
+    // Above the designation overlays and below the objects: an order marker is a mark on
+    // the ground, so a colonist standing on the tile should cover it.
+    this.worldContainer.addChild(this.orderMarkers.container);
     this.worldContainer.addChild(this.objects.container);
     this.app.stage.addChild(this.worldContainer);
     // Lighting sits outside the world container so it stays screen-aligned rather
@@ -68,7 +74,12 @@ export class GameRenderer {
     this.app.canvas.style.cursor = 'default';
   }
 
-  /** Resting cursor. The camera swaps to `grabbing` while a pan is in progress. */
+  /** Acknowledges a move order on a tile. Pure feedback; the sim knows nothing of it. */
+  markOrder(x: number, y: number, z: number): void {
+    this.orderMarkers.add(x, y, z);
+  }
+
+  /** Resting cursor. The camera swaps to `grabbing` once a pan actually moves. */
   setCursor(cursor: string): void {
     this.app.canvas.style.cursor = cursor;
   }
@@ -123,6 +134,7 @@ export class GameRenderer {
 
     this.ground.update(world.map, world.seed, view, visible);
     this.overlays.update(world, view, visible, preview);
+    this.orderMarkers.update(dtMs);
     this.objects.update(world, view, visible, selected);
     const light = daylight(world.tick);
     this.lighting.update(light, width, height);
@@ -152,6 +164,8 @@ export class GameRenderer {
     // read as unchanged when in fact everything has.
     this.ground.invalidate();
     this.emissive.invalidate();
+    // Receipts for orders given in a world that no longer exists.
+    this.orderMarkers.clear();
   }
 
   /** Centres the view on a tile. Used when the player picks a colonist from the HUD. */

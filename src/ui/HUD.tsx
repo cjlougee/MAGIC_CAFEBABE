@@ -9,7 +9,7 @@ import { useEffect, useSyncExternalStore } from 'react';
 import type { Engine } from '../app/engine';
 import type { GameSpeed } from '../app/gameLoop';
 import type { UiStore } from '../app/uiStore';
-import type { Tool } from '../input/worldInput';
+import type { SelectMode, Tool } from '../input/worldInput';
 import type { EntityId } from '../sim/core/entityStore';
 import type { PawnSummary, ResourceSummary } from '../sim/snapshot';
 import { AlertsPanel } from './AlertsPanel';
@@ -18,6 +18,7 @@ import { ColonistPanel } from './ColonistPanel';
 import { DebugPanel } from './DebugPanel';
 import { Minimap } from './Minimap';
 import { PartyPanel } from './PartyPanel';
+import { OrderCursor } from './OrderCursor';
 import { MainMenu } from './MainMenu';
 import { Toolbar } from './Toolbar';
 import { WorkPanel } from './WorkPanel';
@@ -57,6 +58,7 @@ export function HUD({ store, engine }: HUDProps) {
     showMenu,
     showDebug,
     instantBuild,
+    orderPing,
   } = state;
 
   // The menu is a pause, not a screen: the world should not advance behind it.
@@ -173,7 +175,7 @@ export function HUD({ store, engine }: HUDProps) {
       <ColonistStrip
         pawns={snapshot.pawns}
         selectedIds={selectedPawnIds}
-        onPick={(id, additive) => engine?.focusPawn(id, additive)}
+        onPick={(id, mode) => engine?.focusPawn(id, mode)}
       />
 
       <Toolbar
@@ -186,6 +188,8 @@ export function HUD({ store, engine }: HUDProps) {
       />
 
       <AlertsPanel alerts={snapshot.alerts} />
+
+      <OrderCursor ping={orderPing} />
 
       {engine && (
         <Minimap
@@ -306,8 +310,8 @@ function DaylightPip({ daylight }: { readonly daylight: number }) {
 interface ColonistStripProps {
   readonly pawns: readonly PawnSummary[];
   readonly selectedIds: readonly EntityId[];
-  /** `additive` is shift-click, so a party can be built from the roster as well as the map. */
-  readonly onPick: (id: EntityId, additive: boolean) => void;
+  /** Modifier-aware, so a party can be built from the roster as well as from the map. */
+  readonly onPick: (id: EntityId, mode: SelectMode) => void;
 }
 
 /**
@@ -333,7 +337,12 @@ function ColonistStrip({ pawns, selectedIds, onPick }: ColonistStripProps) {
             key={pawn.id}
             type="button"
             className={classes}
-            onClick={(event) => onPick(pawn.id, event.shiftKey)}
+            onClick={(event) =>
+              onPick(
+                pawn.id,
+                event.ctrlKey || event.metaKey ? 'toggle' : event.shiftKey ? 'range' : 'replace',
+              )
+            }
             title={`${pawn.name} — (${pawn.x}, ${pawn.y})${pawn.drafted ? ' · drafted' : ''}`}
           >
             <span className="colonist__name">

@@ -60,9 +60,22 @@ its own rule.
 
 ## Parties
 
-Selection is a list. Shift-click adds, left-drag over the world catches everyone inside the
-rectangle, and shift-clicking the roster works too — on a 512-tile map a drag rectangle would have
-to cover half the world to gather colonists who have wandered off.
+Selection is a list, and the modifiers are the ones every file manager uses, because that is where
+players already know them from:
+
+| | |
+|---|---|
+| click | replace the party, and set the anchor |
+| **ctrl**-click | toggle one colonist in or out |
+| **shift**-click | take everyone between the anchor and this colonist |
+
+"Between" means **roster order** — the entity store's insertion order, which is what the colonist
+strip lists and the only ordering colonists have. A range over screen position would change meaning
+every time somebody walked. Ctrl wins if both are held.
+
+All three work from the roster as well as from the map, which matters more than it sounds: on a
+512-tile world a drag rectangle would have to cover half the map to gather colonists who have
+wandered off to forage.
 
 **The drag draws a marquee**, and that is not cosmetic. It was left out on the grounds that
 selecting changes nothing about the world — true, and beside the point. Reported as "I can't drag
@@ -83,6 +96,29 @@ between "a pawn" and "some pawns".
 The party panel lists every place M8 generated with its distance, and clicking one sends the party.
 Without it, reaching a vault 200 tiles away meant scrolling there and clicking the ground — the
 places existed, and were effectively unusable.
+
+## Saying that an order landed
+
+Right-clicking the ground used to produce nothing at all, and worse than nothing — the right button
+also pans, so the cursor flipped to the grab hand the instant it went down. Every order was
+acknowledged with feedback for a different action. The grab hand now waits until the view actually
+moves, so a click that turns out to be an order never claims to be a pan.
+
+In its place, two things:
+
+- **The cursor animation.** Four blades sweep in from the corners along an arc and are drawn into
+  the point clicked. A plain 2D canvas rather than anything in Pixi, because it belongs to the
+  *cursor*: it plays at a point on screen and must not pan, zoom or scale with the map, and it has
+  to keep running while the game is paused. `render/art/orderCursor.ts` is a pure function of
+  normalised time, which is what makes it reviewable — see the note in the `art-pass` skill about
+  why an animation is written that way, and `filmstrip.html` for the harness.
+- **The target tile pulses**, three times over two seconds, in relic cyan at up to half opacity.
+  A whole number of cosine cycles lands back on zero by itself, so it ends without a cut and needs
+  no fade envelope — one was tried, and it crushed the second and third pulses to a quarter
+  strength, so three pulses read as one.
+
+Only clicks in the world get the cursor animation. Ordering from the places list is a button press,
+and a button already acknowledges itself.
 
 ## Panels stack, they do not overlap
 

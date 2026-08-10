@@ -67,6 +67,31 @@ export class ArtProvider {
     });
   }
 
+  /** A filled tile diamond, tinted and faded by whatever is pulsing it. */
+  tileHighlight(): Texture {
+    return this.cached(
+      'ui:tileHighlight',
+      () => {
+        const g = new Graphics();
+        // Inset by a pixel so the fill never bleeds onto the tiles it abuts.
+        const w = HALF_TILE_W - 1;
+        const h = HALF_TILE_H - 1;
+        g.poly([
+          HALF_TILE_W,
+          HALF_TILE_H - h,
+          HALF_TILE_W + w,
+          HALF_TILE_H,
+          HALF_TILE_W,
+          HALF_TILE_H + h,
+          HALF_TILE_W - w,
+          HALF_TILE_H,
+        ]).fill({ color: Palette.relic });
+        return g;
+      },
+      new Rectangle(0, 0, TILE_W, TILE_H),
+    );
+  }
+
   /** Texture for a pile of one kind of item. */
   item(def: ItemDefId): Texture {
     return this.cached(`item:${def}`, () => buildItemGraphics(def));

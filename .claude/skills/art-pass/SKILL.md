@@ -81,6 +81,27 @@ nearest-neighbour sampling that keeps the pixel art crisp will band a gradient.
 Additive light should peak below 1, or the core saturates to white and erases whatever is
 emitting it.
 
+## Animation is reviewed as a filmstrip, never live
+
+A still can be checked with a screenshot. **An animation cannot.** The order cursor lasts
+420ms; every attempt to catch it was a race against a tool round-trip, and several
+screenshots in a row landed on empty frames — which looks exactly like a feature that
+does not work. Time was spent debugging code that had been correct all along.
+
+So write the drawing as **a pure function of normalised time**, `draw(ctx, size, t)`,
+with no clock and no state of its own. Then it can be sampled into a strip and the whole
+motion inspected in one still image — see `filmstrip.html`, which renders every variant
+across a dozen values of `t` and loops them at speed underneath.
+
+Two things follow:
+
+- **Build against the filmstrip; hand the motion to a human.** Reading whether a shape is
+  right is something a still image answers. Whether the *movement* feels good is a
+  judgement call the person directing the art should make, live, at speed.
+- **Keep variants rather than overwriting them.** The first order cursor was "wrong" by
+  the brief and better in practice, and it survived only because the alternative was added
+  beside it as a named style instead of replacing it.
+
 ## Finally
 
 **Look at it, at play zoom, in daylight and at night.** Press `` ` `` for the debug panel

@@ -118,3 +118,17 @@ export function mixColors(a: number, b: number, t: number): number {
   };
   return (channel(16) << 16) | (channel(8) << 8) | channel(0);
 }
+
+/**
+ * A palette colour as a CSS string.
+ *
+ * Pixi takes colours as numbers; the handful of things drawn on a plain 2D canvas — the
+ * light gradients, the order cursor — need `#rrggbb`. Converting here keeps the rule that
+ * no component or layer ever writes a hex literal of its own.
+ */
+export function cssColor(color: number, alpha = 1): string {
+  const r = (color >> 16) & 0xff;
+  const g = (color >> 8) & 0xff;
+  const b = color & 0xff;
+  return alpha >= 1 ? `rgb(${r},${g},${b})` : `rgba(${r},${g},${b},${alpha})`;
+}

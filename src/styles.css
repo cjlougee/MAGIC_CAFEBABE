@@ -1362,3 +1362,16 @@ body {
   color: var(--c-hazard);
   border-color: color-mix(in srgb, var(--c-hazard) 55%, transparent);
 }
+
+/* ── The click animation ──────────────────────────────────────────────────── */
+/*
+ * Sits over everything and catches nothing. It is a cursor effect, so it must never eat
+ * the click that follows it, and it is positioned in screen pixels rather than tiles —
+ * panning the map while it plays should leave it where the player clicked.
+ */
+
+.order-cursor {
+  position: absolute;
+  pointer-events: none;
+  z-index: 30;
+}

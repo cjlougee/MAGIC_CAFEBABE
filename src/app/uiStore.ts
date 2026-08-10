@@ -12,6 +12,19 @@ import { Buildable, type BuildableId } from '../sim/defs/buildables';
 import type { SimSnapshot } from '../sim/snapshot';
 import type { GameSpeed } from './gameLoop';
 
+/**
+ * Where and when the player last issued a move order, in screen pixels.
+ *
+ * `id` rather than a timestamp because replaying matters: ordering the same tile twice
+ * must play the animation twice, and two identical positions are indistinguishable
+ * without a counter.
+ */
+export interface OrderPing {
+  readonly x: number;
+  readonly y: number;
+  readonly id: number;
+}
+
 export interface UiState {
   readonly snapshot: SimSnapshot | null;
   readonly speed: GameSpeed;
@@ -35,6 +48,8 @@ export interface UiState {
   readonly buildable: BuildableId;
   readonly showWorkPanel: boolean;
   readonly showMenu: boolean;
+  /** The click animation's position, or null before the first order. */
+  readonly orderPing: OrderPing | null;
 }
 
 const INITIAL: UiState = {
@@ -48,6 +63,7 @@ const INITIAL: UiState = {
   instantBuild: false,
   tool: 'select',
   buildable: Buildable.Wall,
+  orderPing: null,
   showWorkPanel: false,
   showMenu: false,
 };

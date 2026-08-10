@@ -21,6 +21,12 @@ import { GameLoop, type GameSpeed } from './gameLoop';
 import { readSave, suggestedName, writeSave, type SaveStats } from './saveStorage';
 import type { UiStore } from './uiStore';
 
+/**
+ * How a click changes the party. Named rather than a boolean, because there are three
+ * behaviours now and `select(id, true, false)` says nothing to anyone.
+ */
+export type SelectMode = 'replace' | 'toggle' | 'range';
+
 /** How often UI state is republished. 10Hz is imperceptible for a clock readout. */
 const SNAPSHOT_INTERVAL_MS = 100;
 
@@ -37,9 +43,12 @@ export class Engine {
 
   private readonly input: WorldInput;
   private selectedIds: readonly EntityId[] = [];
+  /** Where a shift-range sweeps from. The last colonist picked deliberately, not by range. */
+  private selectionAnchor: EntityId | null = null;
   private snapshotTimerMs = 0;
   /** Bumped whenever the world is *replaced* rather than merely edited. */
   private worldEpoch = 0;
+  private orderPingId = 0;
 
   private constructor(
     readonly sim: Simulation,
@@ -54,10 +63,11 @@ export class Engine {
     );
 
     this.input = new WorldInput(this.renderer.canvas, this.renderer.camera, {
-      onSelect: (id, additive) => this.select(id, additive),
+      onSelect: (id, mode) => this.select(id, mode),
       onSelectMany: (ids, additive) => this.selectMany(ids, additive),
       onSelectBench: (id) => this.selectBench(id),
       onCancelTool: () => this.setTool('select'),
+      onOrder: (target, screen) => this.orderPartyTo(target, screen),
       dispatch: (command) => this.dispatch(command),
       getSelected: () => this.selectedIds,
       getWorld: () => this.sim.world,
@@ -128,21 +138,42 @@ export class Engine {
   /**
    * Selection is view state, so it is published to the UI but never sent to the sim.
    *
-   * `additive` is shift-click: it toggles one colonist in or out of the party rather
-   * than replacing it, which is the only way to build a party out of pawns that are not
-   * standing near each other.
+   * The modifiers follow the convention every file manager shares, because that is
+   * where players already know them from:
+   *
+   * - **plain** replaces the party and sets the anchor
+   * - **ctrl** toggles one colonist in or out, and moves the anchor to them
+   * - **shift** takes everyone between the anchor and this colonist
+   *
+   * "Between" means *roster order* — the entity store's insertion order, which is what
+   * the colonist strip lists and the only ordering colonists have. A range over screen
+   * position would change meaning every time somebody walked.
    */
-  select(id: EntityId | null, additive = false): void {
+  select(id: EntityId | null, mode: SelectMode = 'replace'): void {
     if (id === null) {
       this.selectedIds = [];
-    } else if (!additive) {
-      this.selectedIds = [id];
-    } else if (this.selectedIds.includes(id)) {
-      this.selectedIds = this.selectedIds.filter((held) => held !== id);
-    } else {
-      this.selectedIds = [...this.selectedIds, id];
+      this.selectionAnchor = null;
+      this.store.update({ selectedPawnIds: this.selectedIds });
+      return;
     }
 
+    if (mode === 'range' && this.selectionAnchor !== null) {
+      this.selectedIds = this.rosterRange(this.selectionAnchor, id);
+      // The anchor deliberately stays put, so shift-clicking around re-sweeps from the
+      // same place rather than dragging the origin along behind the cursor.
+      this.store.update({ selectedPawnIds: this.selectedIds });
+      return;
+    }
+
+    if (mode === 'toggle') {
+      this.selectedIds = this.selectedIds.includes(id)
+        ? this.selectedIds.filter((held) => held !== id)
+        : [...this.selectedIds, id];
+    } else {
+      this.selectedIds = [id];
+    }
+
+    this.selectionAnchor = id;
     this.store.update({ selectedPawnIds: this.selectedIds });
   }
 
@@ -154,7 +185,22 @@ export class Engine {
     }
 
     this.selectedIds = merged;
+    this.selectionAnchor = merged.at(-1) ?? null;
     this.store.update({ selectedPawnIds: this.selectedIds });
+  }
+
+  /** Living colonists between two ids in roster order, inclusive of both ends. */
+  private rosterRange(from: EntityId, to: EntityId): EntityId[] {
+    const roster = [...this.sim.world.pawns.values()]
+      .filter((pawn) => !pawn.dead)
+      .map((pawn) => pawn.id);
+
+    const start = roster.indexOf(from);
+    const end = roster.indexOf(to);
+    // The anchor may have died since it was set, which is not a reason to do nothing.
+    if (start === -1 || end === -1) return [to];
+
+    return roster.slice(Math.min(start, end), Math.max(start, end) + 1);
   }
 
   /** Drafts or releases the whole current party in one go. */
@@ -176,7 +222,7 @@ export class Engine {
    * Returns false when nobody is selected, so the caller can say so rather than
    * appearing to do nothing.
    */
-  orderPartyTo(target: { x: number; y: number }): boolean {
+  orderPartyTo(target: { x: number; y: number }, screen?: { x: number; y: number }): boolean {
     if (this.selectedIds.length === 0) return false;
 
     this.dispatch({
@@ -184,6 +230,24 @@ export class Engine {
       pawnIds: [...this.selectedIds],
       target: { x: target.x, y: target.y, z: GROUND_LEVEL },
     });
+
+    /*
+     * Acknowledge the click immediately, on the tile the player actually pointed at.
+     *
+     * Not on the cells the party is fanned out to: those are the simulation's answer to
+     * the order, they are only known a tick later, and the player asked about *here*.
+     * Marking here also means an order that turns out to be impossible still shows that
+     * the click landed — the failure then comes from the alert, not from silence.
+     */
+    this.renderer.markOrder(target.x, target.y, GROUND_LEVEL);
+
+    // Only clicks in the world get the cursor animation. Ordering from the places list
+    // is a button press, and a button already acknowledges itself.
+    if (screen) {
+      this.orderPingId += 1;
+      this.store.update({ orderPing: { x: screen.x, y: screen.y, id: this.orderPingId } });
+    }
+
     this.store.update({ snapshot: this.sim.snapshot() });
     return true;
   }
@@ -205,10 +269,10 @@ export class Engine {
    * the only practical way to gather colonists who are scattered across a 512-tile map
    * doing their own thing, where a drag rectangle would have to cover half the world.
    */
-  focusPawn(id: EntityId, additive = false): void {
+  focusPawn(id: EntityId, mode: SelectMode = 'replace'): void {
     const pawn = this.sim.world.pawns.get(id);
     if (!pawn) return;
-    this.select(id, additive);
+    this.select(id, mode);
     this.renderer.focusOn(pawn.pos.x, pawn.pos.y);
   }
 
