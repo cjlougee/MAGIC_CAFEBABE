@@ -252,13 +252,89 @@ second, headless, on a map sixteen times the size Slice 1 shipped.
 
 ---
 
-### After M9 — the detail pass
+## Slice 3 — The Built World ("the colony gets an inside")
 
-**M10 as written is retired.** The crafting ladder was going to be next; the detail work in
-[`BACKLOG.md`](BACKLOG.md) matters more to whether this is worth playing, and most of it wants
-thinking through before any of it is built. Relic-tech recovery, the refined tier, pawn skills,
-quality and power are all still wanted and are listed at the bottom of that file rather than
-pretending to be a scheduled milestone.
+*This is the old "detail pass", scheduled.* **M10 as written is retired** — the crafting ladder was
+going to be next, and the detail work matters more to whether this is worth playing. What was a
+seventeen-item wish list in [`BACKLOG.md`](BACKLOG.md) is now five milestones in a committed order;
+that file keeps only what is genuinely unscheduled.
+
+The slice's argument: the colony can build, but everything it builds is a one-cell grey cube. A room
+is four walls and a floor with nothing in it, a door is a passable square, and the architect menu is
+an undivided list that already strains at four entries. **Footprints come first because a desk is
+not one tile** — items 8 and 9 are both gated on it.
+
+### M10 — Footprints *(item 6)*
+- [ ] `BuildingDef.footprint {w, h}`; `Building` and `ConstructionSite` carry a saved `rotation`,
+      with cells **derived** in one new `sim/world/footprint.ts` and never stored
+- [ ] Placement legality, occupancy lookup, grid stamping, walk-adjacent and deconstruct all move
+      from "the cell" to "every cell" — `markDirtyAt` per cell, never the blanket `markDirty()`
+- [ ] Room flood-fill changes **not at all**, which is the test that the shape of the fix is right:
+      it reads `sealsRoomAt` off the grid, so stamping every cell is the whole of it
+- [ ] Save v6, rotation in **both** `serialize.ts` and `hashWorld()`. The v5 → v6 step widens
+      existing bedrolls and must rotate rather than overlap a wall the player built — using the
+      save's own blocks grid and frozen literals, never a live def
+- [ ] **Bedroll → 2×1**, plus a buildable **Bed** (2×1) and **Hearth** (2×2, impassable, does not
+      seal). Without one impassable multi-cell structure nothing exercises blocking across cells or
+      a footprint correctly failing to cut a room in two
+- [ ] **Sleeping colonists lie down** — render-only, off the `asleep` flag the snapshot already
+      carries. A separate change in the same milestone, not bundled into the footprint work
+- **Playable check:** place a bed, rotate it before committing, watch it get built; put a hearth in
+  a hut and the hut is still one room; mark half of it and the whole thing tints; deconstruct and
+  count the salvage once.
+
+See [`superpowers/specs/2026-08-10-multi-tile-footprints-design.md`](superpowers/specs/2026-08-10-multi-tile-footprints-design.md).
+
+### M11 — Things you can point at *(items 2, 3, 1)*
+- [ ] **Buildings as click targets** and a small panel for the selected structure. Pawns and benches
+      already are; a wall is not, which is why deconstructing one misplaced wall means dragging a
+      rectangle over it
+- [ ] A red ✕ on that panel, driving the existing `Designation.Deconstruct`
+- [ ] **Doors that look and act like doors** — a real sprite in the frame of the wall, a style
+      submenu *before* placing, and states: leave open, closed, locked. The data model is already
+      ready: `buildingSealsRoom` and `buildingBlocks` were split for exactly this
+- [ ] **Drag the minimap** to scrub the camera, rather than click-to-jump only
+- [ ] **A mine mark you can see.** Designations draw on the ground plane and rock is raised, so the
+      mark sits at the base of the block it refers to. Deconstruction solved this for buildings by
+      tinting them; mining gets the same treatment
+- [ ] Dragging over empty ground no longer clears the party — correct and consistent, and far too
+      easy to do by accident now the marquee makes drag-select inviting
+- **Playable check:** click a wall, see what it is, press ✕, watch it come down. Lock a door and
+  watch a colonist route around it.
+
+### M12 — The architect grows up, and rooms get contents *(items 4, 9)*
+- [ ] A **categorised** build menu with real sprites rendered into DOM. The current architect list is
+      one undivided `BUILDABLE_DEFS`; it works at four and will not at forty, and M12 creates the
+      forty
+- [ ] **Furniture** — chairs, desks, tables, shelves, lamps, safes, supplies. Carpet is a surface and
+      `setSurfaceAt` already handles it
+- [ ] Whatever ownership and interaction furniture turns out to need — a desk you sit at is a bench
+      by another name, and the M6 bill system should absorb it rather than growing a sibling
+- **Playable check:** furnish a hut and it stops being a box.
+
+### M13 — Buildings that look like buildings *(item 8)*
+- [ ] Height, ornamentation, windows, awnings, roofs; brick versus wood versus scrap. A hovel should
+      not be a shorter skyscraper
+- [ ] **`LEVEL_HEIGHT` versus decorative relief, settled in a new ADR.** A wall already draws 22px
+      against a level's 24, so the first genuinely tall building makes a one-storey hut and a real
+      second floor pixel-identical while behaving nothing alike. ADR 0003 named this as a
+      consequence and left it; M13 is where it comes due. ADRs here are immutable, so this is a new
+      one that extends 0003 rather than an edit to it
+- [ ] **Buildings enter the occlusion system.** `collectOccluders` only ever inspects
+      `terrainHeight` — buildings are not in it at all, so a colonist behind a 22px wall is *already*
+      partly hidden today with no fade. Taller buildings make it much worse. Needs M10's footprints
+      to know which cells a structure covers
+- **Playable check:** a street of buildings that read as different buildings, and a colonist walking
+  behind one who does not disappear.
+
+### M14 — A world with things in it *(item 5, the biome half of item 7)*
+- [ ] Biome-specific flora and fauna, rocks, trees, flowers — biomes exist as of M7 and currently
+      change only terrain, so they are the natural place to hang what grows and lives here
+- [ ] Scrap and abandoned objects lying on the map; **hidden caches** in M8's places, which is the
+      cheapest possible reward for exploring and gives those places something to *contain*
+- [ ] The two constants still phrased as absolute counts: `findLandingSite`'s 28-tile radius and
+      `BUSH_DENSITY`. Measured in M10, fixed here if measuring says so
+- **Playable check:** walk 200 tiles and the ground keeps telling you where you are.
 
 ---
 
@@ -266,19 +342,22 @@ pretending to be a scheduled milestone.
 
 Real, but not designed in detail yet. Each gets its own design pass when we reach it.
 
-- **Slice 2 — The Frontier.** *Complete — M6 to M9 above.* The production content it opened with
-  now sits in [`BACKLOG.md`](BACKLOG.md) along with quality tiers and power.
-- **Slice 3 — Threat.** Combat, body-part injury model (`hediffs`), raids, an event director that
-  paces pressure. Where high-ground and cover modifiers land, since they need combat to modify.
-  Now arrives with a world to be threatened *across*, and with enemy camps worth clearing to slow
-  the pressure down.
-- **Slice 4 — The world outside.** *Partly pulled into Slice 2.* Ruin exploration came forward as
-  M8–M9. What remains: factions, trade, named NPCs, towns you can buy into, and the multi-level
-  worldgen and cave dungeons that serve them.
-- **Slice 5 — Command.** *Partly delivered in Slice 2.* Draft, multi-select and party movement
-  landed in M9, because travel was impossible without them. Formations, morale, stances and genuine
-  tactical control remain — the Bannerlord layer, riding on the preemption built in M2. Note that
-  draft as built lets needs interrupt a held position, which combat will have to revisit.
+- **Slice 4 — Threat.** Combat, body-part injury model (`hediffs`), raids, and an event director that
+  paces pressure *(item 16)*. Where high-ground and cover modifiers land, since they need combat to
+  modify. Arrives with a world to be threatened *across* and camps worth clearing to slow the
+  pressure down. Per-pawn abilities *(item 11)* and weapon mods *(item 12)* hang off it — 12 needs
+  combat to mean anything, and 11 wants pawn skills, which are still unscheduled.
+- **Slice 5 — The world outside.** *Partly pulled into Slice 2.* Ruin exploration came forward as
+  M8–M9. What remains, in dependency order: **other-people AI** *(item 17)* first, because pawns have
+  exactly one behaviour tree and no notion of a stranger and everything else here needs one; then
+  friendly and enemy bases, towns, villages *(items 10, 15)*, which arrive through M8's
+  constraint-search placement as POI kinds with bigger stamps and inhabitants; then reputation and
+  trading *(items 13, 14)*. Multi-level worldgen and cave dungeons — the verticality half of item 7 —
+  serve this slice.
+- **Slice 6 — Command.** *Partly delivered in Slice 2.* Draft, multi-select and party movement landed
+  in M9, because travel was impossible without them. Formations, morale, stances and genuine tactical
+  control remain — the Bannerlord layer, riding on the preemption built in M2. Note that draft as
+  built lets needs interrupt a held position, which combat will have to revisit.
 
 ---
 
@@ -291,11 +370,16 @@ nowhere to go, and the colony's whole world is 128 tiles across.
 places on it, and you can take a party to one and bring them home. That is the whole loop the slice
 was reframed around.
 
-**Next is the detail pass in [`BACKLOG.md`](BACKLOG.md)**, not the crafting ladder — seventeen items
-covering doors that look like doors, buildings taller than one block, what goes inside them, world
-texture, and the people who live out there. Much of it wants thinking through before any of it is
-built. **Slice 3 — threat** follows, with a world to be dangerous across and camps worth clearing;
-the `hediff` array is already there waiting.
+**Next is [Slice 3 — The Built World](#slice-3--the-built-world-the-colony-gets-an-inside)**, not the
+crafting ladder. That was the seventeen-item detail pass in [`BACKLOG.md`](BACKLOG.md); it is now
+five milestones in a committed order, and the backlog keeps only what is genuinely unscheduled.
+
+**Start at M10 — footprints**, because a desk is not one tile and items 8 and 9 are both gated on it.
+Everything currently assumes one building occupies exactly one cell: placement legality,
+`buildingBlocks` and `buildingSealsRoom`, which cell a pawn reserves and walks to, room flood-fill,
+save shape, and deconstruct. The 2×1 bedroll is the natural first case — it already exists and is
+already wrong. **Slice 4 — Threat** follows the slice, with a world to be dangerous across and camps
+worth clearing; the `hediff` array is already there waiting.
 
 **What M9 taught, and it is now three for three:** every milestone since the map grew has been
 undone by a constant tuned to the *old* map size, and every one of them passed a green suite.
@@ -323,28 +407,25 @@ search radius (28 tiles, unchanged) and `BUSH_DENSITY` are the next two to look 
 
 - **No roofs.** "Indoors" means enclosed-by-something-built. Fine now; temperature or
   weather would need real roofs.
-- **Every building is one tile, and sleeping colonists stand up.** A bedroll should be 2x1
-  and a pawn should *lie on* it. The two halves are very different sizes: the lying-down
-  pose is render-only (an asleep pawn drawn rotated or flattened onto the bed, reading the
-  `asleep` flag the snapshot already carries), while **multi-tile footprints are a system**
-  — placement legality, `buildingBlocks` and `buildingSealsRoom` across several cells,
-  which cell a pawn reserves and walks to, room flood-fill, save shape, and deconstruct all
-  currently assume one building occupies exactly one cell. Do the pose first; treat
-  footprints as their own milestone rather than a polish item.
+- **Every building is one tile, and sleeping colonists stand up.** *Both scheduled in M10.*
+  The two halves are very different sizes and stay separate changes: the lying-down pose is
+  render-only (an asleep pawn drawn flattened onto the bed, off the `asleep` flag the
+  snapshot already carries), while **multi-tile footprints are a system**.
 - **The best landing sites are the furthest from stone, and M7 made it worse.**
   `findLandingSite` maximises open, *storable* ground, and rock is neither passable nor
   storable — so the chooser actively walks away from it. With biome-scale regions the
   party can now land well inside a grassland with the nearest rock, and sometimes the
   nearest *anything else*, a long walk away. The search radius is still 28 tiles around
   the map centre, which was a meaningful fraction of a 128² map and is now 5% of one.
-  Not a bug; due a pass when first-hour pacing is looked at.
+  **Measured in M10** — 2×1 bedrolls need more room at the landing site than 1×1 ones did,
+  so it is in that milestone's blast radius — and fixed in M14 if measuring says so.
 - **Save size is now the constraint on world size**, where reachability used to be.
   475 KB at 512² against 1.9 MB at 1024², which starts crowding a multi-slot
   `localStorage` budget. Worth knowing before anyone raises `DEFAULT_MAP_SIZE` again.
-- **A mine mark on rock is nearly invisible.** Designations draw on the ground plane, and
-  rock is raised, so the mark sits at the base of the block it refers to. Deconstruction
-  hit the same wall and solved it for *buildings* by tinting them; mining has no
-  equivalent yet, and the honest fix is probably the same one.
+- **A mine mark on rock is nearly invisible.** *Scheduled in M11.* Designations draw on the
+  ground plane, and rock is raised, so the mark sits at the base of the block it refers to.
+  Deconstruction hit the same wall and solved it for *buildings* by tinting them; mining has
+  no equivalent yet, and the honest fix is probably the same one.
 - **`lookup.ts` scans linearly** over buildings and sites, and the work givers scan every item
   once per pawn per think tick. Fine at dozens, not at thousands — when it matters, put the index
   *inside* the store so it cannot desync. **Measured out of M7 rather than assumed out:** a

@@ -8,6 +8,11 @@ How to find things, and where new writing belongs.
 | `decisions/` | Short ADRs — one decision, its alternatives, its consequences | You make a call a future reader would question |
 | `ROADMAP.md` | Slices, milestones, and what's actually done | You finish a milestone, or the plan changes |
 | `BACKLOG.md` | Wanted, not yet scheduled | Something is worth doing but isn't the next thing |
+| `superpowers/specs/` | The agreed plan for a milestone, before the code exists | You settle a design and are about to build it |
+
+`superpowers/specs/` is working material with a shelf life: once a milestone lands, `design/` holds
+the durable description and the spec is only of historical interest. A design doc describes the
+current state; a spec describes an intention.
 
 ## Start here
 
