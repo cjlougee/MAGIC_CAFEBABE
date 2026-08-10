@@ -21,10 +21,28 @@ const STOPS = 24;
 /**
  * Falloff exponent. Higher clings tighter to the centre.
  *
- * Squared, matching the contact shadow: linear leaves a visible disc with a hard-ish rim
- * inside a diamond that has its own hard edge, and the two outlines fight.
+ * Gentler than the contact shadow's square, because this one wants to be *seen*. At 2
+ * the glow was gone well before the rim and the marker read as a faint smudge; 1.4
+ * carries light most of the way out so the tile is lit rather than hinted at.
  */
-const FALLOFF = 2;
+const FALLOFF = 1.4;
+
+/**
+ * Thickness of the edge, in pixels.
+ *
+ * The outline is what makes this read as *this tile* rather than as a glow that happens
+ * to be nearby. A falloff alone dissolves at exactly the boundary the player is trying
+ * to identify, which is a strange place to throw information away.
+ *
+ * The usual rule against rim highlights does not apply: that exists because terrain
+ * tiles are generated without knowledge of their neighbours, so an edge on every one
+ * draws a seam grid across a whole mountain. This is a transient marker on a single
+ * cell, and having a border is the entire point of it.
+ */
+const EDGE_WIDTH = 2;
+
+/** Edge alpha relative to the core, so the two pulse together as one thing. */
+const EDGE_ALPHA = 0.95;
 
 /**
  * Paints the falloff into a canvas context sized to one tile.
@@ -33,15 +51,22 @@ const FALLOFF = 2;
  * later, which is the same trick the glow uses and the reason neither has a palette
  * import. Separated from the texture wrapper so a preview harness can call it directly.
  */
+/** The tile diamond, inset far enough that a stroke on it stays inside the cell. */
+function diamond(ctx: CanvasRenderingContext2D, inset: number): void {
+  ctx.beginPath();
+  ctx.moveTo(HALF_TILE_W, inset);
+  ctx.lineTo(TILE_W - inset, HALF_TILE_H);
+  ctx.lineTo(HALF_TILE_W, TILE_H - inset);
+  ctx.lineTo(inset, HALF_TILE_H);
+  ctx.closePath();
+}
+
 export function paintTilePulse(ctx: CanvasRenderingContext2D): void {
+  ctx.save();
+
   // Clipped to the diamond, so the glow is a tile rather than a circle sitting on one.
   // Inset by a pixel so it never bleeds onto the tiles it abuts.
-  ctx.beginPath();
-  ctx.moveTo(HALF_TILE_W, 1);
-  ctx.lineTo(TILE_W - 1, HALF_TILE_H);
-  ctx.lineTo(HALF_TILE_W, TILE_H - 1);
-  ctx.lineTo(1, HALF_TILE_H);
-  ctx.closePath();
+  diamond(ctx, 1);
   ctx.clip();
 
   /*
@@ -62,6 +87,17 @@ export function paintTilePulse(ctx: CanvasRenderingContext2D): void {
 
   ctx.fillStyle = gradient;
   ctx.fillRect(-HALF_TILE_W, -HALF_TILE_W, TILE_W, TILE_W);
+
+  ctx.restore();
+
+  // All four edges, drawn after the clip is dropped so the stroke is not half eaten by
+  // its own boundary. Inset by half the width, which keeps it inside the cell — a mark
+  // that escapes the diamond lands on the neighbouring tile.
+  diamond(ctx, EDGE_WIDTH / 2 + 0.5);
+  ctx.strokeStyle = `rgba(255, 255, 255, ${EDGE_ALPHA})`;
+  ctx.lineWidth = EDGE_WIDTH;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
 }
 
 /** Wraps the painting into a texture. Split so the filmstrip can draw it without Pixi. */

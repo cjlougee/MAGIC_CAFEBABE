@@ -115,11 +115,15 @@ In its place, two things:
 - **The target tile pulses**, three times over two seconds, in relic cyan at up to half opacity.
   A whole number of cosine cycles lands back on zero by itself, so it ends without a cut and needs
   no fade envelope — one was tried, and it crushed the second and third pulses to a quarter
-  strength, so three pulses read as one. The tile itself glows **from the middle out** rather than
-  filling flat: a concentric falloff, the same idea as the light diffusion in `glow.ts`, because a
-  flat fill reads as a coloured card laid on the ground instead of something happening at a point.
-  Built on a canvas and sampled `linear`, for the reason every gradient in this project is —
-  nearest steps it into contour rings.
+  strength, so three pulses read as one. The tile glows **from the middle out** — a concentric
+  falloff, the same idea as the light diffusion in `glow.ts`, because a flat fill reads as a
+  coloured card laid on the ground instead of something happening at a point. Built on a canvas and
+  sampled `linear`, for the reason every gradient here is: nearest steps it into contour rings.
+  **All four edges are outlined**, at the same relative alpha, so the pulse says *this tile* rather
+  than *somewhere around here* — a falloff on its own dissolves at exactly the boundary the player
+  is trying to read. The usual rule against rim highlights does not apply, because that one exists
+  to stop terrain tiles drawing a seam grid across a whole mountain; this is a transient marker on
+  a single cell and having a border is the point of it.
 
 Only clicks in the world get the cursor animation. Ordering from the places list is a button press,
 and a button already acknowledges itself.
