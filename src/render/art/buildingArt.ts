@@ -42,8 +42,9 @@ export const BUILDING_HEIGHT: Record<BuildingId, number> = {
   // High enough that the legs read as legs under a 3px frame, and no higher.
   [Building.Bed]: 11,
   // Grander than a campfire and still well under LEVEL_HEIGHT (24). Anything at or above
-  // that would be indistinguishable from a genuine storey — see ADR 0003, and M13, which
-  // is where that argument comes due.
+  // that would be indistinguishable from a genuine storey while behaving nothing alike.
+  // Not a cap by decree — see ADR 0003 — there is simply nothing yet for a second storey
+  // to *be*. Slice 4 builds levels properly and takes the constraint away.
   [Building.Hearth]: 18,
 };
 

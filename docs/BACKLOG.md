@@ -6,8 +6,10 @@ make the next thing to do harder to find, not easier.
 
 **Most of this file has been scheduled.** The seventeen items raised after M9 were a list, not a
 plan. Working out what gates what turned them into
-[Slice 3 — The Built World](ROADMAP.md#slice-3--the-built-world-the-colony-gets-an-inside) (M10–M14)
-and dependency-ordered notes inside Slices 4–6. What is left below is what genuinely has no home yet.
+[Slice 3 — The Built World](ROADMAP.md#slice-3--the-built-world-the-colony-gets-an-inside) (M10–M15),
+a [verticality slice](ROADMAP.md#slice-4--verticality-there-is-an-upstairs-and-a-downstairs),
+and dependency-ordered notes inside the later slices. What is left below is what genuinely has no
+home yet.
 
 ---
 
@@ -19,25 +21,32 @@ and dependency-ordered notes inside Slices 4–6. What is left below is what gen
 | 2 | Select a wall or door directly, red ✕ | **M11** |
 | 3 | Doors that look and act like doors | **M11** |
 | 1 | Drag the minimap | **M11** |
-| 4 | Toolbar and build-menu review | **M12** — before the content flood, not after |
-| 9 | Things that go in buildings | **M12** |
-| 8 | Buildings that look like buildings | **M13** — brings the `LEVEL_HEIGHT` reckoning with it |
-| 5 | Small details — flora, fauna, caches, scrap | **M14** |
-| 7 | Terrain | **split.** Biome tuning M14; ditches, hills and caves are verticality, Slice 5 |
-| 16 | Random events | Slice 4 — Threat |
-| 11 | Per-pawn abilities | Slice 4, and wants pawn skills below |
-| 12 | Weapons with mods | Slice 4 — needs combat to mean anything |
-| 17 | Other people AI | Slice 5, **first** — 10, 13, 14 and 15 all need a notion of a stranger |
-| 10 | Friendly and enemy bases | Slice 5 |
-| 15 | Raider bases, towns, cities, villages | Slice 5 |
-| 13 | Reputation and faction alignment | Slice 5 |
-| 14 | Trading | Slice 5 |
+| — | *Asset pipeline* | **M12** — not a backlog item; added because M13–15 are three milestones of new art |
+| 4 | Toolbar and build-menu review | **M13** — before the content flood, not after |
+| 9 | Things that go in buildings | **M13** |
+| 8 | Buildings that look like buildings | **split.** Materials, ornament and occlusion M14; storeys need levels, so Slice 4 |
+| 5 | Small details — flora, fauna, caches, scrap | **M15** |
+| 7 | Terrain | **split.** Biome tuning M15; ditches, hills and caves are Slice 4 |
+| 16 | Random events | Slice 5 — Threat |
+| 11 | Per-pawn abilities | Slice 5, and wants pawn skills below |
+| 12 | Weapons with mods | Slice 5 — needs combat to mean anything |
+| 17 | Other people AI | Slice 6, **first** — 10, 13, 14 and 15 all need a notion of a stranger |
+| 10 | Friendly and enemy bases | Slice 6 |
+| 15 | Raider bases, towns, cities, villages | Slice 6 |
+| 13 | Reputation and faction alignment | Slice 6 |
+| 14 | Trading | Slice 6 |
 
-The two orderings that were genuinely arguable, and the reasoning that settled them:
+The orderings that were genuinely arguable, and the reasoning that settled them:
 
 - **Item 4 before items 3, 9 and 8, not after.** The architect list is one undivided
-  `BUILDABLE_DEFS`. It works at four entries; M12 and M13 create forty. Categorising a menu that is
+  `BUILDABLE_DEFS`. It works at four entries; M13 and M14 create forty. Categorising a menu that is
   already overflowing is a bigger job than categorising one about to.
+- **A pipeline milestone before any of the art.** Not a backlog item at all — it came out of M10,
+  where the cost was in *judging* sprites rather than drawing them, and all five bugs the sprite
+  sheet caught were measurements a test could have made.
+- **Item 8 split rather than delayed.** Most of "buildings that look like buildings" — materials,
+  ornament, silhouette, occlusion — has nothing to do with levels. Only genuine storeys do. Building
+  tall in a one-level world and converting it later is building it twice.
 - **Item 17 before 10, 13, 14 and 15.** A town is a POI kind with a bigger stamp — M8's constraint
   search already does that part. What is missing from all four is anything that *lives* in them.
 

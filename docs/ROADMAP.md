@@ -329,39 +329,121 @@ See [`superpowers/specs/2026-08-10-multi-tile-footprints-design.md`](superpowers
 - **Playable check:** click a wall, see what it is, press ✕, watch it come down. Lock a door and
   watch a colonist route around it.
 
-### M12 — The architect grows up, and rooms get contents *(items 4, 9)*
+### M12 — The asset pipeline *(new — process, not content)*
+
+**M13 to M15 are three milestones of almost nothing but new art**, and the honest reading of M10 is
+that this project is not yet set up to execute that well. Not because the sprites came out badly, but
+because of what they *cost*: every iteration was edit, navigate, screenshot, judge, repeat, and the
+judging is the expensive half.
+
+The evidence is specific. `sprites.html` caught five real bugs in M10 — a capsule drawing as a
+bow-tie for two of four facings, a hearth drawn a whole storey above its own footprint, a sleeping
+pose six times longer than it was wide, a body covering half the bedroll, and a head floating outside
+the blanket twice. **Every one of the five was a measurement, not a judgement.** Not one needed a
+human eye. What genuinely needed one was "the shading is awkward and hard to tell what it is supposed
+to be" — and no test will ever say that.
+
+So this milestone is a **brainstorm first and an implementation second**, and it happens before the
+content rather than after. The open questions, named now so the design pass starts somewhere:
+
+- [ ] **Geometry assertions on generated textures**, headless, in vitest. Render a `Graphics`, then
+      assert the ink sits inside the stated frame, the alpha bounding box matches the footprint's
+      expected screen box, rotations that should differ do, rotations that should share a silhouette
+      do, and the ground line is where the layer assumes it is. This is the same move the project
+      already made for the simulation, applied to the half that never got it — and on M10's evidence
+      it is the single largest saving available
+- [ ] **The design language stated as numbers, not prose.** `art-pass` is good writing and it has no
+      figures in it: no stated insets, no proportions, no ground line. Numbers make the first attempt
+      land closer, which is cheaper than making the fourth attempt land
+- [ ] **Procedural, or an artist's atlas?** `ArtProvider` was built from M0 as the door for exactly
+      this — "a real artist's atlas can be dropped in behind this interface later without a single
+      change to layer or gameplay code". Whether to walk through it, and what that means for
+      generated images, external tools and licensing, is an ADR-level call that changes what the rest
+      of this milestone is
+- [ ] **What `sprites.html` becomes.** It is a scratch harness that earned its place immediately; it
+      should either grow into the review surface properly or be replaced by whatever does
+- [ ] Whatever the brainstorm turns up — skills, prompts, MCPs, an external step. Deliberately not
+      pre-decided here
+- **Playable check:** *there isn't one, and that is the point.* This milestone is judged on M13
+  costing visibly less than M10 did per sprite, with fewer round trips to get something right.
+
+### M13 — The architect grows up, and rooms get contents *(items 4, 9)*
 - [ ] A **categorised** build menu with real sprites rendered into DOM. The current architect list is
-      one undivided `BUILDABLE_DEFS`; it works at four and will not at forty, and M12 creates the
+      one undivided `BUILDABLE_DEFS`; it works at four and will not at forty, and M13 creates the
       forty
 - [ ] **Furniture** — chairs, desks, tables, shelves, lamps, safes, supplies. Carpet is a surface and
       `setSurfaceAt` already handles it
 - [ ] Whatever ownership and interaction furniture turns out to need — a desk you sit at is a bench
       by another name, and the M6 bill system should absorb it rather than growing a sibling
+- [ ] **The sleeping pose centred on the bed**, not on the pawn's cell — see the known gaps below.
+      Render-only, and the first thing built after M12 that M12 should have made cheap
 - **Playable check:** furnish a hut and it stops being a box.
 
-### M13 — Buildings that look like buildings *(item 8)*
-- [ ] Height, ornamentation, windows, awnings, roofs; brick versus wood versus scrap. A hovel should
-      not be a shorter skyscraper
-- [ ] **`LEVEL_HEIGHT` versus decorative relief, settled in a new ADR.** A wall already draws 22px
-      against a level's 24, so the first genuinely tall building makes a one-storey hut and a real
-      second floor pixel-identical while behaving nothing alike. ADR 0003 named this as a
-      consequence and left it; M13 is where it comes due. ADRs here are immutable, so this is a new
-      one that extends 0003 rather than an edit to it
+### M14 — Buildings that look like buildings *(item 8, minus the storeys)*
+
+*Split from what was one milestone.* Roughly 70% of "buildings that look like buildings" has nothing
+to do with levels — materials, ornament, silhouette — and exactly one part collides with
+`LEVEL_HEIGHT`: being genuinely taller than one storey. Building tall in a one-level world and then
+converting it when levels land is building it twice, which is the rework the verticality decision
+exists to refuse. So the tall half moves to Slice 4 and everything else ships here, on schedule.
+
+- [ ] Materials and ornament: brick versus wood versus scrap, windows, awnings, trim, doorframes.
+      A hovel should not be a shorter skyscraper — and until levels land it is not a *shorter*
+      anything, it is a differently-built one
+- [ ] Silhouette variety within the one-storey budget. Decorative relief stays below `LEVEL_HEIGHT`
+      **for now, as a consequence rather than a rule** — nothing is capped by decree, there is simply
+      nothing yet for a second storey to be
 - [ ] **Buildings enter the occlusion system.** `collectOccluders` only ever inspects
-      `terrainHeight` — buildings are not in it at all, so a colonist behind a 22px wall is *already*
-      partly hidden today with no fade. Taller buildings make it much worse. Needs M10's footprints
-      to know which cells a structure covers
+      `terrainHeight`, so buildings are not in it at all and a colonist behind a 22px wall is
+      *already* partly hidden today with no fade. That is a live bug independent of levels, it gets
+      much worse with them, and it needs M10's footprints to know which cells a structure covers
 - **Playable check:** a street of buildings that read as different buildings, and a colonist walking
   behind one who does not disappear.
 
-### M14 — A world with things in it *(item 5, the biome half of item 7)*
+### M15 — A world with things in it *(item 5, the biome half of item 7)*
 - [ ] Biome-specific flora and fauna, rocks, trees, flowers — biomes exist as of M7 and currently
       change only terrain, so they are the natural place to hang what grows and lives here
 - [ ] Scrap and abandoned objects lying on the map; **hidden caches** in M8's places, which is the
       cheapest possible reward for exploring and gives those places something to *contain*
-- [ ] The two constants still phrased as absolute counts: `findLandingSite`'s 28-tile radius and
-      `BUSH_DENSITY`. Measured in M10, fixed here if measuring says so
+- [ ] `findLandingSite`'s 28-tile search radius. **Measured in M10 and confirmed**: it is 1.2% of a
+      512² map, and the nearest rock from home runs to a median of 19 tiles and a max of 73.
+      `BUSH_DENSITY` was measured too and is *cleared* — it is a probability per grass cell and
+      scaled exactly as phrased
 - **Playable check:** walk 200 tiles and the ground keeps telling you where you are.
+
+
+---
+
+## Slice 4 — Verticality ("there is an upstairs, and a downstairs")
+
+**Reserved since ADR 0003, and now scheduled rather than deferred again.** The data model has taken a
+`z` since before the first pawn existed; nothing has ever generated or drawn a second level.
+
+The trigger was M14. A wall already draws 22px against a level's 24, so the first genuinely tall
+building makes a one-storey hut and a real second floor pixel-identical while behaving nothing alike.
+The cheap answer was to cap decorative relief below `LEVEL_HEIGHT` and write it into a new ADR —
+**rejected as a half measure.** Capping buys a milestone and costs the rework anyway, and three later
+slices are already waiting on levels: multi-storey buildings here, high-ground and cover modifiers in
+Threat, caves and relic-tech dungeons in The world outside. Build it once, properly.
+
+Not designed in detail yet; it gets its own pass when we reach it. What it has to cover:
+
+- **Worldgen picking a surface level per column**, so terrain has relief that is *structural* rather
+  than decorative
+- **Vertical connectivity in pathfinding** — ramps and stairs, sharing `canStep()` with reachability
+  exactly as the flat case does, or A\* and reachability disagree and pawns re-plan forever
+- **Cross-section rendering**: the draw loop becomes `for z { for y { for x } }`, plus a cut plane
+  that hides roofs, walls and levels above it. This is a draw-loop filter, not a data-model change
+- **Multi-storey buildings**, carried over from M14 — the half of "buildings that look like
+  buildings" that genuinely needs a level to stand on
+- **Reconciling decorative terrain relief with `LEVEL_HEIGHT`**, which is the specific thing ADR 0003
+  left open and the reason this slice is here rather than later
+- **Caves and what is under the ground**, which is what makes a downstairs worth having
+- **Playable check:** build a second storey and stand a colonist on it; walk down into a cave and
+  back out.
+
+See [ADR 0003](decisions/0003-verticality.md) for the model — discrete z-levels, not a height field —
+and for the reasoning that has held since M0.
 
 ---
 
@@ -369,19 +451,18 @@ See [`superpowers/specs/2026-08-10-multi-tile-footprints-design.md`](superpowers
 
 Real, but not designed in detail yet. Each gets its own design pass when we reach it.
 
-- **Slice 4 — Threat.** Combat, body-part injury model (`hediffs`), raids, and an event director that
-  paces pressure *(item 16)*. Where high-ground and cover modifiers land, since they need combat to
-  modify. Arrives with a world to be threatened *across* and camps worth clearing to slow the
-  pressure down. Per-pawn abilities *(item 11)* and weapon mods *(item 12)* hang off it — 12 needs
-  combat to mean anything, and 11 wants pawn skills, which are still unscheduled.
-- **Slice 5 — The world outside.** *Partly pulled into Slice 2.* Ruin exploration came forward as
+- **Slice 5 — Threat.** Combat, body-part injury model (`hediffs`), raids, and an event director that
+  paces pressure *(item 16)*. High-ground and cover modifiers land here, and they arrive with a world
+  that genuinely has high ground in it. Per-pawn abilities *(item 11)* and weapon mods *(item 12)*
+  hang off it — 12 needs combat to mean anything, and 11 wants pawn skills, which are still
+  unscheduled.
+- **Slice 6 — The world outside.** *Partly pulled into Slice 2.* Ruin exploration came forward as
   M8–M9. What remains, in dependency order: **other-people AI** *(item 17)* first, because pawns have
   exactly one behaviour tree and no notion of a stranger and everything else here needs one; then
   friendly and enemy bases, towns, villages *(items 10, 15)*, which arrive through M8's
   constraint-search placement as POI kinds with bigger stamps and inhabitants; then reputation and
-  trading *(items 13, 14)*. Multi-level worldgen and cave dungeons — the verticality half of item 7 —
-  serve this slice.
-- **Slice 6 — Command.** *Partly delivered in Slice 2.* Draft, multi-select and party movement landed
+  trading *(items 13, 14)*. Relic-tech dungeons ride on Slice 4's caves.
+- **Slice 7 — Command.** *Partly delivered in Slice 2.* Draft, multi-select and party movement landed
   in M9, because travel was impossible without them. Formations, morale, stances and genuine tactical
   control remain — the Bannerlord layer, riding on the preemption built in M2. Note that draft as
   built lets needs interrupt a held position, which combat will have to revisit.
@@ -398,15 +479,24 @@ places on it, and you can take a party to one and bring them home. That is the w
 was reframed around.
 
 **Next is [Slice 3 — The Built World](#slice-3--the-built-world-the-colony-gets-an-inside)**, not the
-crafting ladder. That was the seventeen-item detail pass in [`BACKLOG.md`](BACKLOG.md); it is now
-five milestones in a committed order, and the backlog keeps only what is genuinely unscheduled.
+crafting ladder. That was the seventeen-item detail pass in [`BACKLOG.md`](BACKLOG.md); it is now six
+milestones in a committed order, and the backlog keeps only what is genuinely unscheduled.
 
-**Start at M10 — footprints**, because a desk is not one tile and items 8 and 9 are both gated on it.
-Everything currently assumes one building occupies exactly one cell: placement legality,
-`buildingBlocks` and `buildingSealsRoom`, which cell a pawn reserves and walks to, room flood-fill,
-save shape, and deconstruct. The 2×1 bedroll is the natural first case — it already exists and is
-already wrong. **Slice 4 — Threat** follows the slice, with a world to be dangerous across and camps
-worth clearing; the `hediff` array is already there waiting.
+**M10 is done.** Buildings can be bigger than a cell, colonists lie down to sleep, and the two
+constants the last three milestones warned about have been measured rather than assumed.
+
+**Start at M11 — things you can point at.** A wall is not a click target, so deconstructing one
+misplaced wall still means dragging a rectangle over it; a door is a passable square; a mine mark on
+raised rock is invisible. Small, and all of it feedback the player is currently owed.
+
+**Then M12 — the asset pipeline, and it is deliberately not content.** M13 to M15 are three
+milestones of almost nothing but new art, and M10's evidence is that the *judging* is what costs, not
+the drawing: all five bugs `sprites.html` caught were measurements a test could have made, and the
+only thing that genuinely needed a human eye was whether the shading read well. Building the harness
+before the flood, rather than after it.
+
+**Slice 4 is verticality**, scheduled at last rather than deferred a fifth time. See the section
+below for what finally triggered it and why capping decorative height was refused.
 
 **What M9 taught, and it is now three for three:** every milestone since the map grew has been
 undone by a constant tuned to the *old* map size, and every one of them passed a green suite.
@@ -434,10 +524,18 @@ search radius (28 tiles, unchanged) and `BUSH_DENSITY` are the next two to look 
 
 - **No roofs.** "Indoors" means enclosed-by-something-built. Fine now; temperature or
   weather would need real roofs.
-- **Every building is one tile, and sleeping colonists stand up.** *Both scheduled in M10.*
-  The two halves are very different sizes and stay separate changes: the lying-down pose is
-  render-only (an asleep pawn drawn flattened onto the bed, off the `asleep` flag the
-  snapshot already carries), while **multi-tile footprints are a system**.
+- **A sleeping colonist lies on half their bed.** *Both halves of the M10 item landed —
+  footprints are a system, the pose was render-only — but the pose sits wrong.* The
+  sprite is centred on the pawn's own cell, and the pawn sleeps at `headCellOf(bed)`,
+  which is one end of a 2x1. So the body extends half its length past the head of the bed
+  and only reaches the middle of it: they look like they are lying on half a bed with
+  their head over the edge, rather than *in* it.
+  **The fix is render-only and belongs in an art pass, not here.** `spot` is a job field —
+  saved, hashed, and load-bearing for determinism — so moving the *pawn* is the expensive
+  answer to a drawing problem. `ObjectLayer` already looks up the bed to get its rotation;
+  it should position a sleeping sprite at the **footprint's centre** rather than at the
+  pawn's tile, exactly as `LightingLayer` does for a hearth's glow. Everything needed is
+  already in hand at that point in the loop.
 - **The best landing sites are the furthest from stone, and M7 made it worse.**
   `findLandingSite` maximises open, *storable* ground, and rock is neither passable nor
   storable — so the chooser actively walks away from it. With biome-scale regions the
@@ -445,7 +543,8 @@ search radius (28 tiles, unchanged) and `BUSH_DENSITY` are the next two to look 
   nearest *anything else*, a long walk away. The search radius is still 28 tiles around
   the map centre, which was a meaningful fraction of a 128² map and is now 5% of one.
   **Measured in M10** — 2×1 bedrolls need more room at the landing site than 1×1 ones did,
-  so it is in that milestone's blast radius — and fixed in M14 if measuring says so.
+  so it is in that milestone's blast radius. Confirmed: 1.2% of the map's area, and the nearest
+  rock from home runs to a median of 19 tiles and a max of 73 across 24 seeds. Fixed in M15.
 - **Save size is now the constraint on world size**, where reachability used to be.
   475 KB at 512² against 1.9 MB at 1024², which starts crowding a multi-slot
   `localStorage` budget. Worth knowing before anyone raises `DEFAULT_MAP_SIZE` again.
@@ -459,7 +558,8 @@ search radius (28 tiles, unchanged) and `BUSH_DENSITY` are the next two to look 
   five-colonist colony ticks in 29 µs at 512², against a 16,667 µs frame budget. It grows with item
   count, not with map size, so the bigger world did not move it.
 - **No save thumbnails or autosave.** Saving is manual and the list shows text only.
-- **Verticality is reserved, not built.** See ADR 0003; the data model takes a `z` today.
+- **Verticality is reserved, not built.** *Now scheduled as Slice 4* rather than deferred again.
+  See ADR 0003; the data model takes a `z` today.
 - **No sound, no main-menu-before-game, no settings.**
 
 ### The bugs that were invisible to tests
@@ -498,16 +598,28 @@ seed passing is exactly how it survived a green suite the first time.
 - **`.claude/skills/art-pass`** — drawing or improving a procedural sprite. The shared shape
   language, the one light direction, and the geometry rules that break tile alignment
   without ever raising an error. Written after the M6 art pass from the mistakes it made.
-- **`docs/decisions/`** — eight ADRs covering the stack, the projection, verticality,
-  water, controls, deconstruction, the shape of the world, and how places differ from texture.
+- **`docs/decisions/`** — nine ADRs covering the stack, the projection, verticality, water,
+  controls, deconstruction, the shape of the world, how places differ from texture, and
+  multi-tile footprints.
+- **`sprites.html` and `filmstrip.html`** — the two art review harnesses, served by the dev
+  server. Judging a sprite at play zoom is how every art bug in this project survived; both
+  exist so that looking properly is one page load. See `CLAUDE.md`.
 - **`docs/BACKLOG.md`** — everything wanted and not scheduled, grouped and annotated with what the
   code already has to say about it. Read before proposing a new milestone; it is probably in there.
 
-## Verticality — reserved, not built
+## Verticality — reserved, and now scheduled
 
 The data model supports stacked z-levels; nothing generates or renders a second one yet. See ADR
 [0003](decisions/0003-verticality.md) for why this split, and for the height-field model that was
 rejected.
+
+**The deferred half is [Slice 4](#slice-4--verticality-there-is-an-upstairs-and-a-downstairs).** It
+was deferred four times, each time to "the slice where it has something to serve", and the trigger
+that finally landed it was M14 wanting buildings taller than one block: a wall already draws 22px
+against a level's 24, so a one-storey hut and a real second floor would be pixel-identical while
+behaving nothing alike. Capping decorative relief below `LEVEL_HEIGHT` was the cheap answer and was
+**rejected as a half measure** — it buys one milestone and pays the rework anyway, and three slices
+are already waiting on levels.
 
 **Already reserved** (costs one unused field per position, and one multiply-by-zero per index):
 - [x] `TilePos {x, y, z}` defined before the first pawn exists — the retrofit that would actually
@@ -516,10 +628,11 @@ rejected.
 - [x] Level-aware `tileToWorld` / `worldToTile`; `hashWorld` covers `levels`
 
 **Deliberately deferred**, each to the slice where it has something to serve:
-- [ ] Vertical connectivity — ramps/stairs in pathfinding *(M1, alongside reachability)*
-- [ ] Cross-section rendering: hide roofs, walls, levels above the cut plane *(when a second level
-      exists to look at — this is a draw-loop filter, not a data-model change)*
-- [ ] High-ground damage bonus, cover and trench defence bonuses *(Slice 3)*
-- [ ] Multi-level worldgen, caves, relic-tech dungeons *(Slice 4)*
+- [ ] Vertical connectivity — ramps/stairs in pathfinding *(Slice 4)*
+- [ ] Cross-section rendering: hide roofs, walls, levels above the cut plane *(Slice 4 — a
+      draw-loop filter, not a data-model change)*
+- [ ] High-ground damage bonus, cover and trench defence bonuses *(Slice 5 — Threat)*
+- [ ] Multi-level worldgen and caves *(Slice 4)*; relic-tech dungeons ride on them *(Slice 6)*
 - [ ] Reconcile decorative terrain relief with `LEVEL_HEIGHT` — currently a raised rock tile and a
-      genuine level above would look identical while behaving completely differently
+      genuine level above would look identical while behaving completely differently *(Slice 4, and
+      the specific thing that scheduled it)*
