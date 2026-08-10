@@ -28,7 +28,14 @@ import {
   buildStockpileGraphics,
 } from './overlayArt';
 import { Palette } from './palette';
-import { appearanceKey, buildPawnGraphics } from './pawnArt';
+import {
+  appearanceKey,
+  buildPawnGraphics,
+  buildSleepingPawnGraphics,
+  PAWN_ASLEEP_H,
+  PAWN_ASLEEP_W,
+  sleepingKey,
+} from './pawnArt';
 import { buildTerrainGraphics, terrainHeight } from './terrainArt';
 
 const SELECTION_KEY = 'ui:selection';
@@ -57,6 +64,21 @@ export class ArtProvider {
   /** Texture for a colonist. Keyed by appearance, so identical pawns share one. */
   pawn(appearance: PawnAppearance): Texture {
     return this.cached(appearanceKey(appearance), () => buildPawnGraphics(appearance));
+  }
+
+  /**
+   * The same colonist, asleep and lying along a bed.
+   *
+   * A stated frame, like terrain and buildings, because `ObjectLayer` anchors it by
+   * `PAWN_ASLEEP_GROUND_Y` — a sprite cropped to its ink would sink into the bed.
+   */
+  pawnAsleep(appearance: PawnAppearance, rotation: Rotation): Texture {
+    const frame = new Rectangle(0, 0, PAWN_ASLEEP_W, PAWN_ASLEEP_H);
+    return this.cached(
+      sleepingKey(appearance, rotation),
+      () => buildSleepingPawnGraphics(appearance, rotation),
+      frame,
+    );
   }
 
   /** The diamond ring drawn under a selected pawn. */

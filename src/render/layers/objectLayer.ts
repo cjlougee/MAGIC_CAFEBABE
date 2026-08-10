@@ -16,17 +16,19 @@ import { Container, Sprite } from 'pixi.js';
 import type { EntityId } from '../../sim/core/entityStore';
 import { TERRAIN_DEFS } from '../../sim/defs/terrain';
 import { isOnGround } from '../../sim/entities/item';
+import { buildingCells } from '../../sim/entities/building';
 import { pawnVisualPos, type Pawn, type PawnAppearance } from '../../sim/entities/pawn';
 import { ripeness } from '../../sim/entities/plant';
 import { Designation } from '../../sim/world/designations';
 import { footprintOfBuilding, sizeOf } from '../../sim/world/footprint';
+import { buildingAt } from '../../sim/world/lookup';
 import type { World } from '../../sim/world/world';
 import type { ArtProvider } from '../art/artProvider';
 import { Palette } from '../art/palette';
 import { buildProgress, siteCells } from '../../sim/entities/constructionSite';
 import { BUILDING_HEIGHT, siteStageFor } from '../art/buildingArt';
 import { ITEM_GROUND_Y, ITEM_H, ITEM_W } from '../art/itemArt';
-import { PAWN_GROUND_Y, PAWN_H } from '../art/pawnArt';
+import { PAWN_ASLEEP_GROUND_Y, PAWN_ASLEEP_H, PAWN_GROUND_Y, PAWN_H } from '../art/pawnArt';
 import { PLANT_GROUND_Y, PLANT_H, PLANT_W, stageFor } from '../art/plantArt';
 import { terrainHeight, variantForCell } from '../art/terrainArt';
 import type { TerrainTintField } from '../art/terrainTint';
@@ -106,7 +108,7 @@ export class ObjectLayer {
     this.updateSites(world, visible);
     this.updatePlants(world, visible);
     this.updateItems(world, visible);
-    this.updatePawns(visuals, selected);
+    this.updatePawns(world, visuals, selected);
   }
 
   private updateBuildings(world: World, visible: WorldRect): void {
@@ -265,25 +267,65 @@ export class ObjectLayer {
     }
   }
 
-  private updatePawns(visuals: readonly PawnVisual[], selected: ReadonlySet<EntityId>): void {
+  private updatePawns(
+    world: World,
+    visuals: readonly PawnVisual[],
+    selected: ReadonlySet<EntityId>,
+  ): void {
     const alive = new Set<EntityId>();
     let ringsUsed = 0;
 
     for (const { pawn, at } of visuals) {
       alive.add(pawn.id);
       const sprite = this.pawnAt(pawn.id, pawn.appearance);
-      const world = tileToWorld(at.x, at.y, at.z);
+      const screen = tileToWorld(at.x, at.y, at.z);
 
-      sprite.position.set(world.x, world.y);
-      sprite.zIndex = (at.x + at.y) * DEPTH_SCALE + ENTITY_BIAS;
-      sprite.scale.x = this.facingFor(pawn);
+      /*
+       * Asleep is a different sprite, not the standing one laid over a bed.
+       *
+       * The bed underneath decides which way they lie, so the body runs along it rather
+       * than across it and the head lands on the same end as the pillow. Sleeping rough
+       * finds no bed and lies along the default axis, which is still better than standing
+       * bolt upright in a field.
+       */
+      const bed = pawn.asleep
+        ? buildingAt(world, world.map.idx(at.x | 0, at.y | 0, at.z))
+        : undefined;
+
+      if (pawn.asleep) {
+        const rotation = bed?.rotation ?? 0;
+        sprite.texture = this.art.pawnAsleep(pawn.appearance, rotation);
+        sprite.anchor.set(0.5, PAWN_ASLEEP_GROUND_Y / PAWN_ASLEEP_H);
+        // Never mirrored: the pose already carries its direction, and flipping it would
+        // reverse the light on the blanket.
+        sprite.scale.x = 1;
+      } else {
+        sprite.texture = this.art.pawn(pawn.appearance);
+        sprite.anchor.set(0.5, PAWN_GROUND_Y / PAWN_H);
+        sprite.scale.x = this.facingFor(pawn);
+      }
+
+      sprite.position.set(screen.x, screen.y);
+
+      /*
+       * A sleeper sorts with the bed, not with their own cell.
+       *
+       * A building takes the depth of its footprint's *nearest* corner, so a colonist
+       * asleep on the head cell of a 2x1 bed has a strictly smaller depth than the bed
+       * does — and would be drawn first, and covered by the very bed they are lying on.
+       * Borrowing the bed's depth and keeping the entity bias puts them back on top.
+       */
+      const depth = bed
+        ? Math.max(...buildingCells(bed).map((cell) => cell.x + cell.y))
+        : at.x + at.y;
+      sprite.zIndex = depth * DEPTH_SCALE + ENTITY_BIAS;
       sprite.visible = true;
 
       if (selected.has(pawn.id)) {
         const ring = this.ringAt(ringsUsed++);
-        ring.position.set(world.x - HALF_TILE_W, world.y - HALF_TILE_H);
+        ring.position.set(screen.x - HALF_TILE_W, screen.y - HALF_TILE_H);
         // Just under the pawn, so the ring reads as being on the ground beneath them.
-        ring.zIndex = (at.x + at.y) * DEPTH_SCALE + ENTITY_BIAS - 1;
+        ring.zIndex = depth * DEPTH_SCALE + ENTITY_BIAS - 1;
         ring.visible = true;
       }
     }
@@ -366,8 +408,9 @@ export class ObjectLayer {
     let sprite = this.pawnSprites.get(id);
     if (!sprite) {
       sprite = new Sprite(this.art.pawn(appearance));
-      // Anchored at the feet, so a pawn's contact point is the tile centre regardless
-      // of how tall the sprite is, and mirroring flips about the body's midline.
+      // The anchor is set per frame rather than here: standing and sleeping have
+      // different frames and different ground lines, and a pawn falling asleep must not
+      // keep the standing one and sink into the mattress.
       sprite.anchor.set(0.5, PAWN_GROUND_Y / PAWN_H);
       sprite.eventMode = 'none';
       this.pawnSprites.set(id, sprite);

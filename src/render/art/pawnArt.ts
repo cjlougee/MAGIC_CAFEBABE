@@ -14,7 +14,9 @@
 
 import { Graphics } from 'pixi.js';
 import type { PawnAppearance } from '../../sim/entities/pawn';
-import { LIT_SHIFT, SHADED_SHIFT } from './isoShapes';
+import type { Rotation } from '../../sim/world/footprint';
+import { HALF_TILE_H, HALF_TILE_W, TILE_H, TILE_W } from '../constants';
+import { isoCapsule, LIT_SHIFT, SHADED_SHIFT } from './isoShapes';
 import { Palette, PawnPalette, shade } from './palette';
 
 /** Sprite box. Roughly a third of a tile wide, so pawns read as people on the grid. */
@@ -121,4 +123,107 @@ export function buildPawnGraphics(appearance: PawnAppearance): Graphics {
 /** Cache key covering every field that changes how a pawn is drawn. */
 export function appearanceKey(appearance: PawnAppearance): string {
   return `pawn:${appearance.skinTone}:${appearance.hairStyle}:${appearance.hairColour}:${appearance.apparelColour}`;
+}
+
+// ── Asleep ──────────────────────────────────────────────────────────────────────
+//
+// A standing sprite laid on a bed was the single most-reported wrong thing on screen:
+// colonists stood bolt upright on their bedrolls all night. The fix is render-only —
+// `asleep` has been on the pawn and in the save since M3.
+
+/** Frame for the sleeping sprite. A tile wide, because a person lying down is about that. */
+export const PAWN_ASLEEP_W = TILE_W;
+export const PAWN_ASLEEP_H = TILE_H + 12;
+
+/** Where the ground plane sits inside that frame, so the body lies *on* the bed. */
+export const PAWN_ASLEEP_GROUND_Y = PAWN_ASLEEP_H - HALF_TILE_H;
+
+/**
+ * A colonist asleep, lying along one of the two isometric axes.
+ *
+ * Deliberately **not** the standing pose rotated. Rotating pixel art sampled
+ * nearest-neighbour shreds it, and a rotated front-on figure reads as a person who has
+ * fallen over rather than one who is asleep. It is also not a full anatomical lying pose:
+ * most of a sleeping person is under a blanket, so the sprite is a blanket capsule with a
+ * head at one end — which is both simpler and a *better* read, because the blanket is the
+ * thing that says "asleep" rather than "unconscious".
+ *
+ * `rotation` is the bed's, so the body lies along the bed rather than across it, and the
+ * head lands on the same end as the pillow. Sleeping rough passes 0 and lies down anyway.
+ */
+export function buildSleepingPawnGraphics(
+  appearance: PawnAppearance,
+  rotation: Rotation,
+): Graphics {
+  const g = new Graphics();
+
+  const skin = PawnPalette.skin[appearance.skinTone % PawnPalette.skin.length];
+  const hair = PawnPalette.hair[appearance.hairColour % PawnPalette.hair.length];
+  const apparel = PawnPalette.apparel[appearance.apparelColour % PawnPalette.apparel.length];
+
+  const cx = PAWN_ASLEEP_W / 2;
+  const cy = PAWN_ASLEEP_GROUND_Y - 3;
+
+  /*
+   * A person is roughly a tile long, and the capsule already adds its own half-extents at
+   * both ends — so the two body points sit *close together*, not a tile apart.
+   *
+   * The first pass had them 0.62 of a tile each way on top of a 9px capsule, which came
+   * out six times longer than it was wide. On the sprite sheet it read as a plank with a
+   * head stuck on one end, and at play zoom it would have read as nothing at all. The
+   * correction overshot the other way and covered barely half the bedroll — a person on a
+   * bed takes up most of it — so the body is long *and* thick rather than either alone.
+   */
+  const HALF_SPAN = 0.4;
+  const along =
+    rotation % 2 === 0
+      ? { x: HALF_TILE_W * HALF_SPAN, y: HALF_TILE_H * HALF_SPAN }
+      : { x: -HALF_TILE_W * HALF_SPAN, y: HALF_TILE_H * HALF_SPAN };
+  // Rotations 0 and 1 put the head at the near end of the footprint, 2 and 3 at the far
+  // end — the same rule the pillow follows, so the two cannot disagree.
+  const sign = rotation < 2 ? -1 : 1;
+  const head = { x: cx + along.x * sign, y: cy + along.y * sign };
+  const feet = { x: cx - along.x * sign, y: cy - along.y * sign };
+
+  // The blanket, one mass with the sun on it rather than modelled limbs. Keeps the
+  // colonist's own apparel hue, muted — it is how you tell who is in which bed, and a
+  // blanket at full apparel saturation reads as a stick of confectionery.
+  const blanket = shade(apparel, -0.18);
+  isoCapsule(g, head, feet, 15, 8).fill({ color: shade(blanket, SHADED_SHIFT) });
+  isoCapsule(g, head, feet, 13.5, 7).fill({ color: blanket });
+  isoCapsule(
+    g,
+    { x: head.x + 2, y: head.y - 1.2 },
+    { x: feet.x + 2, y: feet.y - 1.2 },
+    10,
+    5,
+  ).fill({ color: shade(blanket, LIT_SHIFT) });
+
+  /*
+   * Head resting *on* the blanket's end, overlapping it.
+   *
+   * The capsule's end is a *diagonal* edge between its west and north vertices, not a
+   * point on the centre line — so an offset measured along the body overshoots that edge
+   * long before it reaches the silhouette's tip, and the head floats free at the corner.
+   * Twice now. A third of the body length, barely lifted, puts it on the bedding with the
+   * shoulders under it.
+   */
+  const hx = head.x + (head.x - feet.x) * 0.32;
+  const hy = head.y + (head.y - feet.y) * 0.32 - 1;
+  g.ellipse(hx, hy, 5.2, 4.4).fill({ color: shade(hair, -0.2) });
+  g.ellipse(hx + 0.6, hy + 0.9, 4.2, 3.5).fill({ color: skin });
+  g.ellipse(hx + 1.1, hy + 0.3, 3.8, 3.1).fill({ color: shade(skin, LIT_SHIFT) });
+  g.ellipse(hx + 0.2, hy + 0.9, 3.6, 3).fill({ color: skin });
+
+  // Eyes closed — two short strokes, not two dots. This is the entire difference between
+  // "asleep" and "lying down staring at the ceiling".
+  g.rect(hx - 1.6, hy + 0.9, 1.5, 0.9).fill({ color: shade(skin, -0.55) });
+  g.rect(hx + 1.2, hy + 0.9, 1.5, 0.9).fill({ color: shade(skin, -0.55) });
+
+  return g;
+}
+
+/** Cache key for the sleeping sprite. Rotation is part of it — four poses, not one. */
+export function sleepingKey(appearance: PawnAppearance, rotation: Rotation): string {
+  return `${appearanceKey(appearance)}:asleep:${rotation}`;
 }

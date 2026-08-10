@@ -12,6 +12,9 @@ import type { Rotation } from '../../sim/world/footprint';
 import { HALF_TILE_H, HALF_TILE_W, TILE_H, TILE_W } from '../constants';
 import {
   diamond,
+  isoCapsule,
+  shifted,
+  type Point,
   leftFace,
   LEFT_FACE_SHADE,
   LIT_SHIFT,
@@ -75,36 +78,6 @@ function cellCentre(dx: number, dy: number, h: number, rise = 0): { x: number; y
     x: (dx - dy + h) * HALF_TILE_W,
     y: (dx + dy + 1) * HALF_TILE_H + rise,
   };
-}
-
-interface Point {
-  readonly x: number;
-  readonly y: number;
-}
-
-/**
- * The outline of two adjacent tile diamonds merged into one long shape.
- *
- * A 2×1 object is not a rectangle on screen, it is a stretched hexagon, and which way it
- * leans depends on which screen diagonal the footprint runs along. Drawing two separate
- * diamonds instead leaves a visible waist where they meet.
- */
-function isoCapsule(g: Graphics, p: Point, q: Point, rw: number, rh: number): Graphics {
-  // Ordered by screen depth first, so the shape does not depend on which end was named
-  // first. Rotations 2 and 3 hand over the head *second*, and branching on the raw
-  // argument order drew a self-intersecting bow-tie for exactly those two facings —
-  // which is invisible at play zoom and unmissable on the sprite sheet.
-  const [a, b] = p.y <= q.y ? [p, q] : [q, p];
-
-  const points =
-    b.x > a.x
-      ? [a.x - rw, a.y, a.x, a.y - rh, b.x, b.y - rh, b.x + rw, b.y, b.x, b.y + rh, a.x, a.y + rh]
-      : [a.x, a.y - rh, a.x + rw, a.y, b.x + rw, b.y, b.x, b.y + rh, b.x - rw, b.y, a.x - rw, a.y];
-  return g.poly(points);
-}
-
-function shifted(p: Point, dx: number, dy: number): Point {
-  return { x: p.x + dx, y: p.y + dy };
 }
 
 /** Toward the sun, in frame pixels: up and to the right, as everything else here. */

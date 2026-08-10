@@ -47,6 +47,14 @@
       import { BUILDING_DEFS } from '/src/sim/defs/buildings.ts';
       import { sizeOf } from '/src/sim/world/footprint.ts';
       import { buildBuildingGraphics, BUILDING_HEIGHT } from '/src/render/art/buildingArt.ts';
+      import {
+        buildPawnGraphics,
+        buildSleepingPawnGraphics,
+        PAWN_ASLEEP_H,
+        PAWN_ASLEEP_W,
+        PAWN_H,
+        PAWN_W,
+      } from '/src/render/art/pawnArt.ts';
       import { footprintBounds } from '/src/render/iso.ts';
       import { HALF_TILE_H, HALF_TILE_W } from '/src/render/constants.ts';
 
@@ -135,7 +143,61 @@
 
           sheets.append(heading, row);
         }
+        await renderPawns(sheets);
         document.getElementById('status').textContent = `${BUILDING_DEFS.length} structures`;
+      }
+
+      /** A stand-in colonist. Any appearance will do — the pose is what is under review. */
+      const WHO = { skinTone: 1, hairStyle: 2, hairColour: 0, apparelColour: 3 };
+
+      async function shot(graphics, w, h) {
+        const canvas = app.renderer.extract.canvas({
+          target: graphics,
+          frame: new Rectangle(0, 0, w, h),
+        });
+        const shown = document.createElement('canvas');
+        shown.width = w * SCALE + PAD * 2;
+        shown.height = h * SCALE + PAD * 2;
+        const ctx = shown.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        ctx.fillStyle = 'rgba(0,0,0,0.22)';
+        ctx.fillRect(0, 0, shown.width, shown.height);
+        ctx.drawImage(canvas, PAD, PAD, w * SCALE, h * SCALE);
+        return shown;
+      }
+
+      /**
+       * The sleeping pose, which is the same kind of problem as a footprint: it runs along
+       * an isometric axis, it has a head end, and at play zoom it is twenty pixels of
+       * blanket you cannot judge.
+       */
+      async function renderPawns(sheets) {
+        const heading = document.createElement('h1');
+        heading.textContent = 'Colonist — standing, then asleep at each bed rotation';
+        const row = document.createElement('div');
+        row.className = 'row';
+
+        const standing = document.createElement('div');
+        standing.className = 'cell';
+        standing.append(await shot(buildPawnGraphics(WHO), PAWN_W, PAWN_H));
+        const stood = document.createElement('div');
+        stood.className = 'label';
+        stood.textContent = 'awake';
+        standing.append(stood);
+        row.append(standing);
+
+        for (const rotation of [0, 1, 2, 3]) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.append(await shot(buildSleepingPawnGraphics(WHO, rotation), PAWN_ASLEEP_W, PAWN_ASLEEP_H));
+          const label = document.createElement('div');
+          label.className = 'label';
+          label.textContent = `asleep, bed rot ${rotation}`;
+          cell.append(label);
+          row.append(cell);
+        }
+
+        sheets.append(heading, row);
       }
 
       document.getElementById('grid').addEventListener('change', render);

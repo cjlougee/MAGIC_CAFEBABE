@@ -285,8 +285,15 @@ not one tile** — items 8 and 9 are both gated on it.
       outline of the cells it claims. It found both real art bugs in the milestone within a minute
       of existing, and both were invisible at play zoom: a capsule that drew as a bow-tie for two
       of four facings, and a hearth drawn a whole storey above its own footprint
-- [ ] **Sleeping colonists lie down** — render-only, off the `asleep` flag the snapshot already
-      carries. A separate change in the same milestone, not bundled into the footprint work
+- [x] **Sleeping colonists lie down** — render-only, off the `asleep` flag that has been on the
+      pawn since M3. A separate change from the footprint work, landed after it. Deliberately not
+      the standing sprite rotated: nearest-neighbour sampling shreds rotated pixel art, and a
+      rotated front-on figure reads as someone who has fallen over. It is a blanket with a head at
+      one end, which is simpler *and* a better read, and it lies along the bed's own rotation so
+      the head lands on the same end as the pillow
+- [x] A sleeper **sorts with the bed**, not with their own cell. A building takes the depth of its
+      footprint's nearest corner, so a colonist on the head cell of a 2×1 bed has a strictly
+      smaller depth and would be covered by the very bed they are lying on
 - **Playable check:** ✅ placed a bed, rotated it before committing, watched two colonists deliver
   scrap and stone and raise it — 200/100 stone/scrap went to 196/92, exactly its cost. Hearth lights
   a night camp from the middle of its four cells rather than a corner. Asserted headless in
