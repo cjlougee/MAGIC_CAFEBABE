@@ -32,12 +32,16 @@
     <h1 class="live">B — "arrows"</h1>
     <div class="strip" id="strip-arrows"></div>
 
+    <h1 class="live">GROUND PULSE — falloff, then at the alphas it plays through</h1>
+    <div class="strip" id="strip-pulse"></div>
+
     <h1 class="live">LOOPING AT SPEED — A then B</h1>
     <canvas id="live" width="56" height="56" style="width: 112px; height: 112px; display:inline-block"></canvas>
     <canvas id="live2" width="56" height="56" style="width: 112px; height: 112px; display:inline-block"></canvas>
 
     <script type="module">
       import { drawOrderCursor, ORDER_CURSOR_SIZE, ORDER_CURSOR_MS } from '/src/render/art/orderCursor.ts';
+      import { paintTilePulse } from '/src/render/art/tilePulse.ts';
 
       const FRAMES = 13;
 
@@ -61,6 +65,26 @@
           wrap.append(canvas, label);
           strip.append(wrap);
         }
+      }
+
+      // The ground pulse: one texture, shown large and then at the alphas the animation
+      // steps through, so the concentric falloff can be judged as a still.
+      const pulseStrip = document.getElementById('strip-pulse');
+      for (const alpha of [1, 0.5, 0.35, 0.2, 0.1]) {
+        const wrap = document.createElement('div');
+        wrap.className = 'frame';
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 32;
+        canvas.style.width = '192px';
+        canvas.style.height = '96px';
+        const pctx = canvas.getContext('2d');
+        pctx.globalAlpha = alpha;
+        paintTilePulse(pctx);
+        const label = document.createElement('div');
+        label.textContent = `alpha ${alpha}`;
+        wrap.append(canvas, label);
+        pulseStrip.append(wrap);
       }
 
       const live = document.getElementById('live').getContext('2d');

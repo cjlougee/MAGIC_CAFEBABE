@@ -115,7 +115,11 @@ In its place, two things:
 - **The target tile pulses**, three times over two seconds, in relic cyan at up to half opacity.
   A whole number of cosine cycles lands back on zero by itself, so it ends without a cut and needs
   no fade envelope — one was tried, and it crushed the second and third pulses to a quarter
-  strength, so three pulses read as one.
+  strength, so three pulses read as one. The tile itself glows **from the middle out** rather than
+  filling flat: a concentric falloff, the same idea as the light diffusion in `glow.ts`, because a
+  flat fill reads as a coloured card laid on the ground instead of something happening at a point.
+  Built on a canvas and sampled `linear`, for the reason every gradient in this project is —
+  nearest steps it into contour rings.
 
 Only clicks in the world get the cursor animation. Ordering from the places list is a button press,
 and a button already acknowledges itself.

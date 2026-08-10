@@ -13,6 +13,7 @@
 
 import { Container, Sprite } from 'pixi.js';
 import type { ArtProvider } from '../art/artProvider';
+import { Palette } from '../art/palette';
 import { HALF_TILE_H, HALF_TILE_W } from '../constants';
 import { tileToWorld } from '../iso';
 
@@ -94,7 +95,9 @@ export class OrderMarkerLayer {
   private fillAt(index: number): Sprite {
     let sprite = this.fills[index];
     if (!sprite) {
-      sprite = new Sprite(this.art.tileHighlight());
+      sprite = new Sprite(this.art.tilePulse());
+      // The texture is white so one can serve any colour; the tint is what makes it cyan.
+      sprite.tint = Palette.relic;
       this.container.addChild(sprite);
       this.fills[index] = sprite;
     }

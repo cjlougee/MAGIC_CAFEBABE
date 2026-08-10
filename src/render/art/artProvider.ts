@@ -17,6 +17,7 @@ import { BUILDING_HEIGHT, buildBuildingGraphics, buildSiteGraphics } from './bui
 import { buildContactShadow } from './contactShadow';
 import { buildItemGraphics } from './itemArt';
 import { buildPlantGraphics } from './plantArt';
+import { buildTilePulse } from './tilePulse';
 import {
   buildDeconstructMarkerGraphics,
   buildMineMarkerGraphics,
@@ -67,29 +68,21 @@ export class ArtProvider {
     });
   }
 
-  /** A filled tile diamond, tinted and faded by whatever is pulsing it. */
-  tileHighlight(): Texture {
-    return this.cached(
-      'ui:tileHighlight',
-      () => {
-        const g = new Graphics();
-        // Inset by a pixel so the fill never bleeds onto the tiles it abuts.
-        const w = HALF_TILE_W - 1;
-        const h = HALF_TILE_H - 1;
-        g.poly([
-          HALF_TILE_W,
-          HALF_TILE_H - h,
-          HALF_TILE_W + w,
-          HALF_TILE_H,
-          HALF_TILE_W,
-          HALF_TILE_H + h,
-          HALF_TILE_W - w,
-          HALF_TILE_H,
-        ]).fill({ color: Palette.relic });
-        return g;
-      },
-      new Rectangle(0, 0, TILE_W, TILE_H),
-    );
+  /**
+   * A tile that glows from its middle out, tinted by whatever is pulsing it.
+   *
+   * Not through `cached()`: that path renders a Graphics with nearest sampling, and this
+   * is a soft gradient. Nearest would band it — the same reason `contactShadow` sits
+   * outside that path.
+   */
+  tilePulse(): Texture {
+    const key = 'ui:tilePulse';
+    const existing = this.cache.get(key);
+    if (existing) return existing;
+
+    const texture = buildTilePulse();
+    this.cache.set(key, texture);
+    return texture;
   }
 
   /** Texture for a pile of one kind of item. */
