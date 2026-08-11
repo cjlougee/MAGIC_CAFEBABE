@@ -11,6 +11,7 @@
 
 import type { Graphics } from 'pixi.js';
 import { HALF_TILE_H, HALF_TILE_W, TILE_H, TILE_W } from '../constants';
+import { FACE } from './language';
 
 /** A flat diamond centred at (cx, cy). */
 export function diamond(
@@ -61,9 +62,14 @@ export function rightFace(g: Graphics, top: number, depth: number): Graphics {
  *
  * Shared so every raised thing in the game is lit from the same direction — the
  * cheapest way to make procedurally generated art look like one art style.
+ *
+ * **The numbers now live in `language.ts`**, with the rest of the style stated as figures
+ * rather than prose. They are re-exported here under the names terrain and buildings have
+ * always imported, because a stone wall has to butt against a rock face without a lighting
+ * mismatch: these move for everyone or for no one.
  */
-export const LEFT_FACE_SHADE = -0.3;
-export const RIGHT_FACE_SHADE = -0.14;
+export const LEFT_FACE_SHADE = FACE.left;
+export const RIGHT_FACE_SHADE = FACE.right;
 
 /**
  * The same sun, for things that are not built from isometric faces.
@@ -78,8 +84,7 @@ export const RIGHT_FACE_SHADE = -0.14;
  * adjacent rocks in the same mass, which is a seam grid over the whole mountain and
  * exactly what docs/decisions/0002-isometric-projection.md exists to prevent.
  */
-export const LIT_SHIFT = 0.16;
-export const SHADED_SHIFT = -0.22;
+export { LIT_SHIFT, SHADED_SHIFT } from './language';
 
 /**
  * A thin band just inside a diamond's sunward (upper-right) edge.

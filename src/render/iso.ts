@@ -112,6 +112,29 @@ export function footprintBounds(
 }
 
 /**
+ * Ground centre of footprint cell `(dx, dy)`, in the sprite frame's own pixels.
+ *
+ * The inside-out companion to `footprintBounds`: that gives the box a footprint occupies
+ * on screen, this gives where each of its cells sits *within* that box. `h` is the
+ * **rotated** height of the footprint, which is what decides how far right the frame's
+ * leftmost point pushes the anchor.
+ *
+ * **At `dx = dy = 0, h = 1` this is `(HALF_TILE_W, HALF_TILE_H + rise)`** — exactly where
+ * single-tile art has always drawn, which is the check that the generalisation is right.
+ *
+ * Here rather than in `buildingArt.ts`, where it began, because a second copy of the
+ * projection is the one thing ADR 0002 asks the codebase not to have: the art needs it to
+ * place a hearth's pit, and the harness needs it to say where the ink is allowed to be. If
+ * those two ever disagreed, the test would certify the bug.
+ */
+export function footprintCellCentre(dx: number, dy: number, h: number, rise = 0): Point {
+  return {
+    x: (dx - dy + h) * HALF_TILE_W,
+    y: (dx + dy + 1) * HALF_TILE_H + rise,
+  };
+}
+
+/**
  * Painter's-algorithm depth *within a level*. Larger draws later (nearer the viewer).
  *
  * Row-major iteration (y outer, x inner) already produces a valid draw order: the only

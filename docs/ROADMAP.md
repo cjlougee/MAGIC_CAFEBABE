@@ -362,43 +362,74 @@ See [`superpowers/specs/2026-08-10-multi-tile-footprints-design.md`](superpowers
   watched the ghost swing onto the other axis before committing. Asserted headless in
   `tests/footprint.test.ts`.
 
-### M12 — The asset pipeline *(new — process, not content)*
+### M12 — The asset pipeline *(process, not content)*
 
-**M13 to M15 are three milestones of almost nothing but new art**, and the honest reading of M10 is
-that this project is not yet set up to execute that well. Not because the sprites came out badly, but
-because of what they *cost*: every iteration was edit, navigate, screenshot, judge, repeat, and the
-judging is the expensive half.
+**Two things were wrong, with different causes, and conflating them would have got the answer wrong.**
+Judging art was expensive — edit, navigate, screenshot, squint, several round trips per iteration, and
+seven bugs shipped anyway. And the detail looked basic: measured, a bedroll was **five distinct
+colours** across 96×48 and a wall seven across 64×54. Terrain never had that problem because it got a
+texture pass in M0 that buildings never did, and the pipeline was vector-only, so occlusion and surface
+were not expressible at all.
 
-The evidence is specific. `sprites.html` caught five real bugs in M10 — a capsule drawing as a
-bow-tie for two of four facings, a hearth drawn a whole storey above its own footprint, a sleeping
-pose six times longer than it was wide, a body covering half the bedroll, and a head floating outside
-the blanket twice. **Every one of the five was a measurement, not a judgement.** Not one needed a
-human eye. What genuinely needed one was "the shading is awkward and hard to tell what it is supposed
-to be" — and no test will ever say that.
+- [x] **Pixi builds a `Graphics` with no GPU, canvas or DOM.** `context.instructions` is the
+      painter-ordered draw list and every shape answers `contains` / `strokeContains`, so a 25-line
+      rasterizer measures the whole sprite set headless — six buildings in 7 ms. The milestone rests
+      on that fact, so it was checked before anything was designed on top of it
+- [x] **Geometry assertions in vitest** — `tests/art.test.ts`, 240 of them, each named after a bug that
+      shipped: self-intersecting polygons (the bow-tie capsule), ink outside the footprint diamonds
+      (the hearth a storey up), aspect bounds (the six-times-too-long pose), ink detached from what it
+      rests on (the head off the blanket, twice), marks under a visible-ink floor (the lock bar's two
+      pixels), and the facing end being the end `headCellOf` names
+- [x] **Two contract levels**, because the bugs split cleanly along them. *Sprite* contracts measure
+      ink against its own frame; *placement* contracts measure the sprite against the world cells it
+      claims. The hearth and the sleeping pose were both placement, and no sprite-level check would
+      ever have caught either
+- [x] Exceptions are **declared with a reason and an exact count**, never tolerated. The bed's far leg
+      is meant to be invisible; the door's jambs are meant to overhang, by a measured 13%, because a
+      door continues the wall run it interrupts. Exact equality makes each a ratchet in both directions
+      — a leg that *reappears* fails as loudly as a bar that vanishes
+- [x] **`npm run art`** — 49 sprites to `art/contact-sheet.png` in ~180 ms, at 3×, over an outline of
+      the cells each claims, plus per-sprite PNGs and a JSON report. One command and one image, with no
+      dev server, no browser and no screenshot. `vite-node` plus a 60-line PNG encoder over
+      `node:zlib`; **no new dependencies**
+- [x] **The design language stated as numbers** — `src/render/art/language.ts`. Sun direction, tone
+      ramp, occlusion depth and reach, bevel width, minimum feature size, heights **as fractions of
+      `LEVEL_HEIGHT`** so Slice 4 does not invalidate every proportion, and a material table whose
+      tiers are the crafting ladder made visible. `art-pass` points at the file instead of describing it
+- [x] **A solid model layer** — sprites as boxes in tile space with materials, rendered with surface
+      texture, contact occlusion and a one-pixel bevel. **Rotation and footprint containment become
+      correct by construction**: turning a model turns its coordinates, and a solid inside the
+      footprint's tile range cannot project outside its diamonds. Two of the seven bugs stop being
+      *expressible*
+- [x] **The rasterizer ships** — modelled structures upload the exact buffer the tests measured, not a
+      GPU re-render of the same instructions that could differ at the edges and pass anyway.
+      [ADR 0010](decisions/0010-procedural-art.md)
+- [x] **Bedroll and Bed converted**, with the old drawings kept on the sheet as `— before` rows until
+      M13 signs the models off. Measured, same ink area: **bed 10 tones → 55, bedroll 5 → 38**
+- [x] **A sleeping colonist lies on the middle of their bed** — positioned at the footprint centre
+      exactly as `LightingLayer` does for a hearth. Render-only; the pawn does not move, because `spot`
+      is saved and hashed. *Discharged from M13, where it was listed*
+- [x] **The sleeper is drawn on the bed on the contact sheet**, composed at the offsets the layer
+      really uses. Both halves were reviewable alone and both looked fine — the bug lived in the
+      relationship between them, and they were never on the same page
+- [x] `sprites.html` rebuilt on the shared manifest, so one edit reaches the tests, the bake and the
+      page together
+- [x] **The harness was shown red before being trusted.** Four historic bugs reintroduced on purpose;
+      each failed a named assertion with a number in it
+- **Playable check:** *there isn't one, and that is the point.*
 
-So this milestone is a **brainstorm first and an implementation second**, and it happens before the
-content rather than after. The open questions, named now so the design pass starts somewhere:
+**What it found on its own, in its first hour:**
 
-- [ ] **Geometry assertions on generated textures**, headless, in vitest. Render a `Graphics`, then
-      assert the ink sits inside the stated frame, the alpha bounding box matches the footprint's
-      expected screen box, rotations that should differ do, rotations that should share a silhouette
-      do, and the ground line is where the layer assumes it is. This is the same move the project
-      already made for the simulation, applied to the half that never got it — and on M10's evidence
-      it is the single largest saving available
-- [ ] **The design language stated as numbers, not prose.** `art-pass` is good writing and it has no
-      figures in it: no stated insets, no proportions, no ground line. Numbers make the first attempt
-      land closer, which is cheaper than making the fourth attempt land
-- [ ] **Procedural, or an artist's atlas?** `ArtProvider` was built from M0 as the door for exactly
-      this — "a real artist's atlas can be dropped in behind this interface later without a single
-      change to layer or gameplay code". Whether to walk through it, and what that means for
-      generated images, external tools and licensing, is an ADR-level call that changes what the rest
-      of this milestone is
-- [ ] **What `sprites.html` becomes.** It is a scratch harness that earned its place immediately; it
-      should either grow into the review surface properly or be replaced by whatever does
-- [ ] Whatever the brainstorm turns up — skills, prompts, MCPs, an external step. Deliberately not
-      pre-decided here
-- **Playable check:** *there isn't one, and that is the point.* This milestone is judged on M13
-  costing visibly less than M10 did per sprite, with fewer round trips to get something right.
+- **The pawn head's sunward crescent is drawn and then covered outright by hair** — a larger ellipse at
+  the same centre, drawn after it. Zero visible pixels on three of the five hair styles, under 16 on
+  the other two. The shape language's own worked example, invisible on the most-looked-at sprite in the
+  game. **Scheduled in M13**, and recorded in the pawn's contract so it cannot get worse quietly.
+- The bed's comment said "the two at the back" are hidden. Measured: one whole leg and most of another
+  — and once leg tops were correctly suppressed, exactly one. Close, and never checked.
+- Three hex literals in `buildingArt.ts` sitting outside the palette.
+
+See [`superpowers/specs/2026-08-11-asset-pipeline-design.md`](superpowers/specs/2026-08-11-asset-pipeline-design.md)
+and [ADR 0010](decisions/0010-procedural-art.md).
 
 ### M13 — The architect grows up, and rooms get contents *(items 4, 9)*
 - [ ] A **categorised** build menu with real sprites rendered into DOM. The current architect list is
@@ -408,8 +439,11 @@ content rather than after. The open questions, named now so the design pass star
       `setSurfaceAt` already handles it
 - [ ] Whatever ownership and interaction furniture turns out to need — a desk you sit at is a bench
       by another name, and the M6 bill system should absorb it rather than growing a sibling
-- [ ] **The sleeping pose centred on the bed**, not on the pawn's cell — see the known gaps below.
-      Render-only, and the first thing built after M12 that M12 should have made cheap
+- [x] ~~**The sleeping pose centred on the bed**~~ — *done in M12*, which is where the harness needed a
+      real defect to go green on. A harness that is green on arrival validates nothing
+- [ ] **The pawn head's crescent, buried under hair** — found by M12's harness: zero visible pixels on
+      three of five styles. A genuine one-liner, and worth doing early because colonists are the
+      most-looked-at sprite in the game
 - **Playable check:** furnish a hut and it stops being a box.
 
 ### M14 — Buildings that look like buildings *(item 8, minus the storeys)*
@@ -521,11 +555,14 @@ constants the last three milestones warned about have been measured rather than 
 **M11 is done** — walls are click targets with a panel and a ✕, doors read as doors and can be
 barred, mine marks are visible, and the minimap scrubs.
 
-**Start at M12 — the asset pipeline, and it is deliberately not content.** M13 to M15 are three
-milestones of almost nothing but new art, and M10's evidence is that the *judging* is what costs, not
-the drawing: all five bugs `sprites.html` caught were measurements a test could have made, and the
-only thing that genuinely needed a human eye was whether the shading read well. Building the harness
-before the flood, rather than after it.
+**M12 is done, and it was deliberately not content.** Judging a sprite is now `npm run art` and one
+image on disk — 49 sprites in ~180 ms, no dev server, no browser, no screenshot — with 240 headless
+assertions holding the geometry, each named after a bug that shipped. The generation half gained a
+solid model layer with materials, contact occlusion and a bevel; measured, the bed went from 10 tones
+to 55 and the bedroll from 5 to 38, which is what "the detail looks basic" actually *was*.
+
+**Next is M13**, and it is the first real test of whether the pipeline paid: forty sprites, and the
+question is whether each costs visibly less than M10's did.
 
 **Slice 4 is verticality**, scheduled at last rather than deferred a fifth time. See the section
 below for what finally triggered it and why capping decorative height was refused.
@@ -556,18 +593,12 @@ search radius (28 tiles, unchanged) and `BUSH_DENSITY` are the next two to look 
 
 - **No roofs.** "Indoors" means enclosed-by-something-built. Fine now; temperature or
   weather would need real roofs.
-- **A sleeping colonist lies on half their bed.** *Both halves of the M10 item landed —
-  footprints are a system, the pose was render-only — but the pose sits wrong.* The
-  sprite is centred on the pawn's own cell, and the pawn sleeps at `headCellOf(bed)`,
-  which is one end of a 2x1. So the body extends half its length past the head of the bed
-  and only reaches the middle of it: they look like they are lying on half a bed with
-  their head over the edge, rather than *in* it.
-  **The fix is render-only and belongs in an art pass, not here.** `spot` is a job field —
-  saved, hashed, and load-bearing for determinism — so moving the *pawn* is the expensive
-  answer to a drawing problem. `ObjectLayer` already looks up the bed to get its rotation;
-  it should position a sleeping sprite at the **footprint's centre** rather than at the
-  pawn's tile, exactly as `LightingLayer` does for a hearth's glow. Everything needed is
-  already in hand at that point in the loop.
+- ~~**A sleeping colonist lies on half their bed.**~~ *Fixed in M12.* `ObjectLayer` positions the
+  pose at the **footprint's centre** rather than the pawn's own cell, exactly as `LightingLayer`
+  does for a hearth's glow. The pawn was not moved: `spot` is a job field, saved and hashed, so
+  moving a colonist to make a picture line up would trade a render bug for a determinism one.
+  The contact sheet now draws the sleeper *on* the bed, because both halves were reviewable
+  alone and both looked fine — the bug lived in the relationship between them.
 - **The best landing sites are the furthest from stone, and M7 made it worse.**
   `findLandingSite` maximises open, *storable* ground, and rock is neither passable nor
   storable — so the chooser actively walks away from it. With biome-scale regions the
@@ -631,9 +662,10 @@ seed passing is exactly how it survived a green suite the first time.
 - **`docs/decisions/`** — nine ADRs covering the stack, the projection, verticality, water,
   controls, deconstruction, the shape of the world, how places differ from texture, and
   multi-tile footprints.
-- **`sprites.html` and `filmstrip.html`** — the two art review harnesses, served by the dev
-  server. Judging a sprite at play zoom is how every art bug in this project survived; both
-  exist so that looking properly is one page load. See `CLAUDE.md`.
+- **`npm run art`** — the whole sprite set to `art/contact-sheet.png` in one command, with the
+  geometry checked on the way. Reach for it before a dev server. `sprites.html` is the same
+  manifest live, for reload-as-you-edit and the night wash; `filmstrip.html` is for animation.
+  Judging a sprite at play zoom is how every art bug in this project survived.
 - **`docs/BACKLOG.md`** — everything wanted and not scheduled, grouped and annotated with what the
   code already has to say about it. Read before proposing a new milestone; it is probably in there.
 

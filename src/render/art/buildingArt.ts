@@ -7,9 +7,14 @@
  */
 
 import { Graphics } from 'pixi.js';
-import { Building, type BuildingId } from '../../sim/defs/buildings';
+import { Building, buildingDef, type BuildingId } from '../../sim/defs/buildings';
 import type { Rotation } from '../../sim/world/footprint';
+import { isModelled, MODELLED } from './model/buildingModels';
+import { renderModel } from './model/render';
+import type { DrawList } from './raster/drawList';
+import { drawListFromGraphics } from './raster/fromGraphics';
 import { HALF_TILE_H, HALF_TILE_W, TILE_H, TILE_W } from '../constants';
+import { footprintCellCentre as cellCentre } from '../iso';
 import {
   diamond,
   isoCapsule,
@@ -29,9 +34,19 @@ import { Palette, shade } from './palette';
 export const BUILDING_W = TILE_W;
 export const BUILDING_H = TILE_H;
 
-/** How far each structure rises off the ground, in world pixels. */
+/**
+ * How far each structure rises off the ground, in world pixels.
+ *
+ * Every frame in the game is `footprintBounds(..., BUILDING_HEIGHT[def])`, so this is the
+ * one number that decides how much headroom a sprite has. For a modelled structure it is
+ * also the ceiling: `rise / LEVEL_HEIGHT` storeys, above which a solid projects off the top
+ * of its own frame — see `model/render.ts`. `language.ts` states the proportions.
+ */
 export const BUILDING_HEIGHT: Record<BuildingId, number> = {
-  [Building.Bedroll]: 0,
+  // Was 0, which forced the sprite to be perfectly flat, and a bedroll with no thickness
+  // at all reads as a stain on the floor rather than as bedding. Three pixels is enough
+  // for a roll of canvas to have a top and a side, and still nothing beside a bed's 11.
+  [Building.Bedroll]: 3,
   [Building.Wall]: 22,
   // Shorter than a wall so a doorway reads as a gap in the run, not another wall.
   [Building.Door]: 16,
@@ -63,23 +78,10 @@ export const BUILDING_LIGHT: Partial<Record<BuildingId, number>> = {
 // ── Footprint geometry ──────────────────────────────────────────────────────────
 //
 // A structure's texture covers its whole footprint, so nothing may assume the frame is
-// one tile any more. These two helpers are the only place that assumption is replaced;
-// the drawing functions below work in cell offsets and never touch frame pixels.
-
-/**
- * Ground centre of footprint cell `(dx, dy)`, in frame pixels.
- *
- * `h` is the *rotated* height of the footprint, which is what decides how far right the
- * frame's leftmost point pushes the anchor. Mirrors `footprintBounds` in `iso.ts`; at
- * `dx = dy = 0, h = 1` it gives `(HALF_TILE_W, HALF_TILE_H + rise)`, exactly where
- * single-tile art has always drawn.
- */
-function cellCentre(dx: number, dy: number, h: number, rise = 0): { x: number; y: number } {
-  return {
-    x: (dx - dy + h) * HALF_TILE_W,
-    y: (dx + dy + 1) * HALF_TILE_H + rise,
-  };
-}
+// one tile any more. The drawing functions below work in cell offsets and never touch
+// frame pixels; `footprintCellCentre` in `iso.ts` is the one place that conversion lives.
+// It began here, and moved because the harness needs the same arithmetic to say where ink
+// is *allowed* to be — and a test working from a second copy would certify the bug.
 
 /** Toward the sun, in frame pixels: up and to the right, as everything else here. */
 const SUNWARD = { x: 2, y: -1 };
@@ -584,6 +586,34 @@ export function buildBuildingGraphics(
       break;
   }
   return g;
+}
+
+/**
+ * The draw list for a structure — the one entry point, whichever way it is drawn.
+ *
+ * Two paths converge here, and the seam is deliberate and temporary. A **modelled**
+ * structure is a handful of solids in tile space, rasterized with surface texture, contact
+ * shadow and a bevel — per-pixel work no vector fill can express, and the measured
+ * difference between "basic" and "formed". Everything else is still the hand-drawn
+ * `Graphics`, adapted into the same form so the harness measures both the same way.
+ *
+ * M13 and M14 convert the rest as they touch them. Until then nothing on the vector path
+ * changes by a single pixel, which is what keeps a pure-infrastructure milestone from
+ * quietly restyling the game.
+ */
+export function buildBuildingDrawList(
+  def: BuildingId,
+  rotation: Rotation = 0,
+  locked = false,
+): DrawList {
+  if (isModelled(def)) {
+    return renderModel(MODELLED[def](), {
+      footprint: buildingDef(def).footprint,
+      rotation,
+      rise: BUILDING_HEIGHT[def],
+    });
+  }
+  return drawListFromGraphics(buildBuildingGraphics(def, rotation, locked).context, `building:${def}`);
 }
 
 /**

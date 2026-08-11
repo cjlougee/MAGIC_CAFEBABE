@@ -16,7 +16,10 @@ import { HALF_TILE_H, HALF_TILE_W, TILE_H, TILE_W } from '../constants';
 import { GROUND_LEVEL } from '../../sim/core/position';
 import { footprintOfBuilding, sizeOf, type Rotation } from '../../sim/world/footprint';
 import { footprintBounds } from '../iso';
-import { BUILDING_HEIGHT, buildBuildingGraphics, buildSiteGraphics } from './buildingArt';
+import { BUILDING_HEIGHT, buildBuildingDrawList, buildBuildingGraphics, buildSiteGraphics } from './buildingArt';
+import { isModelled } from './model/buildingModels';
+import { rasterize } from './raster/raster';
+import { textureFromRaster } from './raster/toTexture';
 import { buildContactShadow } from './contactShadow';
 import { buildItemGraphics } from './itemArt';
 import { buildPlantGraphics } from './plantArt';
@@ -138,15 +141,35 @@ export class ArtProvider {
   building(def: BuildingId, rotation: Rotation = 0, locked = false): Texture {
     const { w, h } = sizeOf(footprintOfBuilding(def), rotation);
     const bounds = footprintBounds(0, 0, w, h, GROUND_LEVEL, BUILDING_HEIGHT[def]);
-    const frame = new Rectangle(0, 0, bounds.width, bounds.height);
     // Locked is in the key for the same reason rotation is: it is a different picture,
     // and sharing one entry would draw every door the way the first one drawn happened
     // to be set.
-    return this.cached(
-      `building:${def}:${rotation}:${locked ? 'locked' : 'open'}`,
-      () => buildBuildingGraphics(def, rotation, locked),
-      frame,
-    );
+    const key = `building:${def}:${rotation}:${locked ? 'locked' : 'open'}`;
+
+    /*
+     * Modelled structures are rasterized here on the CPU rather than handed to the GPU.
+     *
+     * Not an optimisation — the opposite. It buys **per-pixel** work that a vector fill
+     * cannot express at all: surface texture, occlusion in the creases, a one-pixel bevel
+     * along a lit edge. That is the measured difference between five tones on a bedroll
+     * and fifty on a bed, and it is why the detail looked basic before.
+     *
+     * It also closes the harness's last gap. `tests/art.test.ts` measures this exact
+     * buffer, so what is asserted is what is uploaded — not a re-render of the same
+     * instructions that could differ at the edges and pass anyway.
+     */
+    if (isModelled(def)) {
+      const existing = this.cache.get(key);
+      if (existing) return existing;
+
+      const raster = rasterize(buildBuildingDrawList(def, rotation, locked), bounds.width, bounds.height);
+      const texture = textureFromRaster(raster);
+      this.cache.set(key, texture);
+      return texture;
+    }
+
+    const frame = new Rectangle(0, 0, bounds.width, bounds.height);
+    return this.cached(key, () => buildBuildingGraphics(def, rotation, locked), frame);
   }
 
   /** A blueprint or part-built frame, at one of a few progress stages. */

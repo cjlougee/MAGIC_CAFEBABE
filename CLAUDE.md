@@ -60,6 +60,7 @@ anywhere else.
 ```bash
 npm run dev        # Vite dev server on :5173
 npm run check      # typecheck + lint + test — run this before calling anything done
+npm run art        # every sprite → art/contact-sheet.png, with the geometry checked
 npm run test       # vitest
 npm run typecheck  # tsc --noEmit
 npm run lint       # eslint
@@ -70,16 +71,29 @@ Claude: prefer the `run` skill or `preview_start` (`.claude/launch.json` defines
 launch the dev server, then verify visually with the browser tools. **Look at the running game — test
 output alone is not verification for a rendering change.**
 
-Two review harnesses, both served by the dev server, because the game at play zoom is the *worst*
-place to judge art:
+### Looking at art costs one command
 
+**`npm run art` is the first thing to reach for on any art change**, ahead of a dev server. It writes
+`art/contact-sheet.png` — every sprite at every rotation, at 3x, over an outline of the footprint cells
+it claims — plus one PNG per sprite and a JSON report of every measurement. 49 sprites in ~180ms, no
+dev server, no browser, no screenshot. It exits non-zero if anything breaks its contract, so it is a
+check as well as a review surface.
+
+That matters because the old loop was edit → dev server → navigate → screenshot → squint, and the
+screenshot leg is the one that fails when a display isn't available.
+
+Two live harnesses remain, because the game at play zoom is the *worst* place to judge art:
+
+- **`sprites.html`** — the same manifest rendered live, for reload-as-you-edit, the night wash and
+  zoom. Built in M10 and it earned itself immediately: it found a capsule that drew as a bow-tie for
+  two of four facings, and a hearth drawn a whole storey above its own footprint.
 - **`filmstrip.html`** — an animation sampled across a dozen values of normalised time. An animation
   cannot be screenshotted; every attempt is a race against a tool round-trip. Write motion as a pure
   function of `t` and review the strip.
-- **`sprites.html`** — every structure at every rotation, at 3x, over an outline of the footprint
-  cells it claims. Built in M10 and it earned itself immediately: it found a capsule that drew as a
-  bow-tie for two of four facings, and a hearth drawn a whole storey above its own footprint. Both
-  were invisible at 1x on a busy map.
+
+**Adding a sprite means adding it to `src/render/art/manifest.ts`.** That one edit reaches the tests,
+the bake and `sprites.html` together — before the manifest existed these were three separate acts and
+the second was the one you could forget.
 
 ### The debug panel — press `` ` ``
 
@@ -119,6 +133,10 @@ src/
     iso.ts      THE isometric projection — tile space <-> world pixels. One definition.
     occlusion.ts  which raised tiles fade because a pawn is behind them
     art/        palette, shape language, procedural sprite generation
+      language.ts   the design language as NUMBERS — sun, ramp, AO, bevel, proportions, materials
+      manifest.ts   every sprite, with the contract it promises. Tests, bake and sprites.html read it
+      model/        sprites described as solids in TILE space, not screen polygons
+      raster/       draw list -> pixels, in plain TS. No GPU, no canvas, no DOM
     layers/     ground (flat, unsorted), objects (raised + pawns, depth-sorted), lighting
     camera/     pan, zoom, culling
   ui/           React overlay (DOM, not Pixi)
@@ -135,6 +153,21 @@ tests rather than by structure:
   more optimistic, it promises routes A\* can't deliver and pawns re-plan forever.
 - Appearance is indices in `sim/`, colours in `render/`. `sim/defs/pawnKind.ts` declares how many of
   each; `render/art/palette.ts` must have at least that many.
+- **Ask of any art problem: is this a measurement or a judgement?** Six of the seven art bugs that
+  shipped in M10 and M11 were measurements — a self-intersecting polygon, ink a storey above its own
+  footprint, a pose six times longer than it was wide, a lock bar with two visible pixels. The seventh
+  was *"the shading is an awkward line"*, and no test will ever say that. Getting the split wrong is
+  expensive both ways: hand-checking what a test could assert, or arguing about a number when the real
+  question is whether it reads. `tests/art.test.ts` owns the first half; your eyes own the second.
+- **An art exception is declared with a reason and an exact count, never tolerated.** A bed's far leg
+  is *meant* to be invisible; a door's jambs are *meant* to overhang, by a measured 13%, because a
+  door continues the wall run it interrupts. The difference between that and the lock bar nobody could
+  see is not in the pixels — it is whether someone wrote it down. Exact equality makes each a ratchet
+  in both directions, so a leg that *reappears* fails as loudly as a bar that vanishes.
+- **`render/` must not call `Math.random()` either.** Enforcement rule 2 is about `sim/` and this is
+  not it — but art that redrew differently on each run could not be asserted on, diffed, or
+  regenerated identically after a context loss. Seed a hash, as `terrainArt` does per
+  `(id, variant)` and `art/model/surface.ts` does per material.
 - Changing terrain must invalidate reachability, and **which call you use matters at 512²**.
   `markDirtyAt(index)` re-floods one 16×16 chunk (615µs); `markDirty()` re-floods the whole map
   (50ms) and means "I don't know what changed" — for loads and bulk edits only. Reaching for the
@@ -210,12 +243,14 @@ tests rather than by structure:
 - **`add-work-type`** — adding a kind of colonist work (Construct, Cook, Clean…). Walks the
   `WorkGiver → Job → JobDriver → toils` pipeline and the invariants above that fail *silently*.
   Written after M2, once the pattern was real rather than predicted.
-- **`art-pass`** — drawing or improving a procedural sprite. The shared shape language, the one
-  light direction, and the geometry rules that break tile alignment without an error. Written
-  after the M6 art pass, from the mistakes it actually made. Note that `sunwardBand` is a
-  *single-tile* device: pointed at a shape two tiles long it draws a band across the middle
-  instead of along the lit edge, and the crescent that replaces it has to be **contained**
-  within the silhouette or it leaves a stray line lying beside the object.
+- **`art-pass`** — drawing or improving a procedural sprite. The two ways art is made (solids in tile
+  space for anything built; hand-drawn vectors for organic and tiling things), the review loop, and
+  the geometry rules that break tile alignment without an error. Written after the M6 art pass from
+  the mistakes it actually made, and rebuilt in M12 around `language.ts`, which states the style as
+  figures rather than prose. Note that `sunwardBand` is a *single-tile* device: pointed at a shape two
+  tiles long it draws a band across the middle instead of along the lit edge, and the crescent that
+  replaces it has to be **contained** within the silhouette or it leaves a stray line lying beside the
+  object.
 
 **Data flow is a one-way loop.** UI never mutates sim state. Input dispatches `Command` objects onto a
 queue the sim drains at the start of each tick. The sim publishes a read-only `SimSnapshot` at ~10Hz

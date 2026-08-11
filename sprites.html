@@ -1,214 +1,171 @@
 <!doctype html>
 <!--
-  Sprite review harness — the filmstrip's companion.
+  Sprite review harness — the human-facing surface of the M12 pipeline.
 
-  `filmstrip.html` samples an *animation* across time so the whole motion can be judged as
-  one still. A building sprite has no time axis, but it does have a rotation axis and a
-  footprint, and both are just as impossible to review by squinting at the game at play
-  zoom: the thing that goes wrong is a few pixels of overhang past the tile diamond, and
-  at 1x on a busy map that reads as nothing at all.
+  Three surfaces read one manifest. `tests/art.test.ts` asserts against it, `npm run art`
+  bakes it to `art/contact-sheet.png`, and this page renders it live. Before the manifest
+  existed this file listed the sprites itself, which is why the sleeping pose reached it
+  two milestones after the buildings did — adding art and adding it *to the review page*
+  were separate acts, and the second was the one you could forget.
 
-  So: every structure, every rotation, drawn over an outline of the footprint cells it
-  claims. Art that escapes its footprint is then obvious rather than subtle, which is the
-  whole point.
+  Prefer `npm run art` when you want a still to look at or link to: one command, no server.
+  Reach for this page when you want the things it has and a PNG cannot — live reload while
+  you edit, the night wash, and zoom.
 
   Delete when buildings stop being drawn procedurally, which is to say never.
 -->
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Building sprites</title>
+    <title>Sprites</title>
     <style>
       body {
         margin: 0;
         padding: 16px;
-        background: #3b4a52;
+        background: #243038;
         color: #dfe6ee;
         font: 12px ui-monospace, monospace;
       }
       h1 { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; margin: 18px 0 8px; }
+      h1 span { opacity: 0.5; font-weight: 400; margin-left: 8px; }
       .row { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
-      .cell { text-align: center; }
+      .cell { text-align: center; background: #1b242a; padding: 8px; }
       .cell canvas { display: block; image-rendering: pixelated; }
       .label { margin-top: 4px; opacity: 0.75; }
-      .controls { display: flex; gap: 14px; align-items: center; margin-bottom: 4px; }
+      .bad { color: #d9544f; opacity: 1; }
+      .controls {
+        display: flex; gap: 14px; align-items: center; margin-bottom: 4px;
+        position: sticky; top: 0; background: #243038; padding: 6px 0; z-index: 1;
+      }
+      #status { opacity: 0.6; }
     </style>
   </head>
   <body>
     <div class="controls">
       <label><input type="checkbox" id="grid" checked /> footprint outline</label>
       <label><input type="checkbox" id="night" /> night wash</label>
+      <label>zoom <input type="range" id="zoom" min="1" max="8" value="3" /></label>
       <span id="status">rendering…</span>
     </div>
     <div id="sheets"></div>
 
     <script type="module">
-      import { Application, Container, Graphics, Rectangle } from 'pixi.js';
-      import { BUILDING_DEFS } from '/src/sim/defs/buildings.ts';
-      import { sizeOf } from '/src/sim/world/footprint.ts';
-      import { buildBuildingGraphics, BUILDING_HEIGHT } from '/src/render/art/buildingArt.ts';
-      import {
-        buildPawnGraphics,
-        buildSleepingPawnGraphics,
-        PAWN_ASLEEP_H,
-        PAWN_ASLEEP_W,
-        PAWN_H,
-        PAWN_W,
-      } from '/src/render/art/pawnArt.ts';
-      import { footprintBounds } from '/src/render/iso.ts';
-      import { HALF_TILE_H, HALF_TILE_W } from '/src/render/constants.ts';
+      import { spriteManifest } from '/src/render/art/manifest.ts';
+      import { rasterize } from '/src/render/art/raster/raster.ts';
+      import { footprintGround } from '/src/render/art/raster/footprintMask.ts';
+      import { visibleCounts } from '/src/render/art/raster/measure.ts';
 
-      const SCALE = 3;
-      const PAD = 6;
+      const manifest = spriteManifest();
 
-      const app = new Application();
-      await app.init({ width: 1, height: 1, backgroundAlpha: 0, antialias: false });
+      /**
+       * The sprite, at scale, over an outline of the cells it claims.
+       *
+       * Rasterized by the same code the tests and the bake use — not re-rendered through
+       * Pixi. A review surface that draws the sprite a second way can disagree with the
+       * one that ships, and then it is a picture of something nobody has.
+       */
+      function draw(sprite, scale, showGrid, night) {
+        const { width, height } = sprite;
+        const raster = rasterize(sprite.draw(), width, height);
 
-      /** The diamond outline of one footprint cell, in the frame's own pixel space. */
-      function outlineCells(size, rise) {
-        const g = new Graphics();
-        for (let dy = 0; dy < size.h; dy++) {
-          for (let dx = 0; dx < size.w; dx++) {
-            const cx = (dx - dy + size.h) * HALF_TILE_W;
-            const cy = (dx + dy + 1) * HALF_TILE_H + rise;
-            g.poly([
-              cx, cy - HALF_TILE_H,
-              cx + HALF_TILE_W, cy,
-              cx, cy + HALF_TILE_H,
-              cx - HALF_TILE_W, cy,
-            ]).stroke({ width: 1, color: 0x7fe3d4, alpha: 0.5 });
+        const src = document.createElement('canvas');
+        src.width = width;
+        src.height = height;
+        const sctx = src.getContext('2d');
+
+        if (showGrid && sprite.footprint) {
+          const ground = footprintGround(width, height, sprite.footprint.w, sprite.footprint.h, sprite.rise);
+          const outline = sctx.createImageData(width, height);
+          for (let i = 0; i < ground.length; i++) {
+            if (!ground[i]) continue;
+            const x = i % width;
+            const y = (i / width) | 0;
+            const edge =
+              x === 0 || y === 0 || x === width - 1 || y === height - 1 ||
+              !ground[i - 1] || !ground[i + 1] || !ground[i - width] || !ground[i + width];
+            if (!edge) continue;
+            outline.data[i * 4] = 0x53;
+            outline.data[i * 4 + 1] = 0xd6;
+            outline.data[i * 4 + 2] = 0xc4;
+            outline.data[i * 4 + 3] = 200;
           }
+          sctx.putImageData(outline, 0, 0);
         }
-        return g;
-      }
 
-      async function draw(def, rotation, showGrid, locked = false) {
-        const size = sizeOf(def.footprint, rotation);
-        const rise = BUILDING_HEIGHT[def.id];
-        const box = footprintBounds(0, 0, size.w, size.h, 0, rise);
-
-        const stage = new Container();
-        if (showGrid) stage.addChild(outlineCells(size, rise));
-        stage.addChild(buildBuildingGraphics(def.id, rotation, def.lockable && locked));
-
-        const canvas = app.renderer.extract.canvas({
-          target: stage,
-          // Stated rather than inferred, exactly as ArtProvider does it — otherwise the
-          // extract crops to the ink and the overhang this page exists to reveal is
-          // silently trimmed away.
-          frame: new Rectangle(0, 0, box.width, box.height),
-        });
+        // The sprite composited over the outline, so overhang reads as ink past the edge.
+        const layer = document.createElement('canvas');
+        layer.width = width;
+        layer.height = height;
+        layer.getContext('2d').putImageData(new ImageData(raster.rgba, width, height), 0, 0);
+        sctx.drawImage(layer, 0, 0);
 
         const shown = document.createElement('canvas');
-        shown.width = box.width * SCALE + PAD * 2;
-        shown.height = box.height * SCALE + PAD * 2;
+        shown.width = width * scale;
+        shown.height = height * scale;
         const ctx = shown.getContext('2d');
         ctx.imageSmoothingEnabled = false;
-        ctx.fillStyle = 'rgba(0,0,0,0.22)';
-        ctx.fillRect(0, 0, shown.width, shown.height);
-        ctx.drawImage(canvas, PAD, PAD, box.width * SCALE, box.height * SCALE);
+        ctx.drawImage(src, 0, 0, shown.width, shown.height);
 
-        if (document.getElementById('night').checked) {
+        if (night) {
           ctx.globalCompositeOperation = 'multiply';
           ctx.fillStyle = '#3d4a75';
           ctx.fillRect(0, 0, shown.width, shown.height);
         }
-        return shown;
+        return { canvas: shown, raster };
       }
 
-      async function render() {
+      function render() {
+        const scale = +document.getElementById('zoom').value;
         const showGrid = document.getElementById('grid').checked;
+        const night = document.getElementById('night').checked;
         const sheets = document.getElementById('sheets');
         sheets.replaceChildren();
 
-        for (const def of BUILDING_DEFS) {
+        for (const group of [...new Set(manifest.map((s) => s.group))]) {
+          const entries = manifest.filter((s) => s.group === group);
+          const first = entries[0];
+          const size = first.footprint ? `${first.footprint.w}×${first.footprint.h}` : 'free';
+
           const heading = document.createElement('h1');
-          const { w, h } = def.footprint;
-          heading.textContent = `${def.name} — ${w}x${h}, rises ${BUILDING_HEIGHT[def.id]}px`;
+          heading.textContent = group;
+          const meta = document.createElement('span');
+          meta.textContent = `${size} · rises ${first.rise}px`;
+          heading.append(meta);
+
           const row = document.createElement('div');
           row.className = 'row';
 
-          // Rotations 0 and 2 share cells and differ only in facing, so all four are
-          // shown: the pair that looks identical is the bug, not the pair that doesn't.
-          // A lockable structure is two pictures, so both are shown — a lock the player
-          // cannot see is a setting they have to remember, which is the whole failure
-          // this milestone is about.
-          const states = def.lockable ? [false, true] : [false];
-          for (const locked of states) {
-            for (const rotation of [0, 1, 2, 3]) {
-              const cell = document.createElement('div');
-              cell.className = 'cell';
-              cell.append(await draw(def, rotation, showGrid, locked));
-              const label = document.createElement('div');
-              label.className = 'label';
-              label.textContent = `rot ${rotation}${locked ? ' · locked' : ''}`;
-              cell.append(label);
-              row.append(cell);
-            }
+          for (const sprite of entries) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            const { canvas, raster } = draw(sprite, scale, showGrid, night);
+            cell.append(canvas);
+
+            const label = document.createElement('div');
+            label.className = 'label';
+            // The same count the harness fails on, shown next to the picture — so a mark
+            // nobody can see is visible *here*, where the fixing happens.
+            const list = sprite.draw();
+            const hidden = visibleCounts(raster, list.length)
+              .filter((c) => c < sprite.contract.minVisibleInk).length;
+            const declared = sprite.contract.mayHide?.count ?? 0;
+            label.textContent = sprite.label + (hidden !== declared ? `  ${hidden}/${declared} hidden` : '');
+            if (hidden !== declared) label.classList.add('bad');
+            cell.append(label);
+            row.append(cell);
           }
 
           sheets.append(heading, row);
         }
-        await renderPawns(sheets);
-        document.getElementById('status').textContent = `${BUILDING_DEFS.length} structures`;
+
+        document.getElementById('status').textContent =
+          `${manifest.length} sprites · npm run art for a still`;
       }
 
-      /** A stand-in colonist. Any appearance will do — the pose is what is under review. */
-      const WHO = { skinTone: 1, hairStyle: 2, hairColour: 0, apparelColour: 3 };
-
-      async function shot(graphics, w, h) {
-        const canvas = app.renderer.extract.canvas({
-          target: graphics,
-          frame: new Rectangle(0, 0, w, h),
-        });
-        const shown = document.createElement('canvas');
-        shown.width = w * SCALE + PAD * 2;
-        shown.height = h * SCALE + PAD * 2;
-        const ctx = shown.getContext('2d');
-        ctx.imageSmoothingEnabled = false;
-        ctx.fillStyle = 'rgba(0,0,0,0.22)';
-        ctx.fillRect(0, 0, shown.width, shown.height);
-        ctx.drawImage(canvas, PAD, PAD, w * SCALE, h * SCALE);
-        return shown;
+      for (const id of ['grid', 'night', 'zoom']) {
+        document.getElementById(id).addEventListener('input', render);
       }
-
-      /**
-       * The sleeping pose, which is the same kind of problem as a footprint: it runs along
-       * an isometric axis, it has a head end, and at play zoom it is twenty pixels of
-       * blanket you cannot judge.
-       */
-      async function renderPawns(sheets) {
-        const heading = document.createElement('h1');
-        heading.textContent = 'Colonist — standing, then asleep at each bed rotation';
-        const row = document.createElement('div');
-        row.className = 'row';
-
-        const standing = document.createElement('div');
-        standing.className = 'cell';
-        standing.append(await shot(buildPawnGraphics(WHO), PAWN_W, PAWN_H));
-        const stood = document.createElement('div');
-        stood.className = 'label';
-        stood.textContent = 'awake';
-        standing.append(stood);
-        row.append(standing);
-
-        for (const rotation of [0, 1, 2, 3]) {
-          const cell = document.createElement('div');
-          cell.className = 'cell';
-          cell.append(await shot(buildSleepingPawnGraphics(WHO, rotation), PAWN_ASLEEP_W, PAWN_ASLEEP_H));
-          const label = document.createElement('div');
-          label.className = 'label';
-          label.textContent = `asleep, bed rot ${rotation}`;
-          cell.append(label);
-          row.append(cell);
-        }
-
-        sheets.append(heading, row);
-      }
-
-      document.getElementById('grid').addEventListener('change', render);
-      document.getElementById('night').addEventListener('change', render);
-      await render();
+      render();
     </script>
   </body>
 </html>

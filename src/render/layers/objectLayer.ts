@@ -16,7 +16,7 @@ import { Container, Sprite } from 'pixi.js';
 import type { EntityId } from '../../sim/core/entityStore';
 import { TERRAIN_DEFS } from '../../sim/defs/terrain';
 import { isOnGround } from '../../sim/entities/item';
-import { buildingCells } from '../../sim/entities/building';
+import { buildingCells, type Building } from '../../sim/entities/building';
 import { pawnVisualPos, type Pawn, type PawnAppearance } from '../../sim/entities/pawn';
 import { ripeness } from '../../sim/entities/plant';
 import { Designation } from '../../sim/world/designations';
@@ -396,7 +396,23 @@ export class ObjectLayer {
         sprite.scale.x = this.facingFor(pawn);
       }
 
-      sprite.position.set(screen.x, screen.y);
+      /*
+       * A sleeper is positioned on the **bed**, not on their own cell.
+       *
+       * The pawn sleeps at `headCellOf(bed)` — one end of a 2×1 — so a sprite centred on
+       * their tile runs half its length past the head of the bed and only reaches the
+       * middle of it. They looked like they were lying on half a bed with their head over
+       * the edge, which is the last thing on the M10 list and the first thing this
+       * milestone's harness was pointed at.
+       *
+       * Fixed by moving the *drawing*, never the pawn: `spot` is a job field, saved and
+       * hashed, so moving a colonist to make a picture line up would trade a render bug
+       * for a determinism one. `LightingLayer` already does exactly this for a hearth's
+       * glow, and everything needed is in hand — `bed` two statements up, `buildingCells`
+       * already imported for the depth sort below.
+       */
+      const centre = bed ? footprintCentre(bed) : screen;
+      sprite.position.set(centre.x, centre.y);
 
       /*
        * A sleeper sorts with the bed, not with their own cell.
@@ -520,4 +536,27 @@ export class ObjectLayer {
     this.pawnSprites.clear();
     this.facing.clear();
   }
+}
+
+/**
+ * World-pixel centre of a structure's footprint, on the ground plane.
+ *
+ * The average of the cells it stands on, which for a 1×1 is exactly `tileToWorld` of that
+ * cell — so nothing that was already centred moves. `tileToWorld` is linear, so handing it
+ * a fractional tile is the projection's own answer rather than an approximation of it.
+ *
+ * Used to lay a sleeping colonist along the middle of their bed instead of on the single
+ * cell they happen to occupy. `LightingLayer` does the same thing for a hearth's glow, and
+ * for the same reason: a structure's *presence* is spread over its footprint even though
+ * its anchor is one corner of it.
+ */
+function footprintCentre(building: Building): { x: number; y: number } {
+  const cells = buildingCells(building);
+  let x = 0;
+  let y = 0;
+  for (const cell of cells) {
+    x += cell.x;
+    y += cell.y;
+  }
+  return tileToWorld(x / cells.length, y / cells.length, building.pos.z);
 }
