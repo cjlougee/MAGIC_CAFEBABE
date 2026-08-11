@@ -55,7 +55,6 @@ export function HUD({ store, engine }: HUDProps) {
     selectedStructureId,
     tool,
     buildable,
-    buildRotation,
     showWorkPanel,
     showMenu,
     showDebug,
@@ -202,7 +201,6 @@ export function HUD({ store, engine }: HUDProps) {
       <Toolbar
         active={tool}
         buildable={buildable}
-        buildRotation={buildRotation}
         workPanelOpen={showWorkPanel}
         onPick={(next) => engine?.setTool(next)}
         onPickBuildable={(next) => engine?.setBuildable(next)}

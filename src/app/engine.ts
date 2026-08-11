@@ -132,19 +132,19 @@ export class Engine {
     this.toolRef.current = 'build';
     this.input.setBuildable(buildable);
     this.renderer.setCursor('crosshair');
-    this.store.update({ tool: 'build', buildable, buildRotation: this.input.buildRotation });
+    this.store.update({ tool: 'build', buildable });
   }
 
   /**
    * Turns the pending blueprint a quarter turn.
    *
-   * Published to the store so the toolbar can say which way it is facing. Two of the four
-   * rotations cover the same cells, so for anything but a bed the only visible effect is
-   * on the sprite — which is exactly why it needs saying somewhere other than the sprite.
+   * Nothing to publish: the ghost under the cursor is drawn by Pixi straight from the
+   * input layer every frame, so the facing is already on screen where the player is
+   * looking. A copy in the UI store existed only to feed a readout in the build menu,
+   * and that menu is for buildable things.
    */
   rotateBuildable(step: 1 | -1 = 1): void {
     this.input.rotateBuildable(step);
-    this.store.update({ buildRotation: this.input.buildRotation });
   }
 
   /** Whether Q and E currently mean "turn this", for the hint bar to say so. */

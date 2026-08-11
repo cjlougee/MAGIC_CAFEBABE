@@ -10,7 +10,6 @@ import type { Tool } from '../input/worldInput';
 import type { EntityId } from '../sim/core/entityStore';
 import { Buildable, type BuildableId } from '../sim/defs/buildables';
 import type { SimSnapshot } from '../sim/snapshot';
-import type { Rotation } from '../sim/world/footprint';
 import type { GameSpeed } from './gameLoop';
 
 /**
@@ -47,8 +46,6 @@ export interface UiState {
   readonly tool: Tool;
   /** Which blueprint the build tool would place. */
   readonly buildable: BuildableId;
-  /** Quarter turns the next blueprint is placed at. Only visible for multi-cell ones. */
-  readonly buildRotation: Rotation;
   readonly showWorkPanel: boolean;
   readonly showMenu: boolean;
   /** The click animation's position, or null before the first order. */
@@ -66,7 +63,6 @@ const INITIAL: UiState = {
   instantBuild: false,
   tool: 'select',
   buildable: Buildable.Wall,
-  buildRotation: 0,
   orderPing: null,
   showWorkPanel: false,
   showMenu: false,

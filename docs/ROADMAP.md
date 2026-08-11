@@ -344,7 +344,9 @@ See [`superpowers/specs/2026-08-10-multi-tile-footprints-design.md`](superpowers
       be refused. The outline alone can say *where* but never *which way* — rotations 0 and 2 cover
       the same cells, so half of every turn would look like it did nothing
 - [x] **Q and E turn it**, and the Rotate button is gone — the ghost already shows the facing, so a
-      button was a second way to do what the keys do better, with the hand off the map. Q means
+      button was a second way to do what the keys do better, with the hand off the map — as was the
+      facing readout that briefly replaced it. **The build menu holds buildable things and nothing
+      else**, which matters more the moment M13 gives it categories and forty entries. Q means
       "select tool" everywhere else; that is inside ADR 0005 rather than in breach of it, because
       the rule is about state the player *cannot see* and the active tool is the most visible state
       there is. The hint bar swaps to say so

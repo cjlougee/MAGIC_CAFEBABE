@@ -129,9 +129,12 @@ highlights it, the cursor changes to a crosshair, the architect row opens, the f
 readout appears, and the hint bar itself swaps to say `Q` `E` turn. Escape and right-click
 both still leave the tool, so nothing is trapped behind the borrowed key.
 
-The rotate *button* was removed rather than kept alongside. The ghost under the cursor
-already shows the facing, so a button would be a second way to do something the keys do
-better — and one that makes the player's hand leave the map.
+The rotate *button* was removed rather than kept alongside, and so was the facing readout
+that replaced it. The ghost under the cursor already shows which way the thing is turned,
+at the place the player is looking; a button was a second way to do what the keys do
+better, with the hand off the map, and a readout was a third. **The build menu holds
+buildable things and nothing else** — it is about to grow categories and forty entries in
+M13, and every non-buildable row in it is one the player has to look past.
 
 ## Selecting a structure shows you which one
 
