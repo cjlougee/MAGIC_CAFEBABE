@@ -210,6 +210,23 @@ export function clearPath(pawn: Pawn): void {
 }
 
 /**
+ * Ends movement where the pawn stands — the step in progress, its timer, and the route
+ * beyond it.
+ *
+ * One function because forgetting any part of it is invisible until it is drawn: `pos` is
+ * the tile a moving pawn is *leaving*, so a caller that cleared the route but left
+ * `moveTarget` set puts the pawn somewhere and then renders it sliding away from there.
+ * `escapeIfTrapped` teleports a pawn out of a sealed cell and a scenario poses one, and
+ * those two must not each remember three of the four fields.
+ */
+export function stopMoving(pawn: Pawn): void {
+  pawn.moveTarget = null;
+  pawn.moveTicksElapsed = 0;
+  pawn.moveTicksTotal = 0;
+  clearPath(pawn);
+}
+
+/**
  * Fractional position for drawing, interpolated across the step in progress.
  *
  * Lives here rather than in render/ because it is derived from simulation state and

@@ -7,7 +7,7 @@
  */
 
 import { GROUND_LEVEL } from '../core/position';
-import { clearPath, isMoving, ticksToEnter, type Pawn } from '../entities/pawn';
+import { clearPath, isMoving, stopMoving, ticksToEnter, type Pawn } from '../entities/pawn';
 import { isDiagonal, stepCost } from '../pathfind/neighbours';
 import type { TileMap } from '../world/tilemap';
 
@@ -36,10 +36,7 @@ function escapeIfTrapped(map: TileMap, pawn: Pawn): void {
         if (!map.isPassable(x, y, z)) continue;
 
         pawn.pos = { x, y, z };
-        pawn.moveTarget = null;
-        pawn.moveTicksElapsed = 0;
-        pawn.moveTicksTotal = 0;
-        clearPath(pawn);
+        stopMoving(pawn);
         return;
       }
     }

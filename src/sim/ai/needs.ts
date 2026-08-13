@@ -87,8 +87,14 @@ function findFood(world: World, pawn: Pawn): Item | null {
   return best;
 }
 
-/** Where a colonist lies on this bed — its facing end. */
-function bedHeadCell(bed: Building): TilePos {
+/**
+ * Where a colonist lies on this bed — its facing end.
+ *
+ * Exported because a scenario poses a sleeper without running the sleep job, and the two
+ * must not each decide which end the pillow is at. Rotations 0 and 2 cover identical
+ * cells, so a second copy of this would disagree silently for half the facings.
+ */
+export function bedHeadCell(bed: Building): TilePos {
   return headCellOf(bed.pos, footprintOfBuilding(bed.def), bed.rotation);
 }
 
