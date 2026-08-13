@@ -157,6 +157,21 @@ export class Simulation {
     this.worldState = deserializeWorld(save);
   }
 
+  /**
+   * Installs a world built elsewhere.
+   *
+   * The same shape as `load`, for the same reason: a world arriving whole from outside
+   * cannot be expressed as a command without the simulation learning what built it. Saves
+   * come in this way already; scenarios are the second caller.
+   *
+   * Drains first. A command queued against the world being replaced would otherwise land
+   * on its successor, addressing entity ids that mean something different there.
+   */
+  install(world: World): void {
+    this.commands.drain();
+    this.worldState = world;
+  }
+
   private applyCommands(): void {
     for (const command of this.commands.drain()) {
       switch (command.type) {
