@@ -997,6 +997,7 @@ Add one line to its verification section: a new work type deserves a scenario sh
 - Add `scenarios/` to the layout block, described as *game states worth looking at, as code*.
 - Add to the silently-failing invariants: **a scenario forces outcomes through the game's own mutators and skips only the AI that would have chosen them** — with the reason, which is that the alternative shows pictures of impossible states.
 - In the debug panel section, note that it is the right tool for *playing with* a change and no longer the way to *set one up*.
+- **Already landed, do not redo:** the "Hand the fussy setup to the user" section was added ahead of this milestone, because the protocol took effect immediately and a session starting before M12.5 ships would otherwise not know about it. Check it still reads correctly beside the new scenario material and leave it alone if it does.
 - Add the `scenario` skill to the Skills list.
 
 - [ ] **Step 6: Update the roadmap**

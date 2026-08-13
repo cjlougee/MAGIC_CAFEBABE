@@ -115,6 +115,26 @@ Instant placement still refuses a blocking structure on an occupied cell — ski
 not mean skipping the check, because a pawn sealed into an impassable cell is the worst state in
 the simulation.
 
+### Hand the fussy setup to the user
+
+**Claude: when a check needs the game *driven* rather than inspected, write the setup down and hand
+it over.** A short numbered list — place this, wait for that, then tell me — and then look at the
+result. Do not spend twenty tool calls arranging a situation the user could arrange in four clicks.
+
+This is not a fallback for when things go wrong; it is the right first move for a whole class of
+question. Verifying one render fix cost about twenty calls, and **six of them went on persuading
+colonists to prefer a bed over a bedroll** — which was not under test, was not interesting, and was
+not something a person would have had to do at all.
+
+Reach for it whenever the question is *dynamic*: whether an animation reads, whether an interaction
+feels right, whether something is smooth, what happens over a long run of play. Those are judgements
+a still cannot answer and a scripted state cannot fake. Reach for it too whenever setting a state up
+would plainly cost more than the answer is worth.
+
+The counterpart is that anything *static* should need no human at all — see "Looking costs one
+command" above. It is the same split the art harness draws: automate what can be measured, and make
+asking about the rest cheap.
+
 ---
 
 ## Layout
