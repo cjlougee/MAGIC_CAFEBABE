@@ -75,6 +75,19 @@ same failure as a contact sheet that disagrees with the layer, and that one ship
 The rule, stated once: **a scenario forces outcomes through the game's own mutators, and skips only
 the AI that would have chosen them.**
 
+**That phrasing was too weak, and review caught it.** The first implementation obeyed it to the
+letter — `sleeperIn` called `fallAsleep` and nothing else — and still produced a state the game cannot
+reach. In the game `asleep` only ever exists *inside an active sleep job holding a bed reservation*.
+A pawn with the flag and no job is jobless and unreserved: a second colonist can be sent to the
+occupied bed, and `tickPawnAI` will hand the sleeper unrelated work while it is still drawn asleep.
+
+So the rule is **reach the state the game reaches, including the bookkeeping around it** — not "call
+the mutator". A mutator is usually the smallest part of a transition; the reservation, the job and
+the interrupt are the rest of it, and they are what stop the state falling apart the moment anything
+ticks. The same correction applies to the clock: `timeOfDay` wrote `world.tick` directly, and the
+debug command it should have used only ever moves time *forward*, because winding back leaves
+anything that already happened stranded in the future.
+
 The same applies to placement. `s.place` goes through `canPlaceFootprint` rather than stamping the
 grid, so a scenario cannot quietly produce a world the simulation considers broken — a pawn on an
 impassable cell, or a sealed enclosure with no door.
