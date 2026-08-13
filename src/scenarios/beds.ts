@@ -17,7 +17,7 @@ import { Building, type BuildingId } from '../sim/defs/buildings';
 import { ROTATIONS } from '../sim/world/footprint';
 import type { Scenario, ScenarioBuilder } from './index';
 
-/** Room for four two-cell structures in a row, and margin around them. */
+/** Room for a two-by-two block of two-cell structures, and margin around them. */
 const SIZE = 28;
 
 /** Far enough apart that neighbouring footprints never touch at any rotation. */
@@ -28,15 +28,27 @@ const SPACING = 5;
  *
  * The starting bedrolls are laid around the landing site, which sits near the middle of
  * the map — and they are buildings, so they would refuse these cells rather than yield
- * them. A row along the top keeps the whole span free at every size this scenario uses.
+ * them. The top corner keeps the whole block free at every size this scenario uses.
  */
-const ROW: TilePos = pos(4, 4);
+const BLOCK: TilePos = pos(4, 4);
 
-function sleepingRow(s: ScenarioBuilder, def: BuildingId): void {
+/**
+ * Two by two, not four in a row.
+ *
+ * A row of four reads as sixteen tiles of *diagonal* on an isometric screen, and the
+ * camera has to pull back until each bed is forty pixels wide to hold them all — which is
+ * play zoom, and play zoom is where every art fault in this project has successfully
+ * hidden. A square block spans the same four subjects in half the screen distance.
+ */
+function sleepingBlock(s: ScenarioBuilder, def: BuildingId): void {
   s.flat(SIZE);
 
   for (const rotation of ROTATIONS) {
-    const at = pos(ROW.x + rotation * SPACING, ROW.y, ROW.z);
+    const at = pos(
+      BLOCK.x + (rotation % 2) * SPACING,
+      BLOCK.y + Math.floor(rotation / 2) * SPACING,
+      BLOCK.z,
+    );
     s.sleeperIn(s.place(def, at, rotation));
   }
 
@@ -49,13 +61,13 @@ export const beds: Scenario[] = [
   {
     name: 'beds-all-rotations',
     about: 'Four beds, one per facing, each with a colonist asleep at the head end. Night.',
-    build: (s) => sleepingRow(s, Building.Bed),
+    build: (s) => sleepingBlock(s, Building.Bed),
     frame: { fit: 'contents', zoom: 2 },
   },
   {
     name: 'bedrolls-all-rotations',
     about: 'The same row in bedrolls — what the landing party sleeps on before beds exist.',
-    build: (s) => sleepingRow(s, Building.Bedroll),
+    build: (s) => sleepingBlock(s, Building.Bedroll),
     frame: { fit: 'contents', zoom: 2 },
   },
 ];

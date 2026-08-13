@@ -7,16 +7,20 @@
 
 import { WorldInput, type Tool } from '../input/worldInput';
 import { GameRenderer } from '../render/gameRenderer';
+import { HALF_TILE_H, HALF_TILE_W, MAX_ZOOM, MIN_ZOOM } from '../render/constants';
+import { SCENARIOS, scenarioNames, type Frame } from '../scenarios';
+import { runScenario } from '../scenarios/builder';
 import { paintMinimapTerrain } from '../render/minimap';
 import type { Command } from '../sim/core/commands';
 import type { EntityId } from '../sim/core/entityStore';
 import { TICKS_PER_HOUR } from '../sim/core/constants';
-import { GROUND_LEVEL } from '../sim/core/position';
+import { GROUND_LEVEL, type TilePos } from '../sim/core/position';
 import type { BuildableId } from '../sim/defs/buildables';
 import type { ItemDefId } from '../sim/defs/items';
 import type { RecipeId } from '../sim/defs/recipes';
 import type { WorkTypeId } from '../sim/defs/workTypes';
 import { Simulation } from '../sim/simulation';
+import type { World } from '../sim/world/world';
 import { GameLoop, type GameSpeed } from './gameLoop';
 import { readSave, suggestedName, writeSave, type SaveStats } from './saveStorage';
 import type { UiStore } from './uiStore';
@@ -500,6 +504,35 @@ export class Engine {
     this.store.update({ snapshot: this.sim.snapshot() });
   }
 
+  /**
+   * Installs a scenario's world, mirroring `regenerate` step for step.
+   *
+   * Every line below exists in `regenerate` for a reason that applies equally here — most
+   * pointedly `worldEpoch++`, without which the minimap goes on painting a world that is
+   * no longer loaded. Copied rather than shared because the two differ in exactly one
+   * place: where the world comes from.
+   */
+  loadScenario(name: string): void {
+    const scenario = SCENARIOS.get(name);
+    if (!scenario) {
+      throw new Error(`no scenario named "${name}" — try ${scenarioNames().join(', ')}`);
+    }
+
+    const { world, touched } = runScenario(scenario);
+    this.sim.install(world);
+
+    this.select(null);
+    this.selectStructure(null);
+    this.setTool('select');
+    this.worldEpoch++;
+    this.renderer.onWorldReplaced();
+
+    const framing = frameFor(scenario.frame, touched, world, this.renderer.viewSize);
+    this.renderer.focusOn(framing.x, framing.y);
+    this.debugSetZoom(framing.zoom);
+    this.store.update({ snapshot: this.sim.snapshot() });
+  }
+
   private onDraw(dtMs: number): void {
     this.renderer.render(
       this.sim.world,
@@ -521,4 +554,54 @@ export class Engine {
     this.input.detach();
     this.renderer.destroy();
   }
+}
+
+/**
+ * Where to point the camera at a scenario: at whatever it placed, and close enough to see it.
+ *
+ * `fit: 'contents'` is the default because a scenario's subject *is* what it placed, and
+ * making every scenario state its own coordinates is the kind of bookkeeping that stops
+ * people writing scenarios.
+ *
+ * **`fit` computes the zoom rather than taking one.** The first version treated `zoom` as
+ * an instruction and centred on the mean, which framed four beds by cutting two of them off
+ * and putting the edge of the map in shot — a picture that answers a different question
+ * from the one asked. `zoom` is now a *ceiling*: get as close as the contents allow, but no
+ * closer than asked and never past what the camera permits.
+ *
+ * A scenario that places nothing falls back to the landing site, where `regenerate` points.
+ */
+function frameFor(
+  frame: Frame | undefined,
+  touched: readonly TilePos[],
+  world: World,
+  view: { width: number; height: number },
+): { x: number; y: number; zoom: number } {
+  if (frame && 'at' in frame) return { x: frame.at.x, y: frame.at.y, zoom: frame.zoom };
+  if (touched.length === 0) {
+    return { x: world.landingSite.x, y: world.landingSite.y, zoom: frame?.zoom ?? 1 };
+  }
+
+  const xs = touched.map((cell) => cell.x);
+  const ys = touched.map((cell) => cell.y);
+  const spanX = Math.max(...xs) - Math.min(...xs) + 1;
+  const spanY = Math.max(...ys) - Math.min(...ys) + 1;
+
+  /*
+   * A tile block is a rhombus on screen, not a rectangle, so both of its screen dimensions
+   * are driven by `spanX + spanY` — the same arithmetic `footprintBounds` uses on a single
+   * structure's footprint, for the same reason.
+   */
+  const pad = frame?.pad ?? 2;
+  const worldWidth = (spanX + spanY + pad * 2) * HALF_TILE_W;
+  const worldHeight = (spanX + spanY + pad * 2) * HALF_TILE_H;
+
+  const fitted = Math.min(view.width / worldWidth, view.height / worldHeight);
+  const ceiling = frame?.zoom ?? MAX_ZOOM;
+
+  return {
+    x: (Math.min(...xs) + Math.max(...xs)) / 2,
+    y: (Math.min(...ys) + Math.max(...ys)) / 2,
+    zoom: Math.max(MIN_ZOOM, Math.min(ceiling, MAX_ZOOM, fitted)),
+  };
 }

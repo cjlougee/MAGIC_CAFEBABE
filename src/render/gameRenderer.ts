@@ -41,6 +41,17 @@ export class GameRenderer {
   private readonly emissive = new EmissiveLayer();
   private readonly controller: CameraController;
 
+  /**
+   * The Pixi application, for the dev-only scenario capture.
+   *
+   * Nothing in the game should reach for this — layers get what they need handed to them,
+   * which is what keeps the renderer's internals swappable. The capture path is the one
+   * caller that genuinely needs the canvas and the stage, and it exists only in dev.
+   */
+  get application(): Application {
+    return this.app;
+  }
+
   private constructor(
     private readonly app: Application,
     private readonly art: ArtProvider,

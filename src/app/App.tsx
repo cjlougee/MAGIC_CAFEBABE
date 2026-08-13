@@ -29,6 +29,17 @@ export function App() {
         created = engineInstance;
         setEngine(engineInstance);
         engineInstance.loop.start();
+
+        /*
+         * The scenario harness, in dev only.
+         *
+         * A dynamic import so neither it nor `src/scenarios/` reaches a production bundle —
+         * scenarios pull in the whole simulation for world-building, which is already here,
+         * but the debug fixtures themselves have no business shipping.
+         */
+        if (import.meta.env.DEV) {
+          void import('./scenarioMode').then((mode) => mode.installScenarioApi(engineInstance));
+        }
       })
       .catch((error: unknown) => {
         console.error('Engine failed to start', error);
