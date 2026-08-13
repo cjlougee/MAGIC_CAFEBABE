@@ -533,6 +533,21 @@ export class Engine {
     this.store.update({ snapshot: this.sim.snapshot() });
   }
 
+  /**
+   * Renders one frame right now, outside the loop.
+   *
+   * The loop is driven by `requestAnimationFrame`, which a browser throttles to nothing in
+   * a backgrounded tab — so the layers stop being repopulated and the stage holds whatever
+   * was last drawn, or nothing at all. Pixi's `extract` will then faithfully rasterize that
+   * emptiness and report success.
+   *
+   * Dev capture is the only caller: it is the one place that needs a frame at a moment the
+   * loop is not going to provide one. See `scenarioMode.ts`.
+   */
+  drawNow(): void {
+    this.onDraw(0);
+  }
+
   private onDraw(dtMs: number): void {
     this.renderer.render(
       this.sim.world,
