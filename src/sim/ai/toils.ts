@@ -15,7 +15,7 @@ import { samePos, type TilePos } from '../core/position';
 import { Need } from '../defs/needs';
 import type { Item } from '../entities/item';
 import type { Pawn } from '../entities/pawn';
-import { clearPath } from '../entities/pawn';
+import { clearPath, fallAsleep, wakeUp } from '../entities/pawn';
 import { cellsAdjacentTo, isAdjacentToFootprint } from '../world/footprint';
 import type { World } from '../world/world';
 import type { ActiveJob, Job } from './job';
@@ -160,11 +160,11 @@ export function toilSleep(options: {
     name: 'sleep',
     tick: (ctx) => {
       const { pawn } = ctx;
-      pawn.asleep = true;
+      fallAsleep(pawn);
 
       if (pawn.needs[Need.Rest] < options.wakeAt) return 'running';
 
-      pawn.asleep = false;
+      wakeUp(pawn);
       options.onWake(ctx);
       return 'done';
     },

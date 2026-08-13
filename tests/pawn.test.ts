@@ -4,7 +4,14 @@ import { pos } from '../src/sim/core/position';
 import { Rng } from '../src/sim/core/rng';
 import { APPEARANCE_VARIANTS } from '../src/sim/defs/pawnKind';
 import { Terrain } from '../src/sim/defs/terrain';
-import { createPawn, isMoving, pawnVisualPos, ticksToEnter } from '../src/sim/entities/pawn';
+import {
+  createPawn,
+  fallAsleep,
+  isMoving,
+  pawnVisualPos,
+  ticksToEnter,
+  wakeUp,
+} from '../src/sim/entities/pawn';
 import { Simulation } from '../src/sim/simulation';
 import { TileMap } from '../src/sim/world/tilemap';
 import { PawnPalette } from '../src/render/art/palette';
@@ -216,6 +223,19 @@ describe('colonist spawning', () => {
 
     const ids = new Set([...a.world.pawns.values()].map((p) => p.id));
     expect(ids.size).toBe(a.world.pawns.size);
+  });
+});
+
+describe('sleep', () => {
+  it('fallAsleep and wakeUp flip the asleep flag', () => {
+    const pawn = createPawn(1, 'Test', pos(1, 1), APPEARANCE);
+    expect(pawn.asleep).toBe(false);
+
+    fallAsleep(pawn);
+    expect(pawn.asleep).toBe(true);
+
+    wakeUp(pawn);
+    expect(pawn.asleep).toBe(false);
   });
 });
 

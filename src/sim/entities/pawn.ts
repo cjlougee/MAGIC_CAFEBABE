@@ -138,6 +138,22 @@ export function createPawn(
   };
 }
 
+/**
+ * Falling asleep, in one place.
+ *
+ * A single assignment today, and deliberately a function anyway: `toilSleep` reaches this
+ * state through the AI, and a scenario reaches it directly, and those two must not drift.
+ * When sleep grows a second field — a dream, a disturbance, a bed claim — both callers get
+ * it for free rather than one of them getting it.
+ */
+export function fallAsleep(pawn: Pawn): void {
+  pawn.asleep = true;
+}
+
+export function wakeUp(pawn: Pawn): void {
+  pawn.asleep = false;
+}
+
 export function ticksToEnter(moveCost: number): number {
   return Math.max(1, ((moveCost * MOVE_TICKS_PER_COST) / 100) | 0);
 }
