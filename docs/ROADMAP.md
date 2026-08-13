@@ -439,6 +439,53 @@ were not expressible at all.
 See [`superpowers/specs/2026-08-11-asset-pipeline-design.md`](superpowers/specs/2026-08-11-asset-pipeline-design.md)
 and [ADR 0010](decisions/0010-procedural-art.md).
 
+### M12.5 — The scenario harness *(process, not content)*
+
+**Checking a gameplay state cost about twenty tool calls.** Verifying that a sleeping colonist sits
+correctly on a bed took roughly six to place one through the debug panel, **six persuading colonists
+to prefer it over a bedroll**, four to reach night, and eight screenshots mostly spent re-framing.
+Only the last few had anything to do with the question. The debug panel was not the fix: it is a *UI*,
+and every UI interaction is a round trip.
+
+The fast path already existed, unused. `src/sim/` has been headless and constructible from TypeScript
+since M0 — the tests fast-forward seven in-game days — so any world can be built instantly. What was
+missing was a way to get a *picture* of one.
+
+- [x] **A scenario is a function that builds a world**, in `src/scenarios/`, versioned like any code
+- [x] **`__scenario.capture(name)`** — loads, renders and writes a full-resolution PNG to
+      `art/scenes/`. **Two calls**, against a baseline of twenty. `capture()` with no name photographs
+      whatever is on screen, which is what makes handing setup to a human cheap
+- [x] A dev-only Vite middleware writes the file; the whole path is behind `import.meta.env.DEV` and
+      `apply: 'serve'`, so it ships nowhere
+- [x] **The capture renders synchronously** rather than awaiting a frame — `requestAnimationFrame` is
+      throttled in a hidden tab, which is exactly the case this exists to survive, since screenshots
+      already fail there
+- [x] `Engine.loadScenario` mirrors `regenerate` step for step, including the `worldEpoch` bump
+      without which the minimap paints a world that is no longer loaded
+- [x] **`fit: 'contents'` computes the zoom** rather than taking one. The first version treated `zoom`
+      as an instruction and framed four beds by cutting two off with the map edge in shot
+- [x] A flat fixture world — the debug room. Worldgen randomness is noise in a picture whose subject
+      is a bed
+- [x] `src/scenarios/` is held to the layering rule by `tests/architecture.test.ts`, which now scans it
+
+**The rule, and the correction review forced on it.** A scenario must *reach the state the game
+reaches, including the bookkeeping around it*. The first phrasing was "call the game's own mutator" —
+which the implementation obeyed to the letter and was still wrong: `sleeperIn` called `fallAsleep`,
+but that flag only ever exists inside an active sleep job holding a bed reservation. A pawn with the
+flag alone is jobless and unreserved, so a second colonist could be sent to the occupied bed and
+`tickPawnAI` would hand the sleeper unrelated work while it was still drawn asleep. **A mutator is
+usually the smallest part of a transition.** `timeOfDay` failed the same way, writing `world.tick`
+directly when the debug command it should have used only ever moves the clock forward.
+
+**Deliberately deferred:** the headless renderer. Scenarios already build worlds with no browser; what
+is missing is `buildSceneGraph(world, view)` extracted out of `ObjectLayer` so a pure-TS compositor and
+the Pixi layer cannot disagree about placement — the structural fix for the bug class M12 caught.
+Until then the real renderer is the only renderer, which is the strongest available guarantee that a
+picture matches the game. **Golden images** were rejected: M13–M15 are almost entirely intentional art
+changes, and a golden that fails on every one of them trains people to regenerate without looking.
+
+See [`superpowers/specs/2026-08-13-scenario-harness-design.md`](superpowers/specs/2026-08-13-scenario-harness-design.md).
+
 ### M13 — The architect grows up, and rooms get contents *(items 4, 9)*
 - [ ] A **categorised** build menu with real sprites rendered into DOM. The current architect list is
       one undivided `BUILDABLE_DEFS`; it works at four and will not at forty, and M13 creates the
@@ -569,8 +616,13 @@ assertions holding the geometry, each named after a bug that shipped. The genera
 solid model layer with materials, contact occlusion and a bevel; measured, the bed went from 10 tones
 to 55 and the bedroll from 5 to 38, which is what "the detail looks basic" actually *was*.
 
-**Next is M13**, and it is the first real test of whether the pipeline paid: forty sprites, and the
-question is whether each costs visibly less than M10's did.
+**M12.5 followed it**, for the same reason applied to gameplay rather than art: checking a game state
+cost about twenty tool calls, six of them spent persuading colonists to lie on the right bed. A
+scenario is now a function that builds a world, and `__scenario.capture(name)` turns one into a PNG on
+disk in two calls.
+
+**Next is M13**, and it is the first real test of whether either paid: forty sprites, and the question
+is whether each costs visibly less than M10's did.
 
 **Slice 4 is verticality**, scheduled at last rather than deferred a fifth time. See the section
 below for what finally triggered it and why capping decorative height was refused.

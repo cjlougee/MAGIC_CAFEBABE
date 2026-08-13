@@ -154,6 +154,18 @@ the buildings did.
 ways — hand-checking something a test could assert, or arguing about a number when the real question
 is whether it looks right.
 
-Then still look at the running game, at play zoom, in daylight and at night. Press `` ` `` for the
-debug panel — skip to a time of day, hand out materials, place finished structures. The harness
-catches geometry. It has nothing whatsoever to say about whether a thing reads as what it is.
+Then still look at it in the running game, at play zoom, in daylight and at night — **through a
+scenario**, not by hand:
+
+```
+javascript_tool → await __scenario.capture('beds-all-rotations')
+Read art/scenes/beds-all-rotations.png
+```
+
+See the `scenario` skill. Reaching one such picture by hand cost about twenty tool calls, six of them
+spent persuading colonists to lie on the right bed. The debug panel (`` ` ``) is still the right tool
+for *playing with* a change — skip to a time of day, hand out materials, place finished structures —
+and no longer the way to *set one up*.
+
+The harness catches geometry. It has nothing whatsoever to say about whether a thing reads as what it
+is. That is your eyes, and for anything dynamic it is the user's.

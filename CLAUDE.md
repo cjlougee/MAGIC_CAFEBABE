@@ -71,7 +71,7 @@ Claude: prefer the `run` skill or `preview_start` (`.claude/launch.json` defines
 launch the dev server, then verify visually with the browser tools. **Look at the running game — test
 output alone is not verification for a rendering change.**
 
-### Looking at art costs one command
+### Looking costs one command
 
 **`npm run art` is the first thing to reach for on any art change**, ahead of a dev server. It writes
 `art/contact-sheet.png` — every sprite at every rotation, at 3x, over an outline of the footprint cells
@@ -94,6 +94,19 @@ Two live harnesses remain, because the game at play zoom is the *worst* place to
 **Adding a sprite means adding it to `src/render/art/manifest.ts`.** That one edit reaches the tests,
 the bake and `sprites.html` together — before the manifest existed these were three separate acts and
 the second was the one you could forget.
+
+**A game state costs two calls**, the same way:
+
+```
+javascript_tool → await __scenario.capture('beds-all-rotations')
+Read art/scenes/beds-all-rotations.png
+```
+
+A scenario is a function in `src/scenarios/` that builds a world; `__scenario.capture(name)` loads it,
+renders it and writes a full-resolution PNG. `capture()` with no name photographs whatever is on
+screen, which is what makes handing setup to a human cheap. Reaching that same picture by hand — four
+beds, one per facing, a colonist asleep in each, at night — cost about twenty tool calls, six of them
+spent talking colonists out of the bedroll they were already lying in. See the `scenario` skill.
 
 ### The debug panel — press `` ` ``
 
@@ -159,6 +172,7 @@ src/
       raster/       draw list -> pixels, in plain TS. No GPU, no canvas, no DOM
     layers/     ground (flat, unsorted), objects (raised + pawns, depth-sorted), lighting
     camera/     pan, zoom, culling
+  scenarios/    game states worth looking at, as code. Dev-only; built from sim/ alone
   ui/           React overlay (DOM, not Pixi)
   input/        user intent → Command objects
   app/          bootstrap, game loop, snapshot store
@@ -179,6 +193,13 @@ tests rather than by structure:
   was *"the shading is an awkward line"*, and no test will ever say that. Getting the split wrong is
   expensive both ways: hand-checking what a test could assert, or arguing about a number when the real
   question is whether it reads. `tests/art.test.ts` owns the first half; your eyes own the second.
+- **A scenario reaches the state the game reaches, including the bookkeeping around it.** Skipping the
+  AI's *decision* is the whole point; skipping the *transition* means showing pictures of states the
+  game cannot produce, and a fast harness that lies is worse than none. "Call the game's own mutator"
+  was the first phrasing and it was too weak: `sleeperIn` called `fallAsleep` and was still wrong,
+  because that flag only exists inside an active sleep job holding a bed reservation — a pawn with the
+  flag alone gets handed work while drawn asleep, and its bed can be given away. **A mutator is usually
+  the smallest part of a transition.** `src/scenarios/builder.ts`, and the `scenario` skill.
 - **A review surface must not compute the answer its own way.** `src/render/placement.ts` owns every
   question of the form *"given this building, where does that draw"*, because two callers once
   answered it separately: `ObjectLayer` put a sleeping colonist on the ground plane, while the contact
@@ -271,6 +292,9 @@ tests rather than by structure:
 - **`add-work-type`** — adding a kind of colonist work (Construct, Cook, Clean…). Walks the
   `WorkGiver → Job → JobDriver → toils` pipeline and the invariants above that fail *silently*.
   Written after M2, once the pattern was real rather than predicted.
+- **`scenario`** — seeing a game state that is not the default. Writing one, capturing it, and the
+  cases where the right move is to hand the setup to the user instead. Written after M12.5, from the
+  twenty-call afternoon that caused it.
 - **`art-pass`** — drawing or improving a procedural sprite. The two ways art is made (solids in tile
   space for anything built; hand-drawn vectors for organic and tiling things), the review loop, and
   the geometry rules that break tile alignment without an error. Written after the M6 art pass from
