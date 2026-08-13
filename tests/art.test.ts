@@ -17,6 +17,9 @@ import { describe, expect, it } from 'vitest';
 import { Graphics } from 'pixi.js';
 import { spriteManifest, type SpriteEntry } from '../src/render/art/manifest';
 import { cellsOf, headCellOf, ROTATIONS, type Rotation } from '../src/sim/world/footprint';
+import { Building, type BuildingId } from '../src/sim/defs/buildings';
+import { footprintCentre, sleeperCentreAt } from '../src/render/placement';
+import { BUILDING_HEIGHT, buildBuildingDrawList } from '../src/render/art/buildingArt';
 import { GROUND_LEVEL } from '../src/sim/core/position';
 import { footprintCellCentre, tileToWorld } from '../src/render/iso';
 import { HALF_TILE_W } from '../src/render/constants';
@@ -333,6 +336,69 @@ describe('placement: a sleeper lies on the bed, not beside it', () => {
       }
     },
   );
+
+  it.each(ROTATIONS.map((r) => [r] as const))(
+    'rotation %i lifts the sleeper onto the bed, not the floor under it',
+    (rotation) => {
+      /*
+       * The second correction, and the one that shipped wrong. A bed stands 11px off the
+       * ground; a sleeper anchored at their own ground line lies on the floor beneath it
+       * with their head hanging off the end. A bedroll's rise is 3px, so the same error is
+       * nearly invisible there — which is exactly how it read: "beds are broken, bedrolls
+       * are fine".
+       */
+      const anchor = { x: 10, y: 10, z: GROUND_LEVEL };
+      const onBed = sleeperCentreAt(Building.Bed, anchor, rotation);
+      const ground = footprintCentre(cellsOf(anchor, { w: 2, h: 1 }, rotation), anchor.z);
+
+      expect(onBed.x, 'lifting must not shift the pose along the bed').toBe(ground.x);
+      expect(
+        ground.y - onBed.y,
+        'the sleeper must rise by exactly the height of what they are lying on',
+      ).toBe(BUILDING_HEIGHT[Building.Bed]);
+    },
+  );
+
+  it('lifts by less for a bedroll, which is why that one always looked fine', () => {
+    const anchor = { x: 3, y: 3, z: GROUND_LEVEL };
+    const bed = footprintCentre(cellsOf(anchor, { w: 2, h: 1 }, 0), anchor.z).y
+      - sleeperCentreAt(Building.Bed, anchor, 0).y;
+    const bedroll = footprintCentre(cellsOf(anchor, { w: 2, h: 1 }, 0), anchor.z).y
+      - sleeperCentreAt(Building.Bedroll, anchor, 0).y;
+
+    expect(bed).toBeGreaterThan(bedroll);
+    expect(bedroll).toBe(BUILDING_HEIGHT[Building.Bedroll]);
+  });
+
+  /*
+   * The check that would have caught it as a *picture*, not just as arithmetic.
+   *
+   * The composed scene draws the sleeper on the bed at the offsets the layer really uses,
+   * so a pose sitting 11px low puts most of its ink below the bed's silhouette. Measured
+   * with the lift correct: 10–16% of the pose falls outside the bed, which is a head
+   * extending past the pillow and shoulders past the mattress — both right. Dropping the
+   * lift roughly triples it.
+   */
+  const MAX_OFF_BED = 0.25;
+
+  it.each(
+    MANIFEST.filter((s) => s.key.startsWith('scene:asleep')).map((s) => [s.key, s] as const),
+  )('%s lands the pose on the furniture, not the floor beside it', (_key, sprite) => {
+    const building = Number(sprite.key.split(':')[2]) as BuildingId;
+    const furnitureMarks = buildBuildingDrawList(building, sprite.rotation, false).length;
+    const list = sprite.draw();
+
+    const furniture = silhouette(list.slice(0, furnitureMarks), sprite.width, sprite.height);
+    const pose = silhouette(list.slice(furnitureMarks), sprite.width, sprite.height);
+    const posePixels = countMask(pose);
+    const off = outside(pose, furniture) / posePixels;
+
+    expect(
+      off <= MAX_OFF_BED,
+      `${(off * 100).toFixed(0)}% of the sleeping pose falls outside the furniture it is ` +
+        `lying on — they are beside it, or on the floor underneath it`,
+    ).toBe(true);
+  });
 
   it('reduces to the tile centre for a 1x1, so nothing already centred moves', () => {
     const anchor = { x: 4, y: 7, z: GROUND_LEVEL };

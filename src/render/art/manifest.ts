@@ -14,9 +14,10 @@
 
 import type { GraphicsContext } from 'pixi.js';
 import { Building, BUILDING_DEFS, buildingDef, type BuildingId } from '../../sim/defs/buildings';
-import { cellsOf, ROTATIONS, sizeOf, type Footprint, type Rotation } from '../../sim/world/footprint';
+import { ROTATIONS, sizeOf, type Footprint, type Rotation } from '../../sim/world/footprint';
 import { GROUND_LEVEL } from '../../sim/core/position';
-import { footprintBounds, tileToWorld } from '../iso';
+import { footprintBounds } from '../iso';
+import { sleeperCentreAt } from '../placement';
 import { BUILDING_HEIGHT, buildBuildingDrawList, buildBuildingGraphics } from './buildingArt';
 import { isModelled } from './model/buildingModels';
 import { translate, type DrawList } from './raster/drawList';
@@ -267,12 +268,16 @@ function sleeperOnBedEntries(): SpriteEntry[] {
       const rise = BUILDING_HEIGHT[building];
       const box = footprintBounds(0, 0, size.w, size.h, 0, rise);
 
-      // Exactly what ObjectLayer does: the pose is centred on the footprint, and anchored
-      // at its own ground line. Derived here rather than hardcoded, so if the layer's rule
-      // changes and this does not, the picture stops matching the game and says so.
-      const cells = cellsOf({ x: 0, y: 0, z: GROUND_LEVEL }, def.footprint, rotation);
-      const mean = cells.reduce((s, c) => ({ x: s.x + c.x, y: s.y + c.y }), { x: 0, y: 0 });
-      const centre = tileToWorld(mean.x / cells.length, mean.y / cells.length, GROUND_LEVEL);
+      /*
+       * **The same function the layer calls**, not the same intent expressed twice.
+       *
+       * This was originally derived here from the sprite frame, whose top already carries
+       * `-rise` — so the sheet drew a colonist lying neatly on a bed while the game drew
+       * one lying on the floor underneath it, off by exactly the bed's height. A review
+       * surface that computes the answer its own way can agree with itself and disagree
+       * with the screen, which is the one thing it must never do.
+       */
+      const centre = sleeperCentreAt(building, { x: 0, y: 0, z: GROUND_LEVEL }, rotation);
       const dx = centre.x - PAWN_ASLEEP_W / 2 - box.left;
       const dy = centre.y - PAWN_ASLEEP_GROUND_Y - box.top;
 

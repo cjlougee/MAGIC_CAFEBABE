@@ -90,6 +90,17 @@ hidden marks, rotation pairs that must differ or match.
 **Placement contracts** — the sprite versus the world cells it claims. The hearth-a-storey-up bug and
 the sleeping-pose bug are *both* placement, and no sprite-level check would ever have caught either.
 
+**A review surface must not compute the answer its own way.** The composed "sleeper on a bed" scene
+originally derived its offset from the sprite frame, whose top already carries `-rise`, while
+`ObjectLayer` placed the sleeper on the ground plane. Same intent, expressed twice, differing by
+exactly a bed's 11px — so the sheet showed a colonist lying neatly on a bed while the game drew one on
+the floor underneath it with their head off the end. A bedroll's 3px made the same error nearly
+invisible, so it read as *"beds are broken, bedrolls are fine"*.
+
+`src/render/placement.ts` now owns every question of the form *"given this building, where does that
+draw"*, and both callers use it. A picture that disagrees with the game is worse than no picture,
+because it is trusted.
+
 Exceptions are **declared with a reason and an exact count**, never tolerated:
 
 - Bed: `mayHide: { count: 2 }` — the far leg is entirely behind the frame, and which leg that is

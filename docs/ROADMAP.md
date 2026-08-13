@@ -406,12 +406,20 @@ were not expressible at all.
       [ADR 0010](decisions/0010-procedural-art.md)
 - [x] **Bedroll and Bed converted**, with the old drawings kept on the sheet as `— before` rows until
       M13 signs the models off. Measured, same ink area: **bed 10 tones → 55, bedroll 5 → 38**
-- [x] **A sleeping colonist lies on the middle of their bed** — positioned at the footprint centre
-      exactly as `LightingLayer` does for a hearth. Render-only; the pawn does not move, because `spot`
-      is saved and hashed. *Discharged from M13, where it was listed*
+- [x] **A sleeping colonist lies on the middle of their bed** — and *on* it. Two corrections, in
+      `render/placement.ts`: centred on the footprint rather than the pawn's own cell (a pawn sleeps at
+      `headCellOf`, one end of a 2×1), and lifted by the structure's rise onto its surface. Render-only;
+      the pawn does not move, because `spot` is saved and hashed. *Discharged from M13, where it was
+      listed*
 - [x] **The sleeper is drawn on the bed on the contact sheet**, composed at the offsets the layer
       really uses. Both halves were reviewable alone and both looked fine — the bug lived in the
       relationship between them, and they were never on the same page
+- [x] **Both call sites share one function.** They did not at first, and that is how the *second*
+      correction got missed: the layer placed the sleeper on the ground plane while the sheet derived
+      the offset from the sprite frame, whose top already carries `-rise`. Same intent, expressed
+      twice, differing by exactly a bed's 11px — so the review surface drew a colonist lying neatly on
+      a bed while the game drew one on the floor underneath it, head off the end. A bedroll's 3px made
+      the same error nearly invisible, which is why it read as *"beds are broken, bedrolls are fine"*
 - [x] `sprites.html` rebuilt on the shared manifest, so one edit reaches the tests, the bake and the
       page together
 - [x] **The harness was shown red before being trusted.** Four historic bugs reintroduced on purpose;

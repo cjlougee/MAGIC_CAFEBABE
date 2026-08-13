@@ -159,6 +159,14 @@ tests rather than by structure:
   was *"the shading is an awkward line"*, and no test will ever say that. Getting the split wrong is
   expensive both ways: hand-checking what a test could assert, or arguing about a number when the real
   question is whether it reads. `tests/art.test.ts` owns the first half; your eyes own the second.
+- **A review surface must not compute the answer its own way.** `src/render/placement.ts` owns every
+  question of the form *"given this building, where does that draw"*, because two callers once
+  answered it separately: `ObjectLayer` put a sleeping colonist on the ground plane, while the contact
+  sheet derived the offset from the sprite frame, whose top already carries `-rise`. They differed by
+  exactly a bed's 11px, so the sheet showed a colonist lying neatly on a bed while the game drew one
+  on the floor underneath it. A bedroll's 3px hid the same error, which is why it read as "beds are
+  broken, bedrolls are fine". **A picture that disagrees with the game is worse than no picture,
+  because it is trusted.**
 - **An art exception is declared with a reason and an exact count, never tolerated.** A bed's far leg
   is *meant* to be invisible; a door's jambs are *meant* to overhang, by a measured 13%, because a
   door continues the wall run it interrupts. The difference between that and the lock bar nobody could
