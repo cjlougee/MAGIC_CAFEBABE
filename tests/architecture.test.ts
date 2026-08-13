@@ -16,6 +16,7 @@ import { describe, expect, it } from 'vitest';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SIM_DIR = join(ROOT, 'src', 'sim');
+const SCENARIOS_DIR = join(ROOT, 'src', 'scenarios');
 
 function collectFiles(dir: string): string[] {
   const out: string[] = [];
@@ -54,6 +55,16 @@ const FORBIDDEN_IMPORTS: ReadonlyArray<{ test: RegExp; why: string }> = [
 ];
 
 const simFiles = collectFiles(SIM_DIR);
+const scenarioFiles = collectFiles(SCENARIOS_DIR);
+
+/** The layering rule, stated once so both the sim and the scenarios can be held to it. */
+function expectNoPresentationImports(file: string, layer: string): void {
+  const code = stripComments(readFileSync(file, 'utf8'));
+  const violations = importSources(code).filter((source) =>
+    FORBIDDEN_IMPORTS.some((rule) => rule.test.test(source)),
+  );
+  expect(violations, `${layer} must not import ${violations.join(', ')}`).toEqual([]);
+}
 
 describe('enforcement rule 1: src/sim is pure', () => {
   it('finds simulation sources to check', () => {
@@ -62,13 +73,7 @@ describe('enforcement rule 1: src/sim is pure', () => {
 
   it.each(simFiles.map((f) => [relative(ROOT, f), f] as const))(
     '%s imports nothing from the presentation layers',
-    (_label, file) => {
-      const code = stripComments(readFileSync(file, 'utf8'));
-      const violations = importSources(code).filter((source) =>
-        FORBIDDEN_IMPORTS.some((rule) => rule.test.test(source)),
-      );
-      expect(violations, `sim/ must not import ${violations.join(', ')}`).toEqual([]);
-    },
+    (_label, file) => expectNoPresentationImports(file, 'sim/'),
   );
 
   it.each(simFiles.map((f) => [relative(ROOT, f), f] as const))(
@@ -79,6 +84,26 @@ describe('enforcement rule 1: src/sim is pure', () => {
       const found = globals.filter((g) => new RegExp(`\\b${g}\\s*[.\\[]`).test(code));
       expect(found, `sim/ must run headless; found ${found.join(', ')}`).toEqual([]);
     },
+  );
+});
+
+/*
+ * Scenarios sit between the two: they build worlds *for* the renderer to photograph, but
+ * they build them out of `sim/` alone, so a scenario stays runnable in a headless test and
+ * cannot start describing the world in terms of how it is drawn.
+ *
+ * Only the layering rule applies here. The rest of rule 1 is the simulation's alone — a
+ * scenario is free to be as un-deterministic as it likes in principle; it just never is,
+ * because everything it can reach for is.
+ */
+describe('src/scenarios builds worlds out of sim/ alone', () => {
+  it('finds scenario sources to check', () => {
+    expect(scenarioFiles.length).toBeGreaterThan(0);
+  });
+
+  it.each(scenarioFiles.map((f) => [relative(ROOT, f), f] as const))(
+    '%s imports nothing from the presentation layers',
+    (_label, file) => expectNoPresentationImports(file, 'scenarios/'),
   );
 });
 

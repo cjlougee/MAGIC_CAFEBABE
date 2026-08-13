@@ -8,8 +8,10 @@
 
 import { describe, expect, it } from 'vitest';
 import { runScenario, type ScenarioBuilder } from '../src/scenarios/builder';
+import { HOURS, SCENARIO_SEED, flatten, tickAtHour } from '../src/scenarios/fixtures';
 import { SCENARIOS, scenarioNames, type Scenario } from '../src/scenarios/index';
 import { bedHeadCell } from '../src/sim/ai/needs';
+import { STARTING_TICK, TICKS_PER_DAY } from '../src/sim/core/constants';
 import { pos } from '../src/sim/core/position';
 import { buildableProducing } from '../src/sim/defs/buildables';
 import { Building } from '../src/sim/defs/buildings';
@@ -50,7 +52,7 @@ describe('Simulation.install', () => {
 });
 
 describe('the flat fixture', () => {
-  it('is flat, walkable end to end, and the same world twice', () => {
+  it('is flat, walkable, and the same world twice', () => {
     const first = runScenario(scenario((s) => s.flat(SIZE)));
     const second = runScenario(scenario((s) => s.flat(SIZE)));
     const map = first.world.map;
@@ -62,13 +64,38 @@ describe('the flat fixture', () => {
       }
     }
 
-    // Corner to corner, which is the assertion that catches a flatten that changed the
-    // terrain and forgot to invalidate reachability: the districts would still describe
-    // the rock that used to be there.
-    expect(first.world.reachability.canReach(pos(0, 0), pos(SIZE - 1, SIZE - 1))).toBe(true);
-
     // Same scenario, same picture — the whole reason a scenario names its seed.
     expect(hashWorld(first.world)).toBe(hashWorld(second.world));
+  });
+
+  it('changes the ground itself, not a surface laid over it', () => {
+    const { world } = runScenario(scenario((s) => s.flat(SIZE)));
+
+    // The only assertion that separates `setTerrainAt` from `setSurfaceAt` — `getTerrain`
+    // answers the same either way. A surface would leave the old ground remembered
+    // underneath, so lifting a floor here would hand back rock from a mountain that this
+    // fixture flattened away.
+    for (let i = 0; i < world.map.size; i++) {
+      expect(world.map.naturalTerrainAt(i)).toBe(Terrain.Grass);
+    }
+  });
+
+  it('invalidates the reachability it just changed', () => {
+    const world = createWorld(SCENARIO_SEED, { width: SIZE, height: SIZE, colonists: 2 });
+    const corner = pos(0, 0);
+    const far = pos(SIZE - 1, SIZE - 1);
+
+    /*
+     * The districts have to be built from the *generated* map first, or this proves
+     * nothing: `ReachabilityMap` starts wholly dirty and nothing in `createWorld` queries
+     * it, so a first `canReach` after flattening rebuilds regardless and passes with the
+     * invalidation deleted. This seed puts deep water in the corner, so the stale answer
+     * is the false one.
+     */
+    expect(world.reachability.canReach(corner, far)).toBe(false);
+
+    flatten(world);
+    expect(world.reachability.canReach(corner, far)).toBe(true);
   });
 });
 
@@ -84,6 +111,24 @@ describe('placing structures', () => {
 
     expect(bed?.def).toBe(Building.Bed);
     expect(bed && world.buildings.get(bed.id)).toBe(bed);
+  });
+
+  it('stamps the map flags a finished structure owes it', () => {
+    // A wall, because every other test places something passable that seals no room — and
+    // those cannot tell the build command apart from adding a building to the store. This
+    // is the assertion that says `place` went through construction: `completeConstruction`
+    // is the only thing that sets these two, and it sets them separately.
+    let at = pos(0, 0);
+    const { world } = runScenario(
+      scenario((s) => {
+        s.flat(SIZE);
+        at = s.place(Building.Wall, pos(2, 2)).pos;
+      }),
+    );
+
+    const index = world.map.idx(at.x, at.y, at.z);
+    expect(world.map.isPassable(at.x, at.y, at.z)).toBe(false);
+    expect(world.map.sealsRoomAt(index)).toBe(true);
   });
 
   it('refuses a second bed on the same cells', () => {
@@ -137,6 +182,78 @@ describe('sleeperIn', () => {
     const asleep = [...world.pawns.values()].filter((pawn) => pawn.asleep);
     expect(asleep).toHaveLength(1);
     expect(asleep[0].pos).toEqual(head);
+  });
+
+  it('holds the bed with a real sleep job, not just the flag', () => {
+    let bedId = 0;
+    const { world } = runScenario(
+      scenario((s) => {
+        s.flat(SIZE);
+        const bed = s.place(Building.Bed, pos(2, 2));
+        s.sleeperIn(bed);
+        bedId = bed.id;
+      }),
+    );
+
+    const sleeper = [...world.pawns.values()].find((pawn) => pawn.asleep);
+    expect(sleeper?.job?.job.kind).toBe('sleep');
+
+    // The half that `fallAsleep` alone cannot give: nobody else may take this bed. Without
+    // the claim a second colonist would be sent to it, and nothing would wake the first.
+    const other = [...world.pawns.values()].find((pawn) => pawn.id !== sleeper?.id);
+    expect(other).toBeDefined();
+    expect(world.reservations.canReserveEntity(bedId, other?.id ?? 0)).toBe(false);
+  });
+
+  it('is still asleep, and still out of the work pool, once time runs', () => {
+    // The state has to survive contact with the tick loop. `tickPawnAI` does not skip
+    // sleeping pawns, so a posed sleeper holding no job would be handed hauling here while
+    // still being drawn in bed.
+    const { world } = runScenario(
+      scenario((s) => {
+        s.flat(SIZE);
+        s.sleeperIn(s.place(Building.Bed, pos(2, 2)));
+        s.tick(200);
+      }),
+    );
+
+    const asleep = [...world.pawns.values()].filter((pawn) => pawn.asleep);
+    expect(asleep).toHaveLength(1);
+    expect(asleep[0].job?.job.kind).toBe('sleep');
+  });
+});
+
+describe('timeOfDay', () => {
+  it('lands on the hour asked for without winding the clock back', () => {
+    const { world } = runScenario(
+      scenario((s) => {
+        s.flat(SIZE);
+        s.timeOfDay('dawn');
+      }),
+    );
+
+    // 06:00 is earlier than the 08:00 a world starts at, so it lands on the *next* dawn.
+    // Time only ever moves forward through the debug command, and a scenario does not get
+    // to break that rule by assigning the clock itself.
+    expect(world.tick % TICKS_PER_DAY).toBe(tickAtHour(HOURS.dawn));
+    expect(world.tick).toBeGreaterThan(STARTING_TICK);
+  });
+});
+
+describe('starting a second world', () => {
+  it('forgets the cells the first one touched', () => {
+    const { world, touched } = runScenario(
+      scenario((s) => {
+        s.flat(SIZE);
+        s.place(Building.Wall, pos(2, 2));
+        // Replaces the world outright. The wall went with it, so a `touched` still naming
+        // its cell would frame the camera on empty ground.
+        s.flat(SIZE);
+      }),
+    );
+
+    expect(touched).toEqual([]);
+    expect(world.map.isPassable(2, 2)).toBe(true);
   });
 });
 

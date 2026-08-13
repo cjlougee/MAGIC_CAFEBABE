@@ -48,11 +48,12 @@ export const HOURS = { dawn: 6, noon: 12, dusk: 19, night: 23 } as const;
 export type HourName = keyof typeof HOURS;
 
 /**
- * The absolute tick at which an hour of the first day begins.
+ * How far into a day an hour falls, in ticks.
  *
- * Day one, so a scenario's clock is a function of the hour alone. Worlds start at 08:00
- * and this deliberately winds back past that: a scenario world has never been played, so
- * there is nothing already in it that a rewound clock could leave stranded in the future.
+ * Deliberately an offset within a day rather than an absolute tick, because a scenario
+ * does not get to say *which* day: `timeOfDay` goes through the debug command, which only
+ * moves the clock forward, so asking for an hour earlier than the one the world starts at
+ * lands on the next day. Compare `world.tick % TICKS_PER_DAY` against this.
  */
 export function tickAtHour(hour: number): number {
   return Math.round(hour * TICKS_PER_HOUR);

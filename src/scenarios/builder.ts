@@ -13,14 +13,16 @@
  * because it looks like evidence.
  */
 
+import { driverFor } from '../sim/ai/jobDrivers';
 import { bedHeadCell } from '../sim/ai/needs';
+import { interrupt, startJob, tickJob } from '../sim/ai/think';
 import type { EntityId } from '../sim/core/entityStore';
 import type { TilePos } from '../sim/core/position';
 import { buildableProducing, type BuildableId } from '../sim/defs/buildables';
 import { buildingDef, type BuildingId } from '../sim/defs/buildings';
 import type { TerrainId } from '../sim/defs/terrain';
 import { buildingCells, createBuilding, isBed, type Building } from '../sim/entities/building';
-import { fallAsleep, stopMoving, type Pawn } from '../sim/entities/pawn';
+import { stopMoving, type Pawn } from '../sim/entities/pawn';
 import { Simulation } from '../sim/simulation';
 import { cellsOf, footprintOfBuilding, type Rotation } from '../sim/world/footprint';
 import { buildingAt } from '../sim/world/lookup';
@@ -31,7 +33,6 @@ import {
   SCENARIO_SEED,
   SCENARIO_SIZE,
   flatten,
-  tickAtHour,
   type HourName,
 } from './fixtures';
 import type { Scenario } from './index';
@@ -48,7 +49,13 @@ export interface ScenarioBuilder {
    */
   readonly touched: readonly TilePos[];
 
-  /** An empty field of one terrain, with nothing on it to argue with. */
+  /**
+   * One flat terrain, edge to edge — no rock, water or ruins to read past.
+   *
+   * Not an *empty* world: the landing party still arrives, so the middle of the map holds
+   * colonists and the bedrolls they came with. Anything placed near the centre will
+   * collide with them, which is why `beds.ts` lays its row along the top.
+   */
   flat(size?: number, terrain?: TerrainId): void;
   /** The world as worldgen makes it — rock, water, ruins and all. */
   generated(size?: number): void;
@@ -105,18 +112,27 @@ export class Builder implements ScenarioBuilder {
   }
 
   /**
-   * Lays a colonist down asleep.
+   * Puts a colonist to sleep in a bed — by giving them the colony's own sleep job and
+   * running it, not by setting a flag.
    *
-   * At the head cell rather than the anchor, from the same `bedHeadCell` the sleep job
-   * picks its spot with: on a 2×1 bed those differ for two of the four rotations, and a
-   * sleeper at the wrong end is exactly the sort of thing a scenario exists to make
-   * visible rather than to introduce.
+   * Calling `fallAsleep` alone looked right and was not. In the game `asleep` is only ever
+   * true *inside* an active sleep job: the job holds a reservation on the bed, and
+   * `endJob` is what clears the flag again. A pawn with `asleep === true` and `job ===
+   * null` is a state one tick of the real game can never produce — nobody had claimed the
+   * bed, so a second colonist could be sent to it, and `tickPawnAI` does not skip sleeping
+   * pawns, so the posed sleeper could be handed hauling while still drawn in bed.
+   *
+   * So the job is built exactly as `findNeedJob` builds it, down to `spot`, and then
+   * driven. That is the harness rule one level in: *calling the mutator is not the whole
+   * transition*. What is still skipped is only the choosing — whether this colonist wanted
+   * this bed, and the walk across the map to reach it.
    */
   sleeperIn(bed: Building, pawn?: Pawn): Pawn {
     if (!isBed(bed)) {
       throw new Error(`scenario: a ${buildingDef(bed.def).name} is not something to sleep in`);
     }
 
+    const world = this.activeSimulation().world;
     const who = pawn ?? this.nextUnposedColonist();
     if (!who) {
       throw new Error(
@@ -125,29 +141,73 @@ export class Builder implements ScenarioBuilder {
       );
     }
 
-    // The same pair `escapeIfTrapped` uses to put a pawn somewhere it was not: stop, then
-    // move. A scenario that ticked first could be posing someone mid-step, and `pawn.pos`
-    // is the tile a walking colonist is *leaving* — they would be drawn sliding out of the
-    // bed we just put them in.
+    // Enforcement rule 3 at the point of use, the same way a player order takes a pawn:
+    // whatever they were doing ends through `endJob` and gives its reservations back,
+    // rather than being overwritten and leaking them.
+    interrupt(world, who, 'posed by a scenario');
+
+    // The walk is what a scenario skips, so the pawn simply arrives. `stopMoving` first,
+    // the same pair `escapeIfTrapped` uses: `pawn.pos` is the tile a walking colonist is
+    // *leaving*, so a pawn caught mid-step would be drawn sliding out of the bed.
+    const spot = bedHeadCell(bed);
     stopMoving(who);
-    who.pos = bedHeadCell(bed);
-    fallAsleep(who);
+    who.pos = spot;
+
+    startJob(who, { kind: 'sleep', bed: bed.id, spot });
+    this.driveToSleep(world, who, bed);
 
     this.posed.add(who.id);
     return who;
   }
 
   /**
-   * Sets the clock outright.
+   * Runs the sleep driver until the colonist is actually asleep.
    *
-   * The one piece of state a scenario assigns rather than routing through a mutator, and
-   * only because there is nothing to route through: time is a counter the tick loop
-   * increments, and the debug panel's skip-to-hour sets it exactly like this. Nothing is
-   * simulated, which is the point — "show me this at night" must not mean "play until
-   * night", or every scenario would be at the mercy of what the colony did on the way.
+   * Toil by toil, through `tickJob`, because that is the only thing that can produce the
+   * real state: the first toil claims the bed, the second is already satisfied because the
+   * pawn was put on the spot, and the third is what calls `fallAsleep`. Bounded by the
+   * driver's own length, and loud if it runs out — if the sleep job ever grows a toil that
+   * a posed pawn cannot satisfy standing still, this must fail rather than quietly hand
+   * back a colonist who is awake.
+   */
+  private driveToSleep(world: World, who: Pawn, bed: Building): void {
+    for (const _toil of driverFor('sleep')) {
+      if (who.asleep) break;
+      tickJob(world, who);
+      if (!who.job) break;
+    }
+
+    if (!who.asleep || !who.job) {
+      throw new Error(
+        `scenario: could not put ${who.name} to sleep in the ${buildingDef(bed.def).name} at ` +
+          `${bed.pos.x},${bed.pos.y} — the sleep job ended instead of running`,
+      );
+    }
+  }
+
+  /**
+   * Skips to an hour, exactly as the debug panel's Skip-to does.
+   *
+   * The command, not `world.tick = n`, and the difference is not cosmetic: `setHour` only
+   * ever moves time **forward**, to the next occurrence of the hour asked for. Assigning
+   * the clock directly would wind it back past `STARTING_TICK` for any hour before 08:00
+   * and strand everything that had already happened in the future — a transition the game
+   * refuses, which makes it exactly the kind a scenario may not invent. `dawn` therefore
+   * lands on the following day, which is still a pure function of the hour and still the
+   * same picture every run.
+   *
+   * Nothing is simulated, which is the point: "show me this at night" must not mean "play
+   * until night", or every scenario would be at the mercy of what the colony did on the
+   * way there.
    */
   timeOfDay(when: HourName | number): void {
-    this.activeSimulation().world.tick = tickAtHour(typeof when === 'number' ? when : HOURS[when]);
+    const simulation = this.activeSimulation();
+    simulation.dispatch({
+      type: 'debug',
+      action: 'setHour',
+      hour: typeof when === 'number' ? when : HOURS[when],
+    });
+    simulation.flushCommands();
   }
 
   tick(ticks: number): void {
@@ -239,6 +299,17 @@ export class Builder implements ScenarioBuilder {
       colonists: SCENARIO_COLONISTS,
     });
     this.simulation = simulation;
+
+    /*
+     * Both cleared, because both describe the world being replaced. `touched` is what the
+     * camera frames, so a cell left over from a discarded world would point it at ground
+     * that no longer holds anything — a picture of something that is not there, which is
+     * the one failure this harness exists to prevent. `posed` names pawns that do not
+     * exist in the new world either.
+     */
+    this.placed.length = 0;
+    this.posed.clear();
+
     return simulation;
   }
 

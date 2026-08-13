@@ -162,7 +162,8 @@ export class Simulation {
    *
    * The same shape as `load`, for the same reason: a world arriving whole from outside
    * cannot be expressed as a command without the simulation learning what built it. Saves
-   * come in this way already; scenarios are the second caller.
+   * already arrive that way through `load`; this is the door for a world the app assembled
+   * itself, which is how a scenario will be swapped into the running game.
    *
    * Drains first. A command queued against the world being replaced would otherwise land
    * on its successor, addressing entity ids that mean something different there.
