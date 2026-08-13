@@ -64,9 +64,9 @@ Run via `javascript_tool`:
 
 Expected: `bytes` well above 5000. A near-zero or all-transparent result means the WebGL context has `preserveDrawingBuffer: false` and `canvas.toBlob` cannot see it.
 
-- [ ] **Step 3: If Step 2 returns near-zero bytes, use Pixi's extract instead**
+- [ ] **Step 3: DONE — `canvas.toBlob` works**
 
-`canvas.toBlob` reads the *DOM* canvas, which WebGL clears after present. `renderer.extract` re-renders into a render texture and is the supported path. This needs the Pixi app, so expose it in Task 4 and re-run this check there. Record which of the two works — Task 4 uses the winner.
+Measured 18,703 bytes at 966×1030 with all 100 sampled centre pixels opaque. Pixi's `extract` is not needed for the pixels. **The residual risk is `requestAnimationFrame`, not the read:** rAF is throttled in a hidden tab, so `capture()` renders synchronously rather than waiting for a frame. Task 4's code already reflects this.
 
 - [ ] **Step 4: Record the result in the spec**
 
@@ -872,13 +872,27 @@ export function installScenarioApi(engine: Engine, app: Application): void {
     capture: async (name) => {
       if (name) engine.loadScenario(name);
 
-      // Two frames, not one. The first flushes the world swap through the renderer; the
-      // second is the one with the new world actually drawn in it.
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      /*
+       * Rendered synchronously, not waited for.
+       *
+       * `requestAnimationFrame` is throttled or suspended outright in a hidden tab — which
+       * is exactly the situation this harness exists to survive, since a screenshot already
+       * fails there. Waiting on a frame would hang the capture precisely when it is needed
+       * most. Driving the renderer directly makes the wait unnecessary; the timeout race is
+       * belt and braces for the case where something else owns the loop.
+       */
+      engine.renderer.application.renderer.render(engine.renderer.application.stage);
+      await Promise.race([
+        new Promise((r) => requestAnimationFrame(r)),
+        new Promise((r) => setTimeout(r, 100)),
+      ]);
 
-      const canvas = app.renderer.extract.canvas(app.stage) as HTMLCanvasElement;
+      // The DOM canvas, verified to hold a real image: 18,703 bytes at 966x1030 with
+      // opaque centre pixels. Pixi's `extract` re-renders into a render texture and would
+      // also work, but there is no reason to pay for it when the buffer already survives.
+      const canvas = app.canvas as HTMLCanvasElement;
       const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'));
-      if (!blob) throw new Error('extract produced no image');
+      if (!blob) throw new Error('canvas.toBlob produced no image');
 
       const file = name ?? 'current';
       const res = await fetch(`/__capture?name=${encodeURIComponent(file)}`, {
@@ -893,7 +907,7 @@ export function installScenarioApi(engine: Engine, app: Application): void {
 }
 ```
 
-If Task 0 found that `app.renderer.extract.canvas(...)` is the working path, keep it; if it found the DOM canvas works and extract does not, swap the two lines for `document.querySelector('canvas')`.
+Task 0 confirmed the DOM canvas path, so the code above is final. `app.canvas` is Pixi's own handle on that same element — preferred over `document.querySelector('canvas')`, which would pick up the minimap if it ever became a canvas.
 
 - [ ] **Step 5: Call it from the app bootstrap**
 

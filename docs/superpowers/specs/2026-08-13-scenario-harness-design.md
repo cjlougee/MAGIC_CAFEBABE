@@ -109,6 +109,17 @@ of this week.
 **That assumption is verified before anything is built on it**, exactly as Pixi-under-vitest was in
 M12. If it does not hold, the fallback is to bring the headless renderer forward instead.
 
+**Result (2026-08-13):** `canvas.toBlob` on the live WebGL canvas returned **18,703 bytes** at
+966×1030, with all 100 sampled centre pixels opaque. So the plain DOM-canvas path works and Pixi's
+`extract` is not needed for the pixels — the drawing buffer survives present.
+
+**What this does *not* prove**, stated plainly because the distinction is the whole risk: the pane was
+*displayed* during that check. Reading the canvas does not depend on the window being composited, but
+`requestAnimationFrame` **does** get throttled or suspended in a hidden tab — so a capture that waits
+on rAF could hang precisely when it is needed most. The mitigation is not to wait on rAF at all:
+force a synchronous `renderer.render(stage)` before reading, and treat any frame wait as a race
+against a timeout. That costs three lines and removes the only part of this that was ever in doubt.
+
 ### The API
 
 ```ts
