@@ -126,8 +126,16 @@ M12. If it does not hold, the fallback is to bring the headless renderer forward
 966×1030, with all 100 sampled centre pixels opaque. So the plain DOM-canvas path works and Pixi's
 `extract` is not needed for the pixels — the drawing buffer survives present.
 
-**What this does *not* prove**, stated plainly because the distinction is the whole risk: the pane was
-*displayed* during that check. Reading the canvas does not depend on the window being composited, but
+**That reading turned out to be wrong, and the caveat below was the reason.** Retested with the tab
+genuinely hidden, `toBlob` wrote 1280×720 of flat background and reported success. Three faults, each
+hiding the next: `toBlob` reads the compositor's copy and a hidden tab composites nothing; `extract`
+infers its frame from stage bounds, which collapse when hidden, giving a 1×1 image; and the layers are
+repopulated by `Engine.onDraw`, which the rAF loop stops driving, so even a correctly framed extract
+rasterized an empty stage. The shipped path uses `extract` with a **stated** frame, after calling the
+game's own `drawNow()`, and throws rather than writing a blank file.
+
+**What the original check did *not* prove**, stated plainly at the time because the distinction was the
+whole risk: the pane was *displayed* during it. Reading the canvas does not depend on the window being composited, but
 `requestAnimationFrame` **does** get throttled or suspended in a hidden tab — so a capture that waits
 on rAF could hang precisely when it is needed most. The mitigation is not to wait on rAF at all:
 force a synchronous `renderer.render(stage)` before reading, and treat any frame wait as a race

@@ -125,6 +125,35 @@ export class GameRenderer {
     return new GameRenderer(app, art, camera, shouldPan);
   }
 
+  /**
+   * Runs `body` with the renderer pinned to a stated size, then restores the real one.
+   *
+   * A scenario's picture should be a function of the scenario, not of how wide someone
+   * happened to leave a panel. The app is created with `resizeTo: host`, so its size
+   * follows the window — and `render()` reads `app.screen` every frame for both the camera
+   * and the culling, which means the same scenario framed differently at 966×1030 than at
+   * 1280×720, clipping a bed off the bottom in one and not the other.
+   *
+   * Auto-resize has to be suspended as well as the size set, or the observer fires during
+   * the capture and undoes it. Restored in a `finally`, because leaving the game pinned to
+   * a debug size would be a far worse bug than the one this fixes.
+   *
+   * Dev capture is the only caller.
+   */
+  withFixedSize<T>(width: number, height: number, body: () => T): T {
+    const followed = this.app.resizeTo;
+    const before = { width: this.app.screen.width, height: this.app.screen.height };
+
+    this.app.resizeTo = undefined as unknown as HTMLElement;
+    this.app.renderer.resize(width, height);
+    try {
+      return body();
+    } finally {
+      this.app.renderer.resize(before.width, before.height);
+      this.app.resizeTo = followed;
+    }
+  }
+
   /** Draws one frame. `dtMs` is real elapsed time, used for smooth key panning. */
   render(
     world: World,

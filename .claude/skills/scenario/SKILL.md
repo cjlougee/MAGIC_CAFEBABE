@@ -91,9 +91,18 @@ Also skip it when building the scenario would plainly cost more than the answer 
 - **Reload after editing engine or renderer code.** Vite's HMR replaces the module but `__scenario`
   still closes over the destroyed engine, and the failure is a confusing `Cannot read properties of
   null (reading 'canvas')` from deep inside Pixi.
-- **The capture renders synchronously** rather than awaiting a frame, because `requestAnimationFrame`
-  is throttled in a hidden tab — which is exactly when this is most needed, since screenshots have
-  already failed there.
+- **The pane must exist; the game tab need not be visible.** Verified with `document.hidden` true and
+  the pane showing a different tab entirely. A screenshot needs a composited window and this does not
+  — which is the whole reason it exists.
+- **Named scenarios render at a fixed 1280×720**, whatever the pane is doing, so the picture is a
+  function of the scenario rather than of how wide someone left the panel. `capture()` with no name
+  uses the live size, because "photograph what I am looking at" means exactly that.
+- **The capture drives the game's own draw**, not `requestAnimationFrame` and not Pixi's stage render.
+  rAF is throttled to nothing in a hidden tab, so the loop stops repopulating the layers; rendering the
+  stage then rasterizes an empty one and reports success.
+- **A blank capture throws rather than writing a file.** Three separate faults each produced a
+  plausible-looking black PNG before that guard existed, and a black PNG is indistinguishable from a
+  scenario that built nothing.
 - **`art/scenes/` is generated and gitignored.** Nothing there is a source of truth; re-capture rather
   than trusting an old file.
 - Scenarios are dev-only and deliberately **not** wired into `npm run check`, so they cannot become a
