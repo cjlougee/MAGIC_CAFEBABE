@@ -148,6 +148,35 @@ The counterpart is that anything *static* should need no human at all — see "L
 command" above. It is the same split the art harness draws: automate what can be measured, and make
 asking about the rest cheap.
 
+### Implement inline; delegate the review
+
+**Claude: write the code yourself, then hand the finished commit to a subagent to review.** Not the
+other way round.
+
+M12.5 was executed by subagents and measured both ways. Delegating the *implementation* paid a
+cold-start cost on every task — a long prompt re-establishing context you already hold — and returned
+little, because you have the context and they do not. One agent also died mid-task and left a working
+tree that did not typecheck, which is a recovery cost the inline path never incurs.
+
+Delegating the *review* returned the two best findings of the milestone, and both were things you
+structurally cannot find alone: a reviewer with fresh context reads the code against a design it has
+no investment in. It caught `timeOfDay` winding the clock backwards — which would have shipped,
+because the spec said to write `world.tick` and the implementation obeyed the spec. **You cannot
+review your own spec.** It also caught a test that could not fail, which had been specified in the
+plan and therefore checked by nobody.
+
+Two things that make a review dispatch worth its cost:
+
+- Give it the *brief*, not your conclusions, and tell it to verify the implementer's claims rather
+  than trust them. The best findings came from an agent that ran the code, measured world hashes, and
+  deleted lines to see whether tests bit.
+- Say plainly what the work must get right. A reviewer told "the one thing this must not do is set
+  state the game would set through a mutator" goes looking in the right place.
+
+**The exception is genuinely parallel work** — a dozen sprites that do not touch each other. There,
+parallel implementers win on wall-clock. A plan whose tasks build on one another, as M12.5's did,
+gets nothing from parallelism and pays for it anyway.
+
 ---
 
 ## Layout
