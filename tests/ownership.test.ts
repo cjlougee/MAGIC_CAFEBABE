@@ -18,6 +18,8 @@ import { Need } from '../src/sim/defs/needs';
 import { Terrain } from '../src/sim/defs/terrain';
 import { Thought } from '../src/sim/defs/thoughts';
 import { bedOwner } from '../src/sim/ai/needs';
+import { buildingCells } from '../src/sim/entities/building';
+import { cellsAdjacentTo } from '../src/sim/world/footprint';
 import { buildingAt } from '../src/sim/world/lookup';
 import { Simulation } from '../src/sim/simulation';
 import { hashWorld } from '../src/sim/save/hash';
@@ -167,6 +169,49 @@ describe('a claim does not outlive its owner', () => {
     exhaust(second);
     sim.run(A_FULL_NIGHT);
     expect(bed.owner, 'the survivor never claimed the freed bed').toBe(second.id);
+  });
+});
+
+describe('a colonist owns at most one bed', () => {
+  it('gives up the old one when a night away from it makes them claim another', () => {
+    /*
+     * The case a review found, reached by an ordinary player action: bar the bedroom door
+     * for one night. `findBed` skips an own bed it cannot reach and falls through to the
+     * nearest unclaimed one — so without an exclusive claim the colonist ends the night
+     * owning two, and the first is dead to the colony forever. Every other colonist skips
+     * it because `bedOwner` still names somebody living, no alert fires, and the owner
+     * keeps getting `SleptInOwnBed` for the new bed, so nothing says anything at all.
+     */
+    const { sim, world } = colony(2);
+    removeBedrolls(world);
+    const site = world.landingSite;
+    const mine = placeBed(sim, site.x + 3, site.y);
+    const spare = placeBed(sim, site.x + 6, site.y);
+
+    const pawn = [...world.pawns.values()][0];
+    mine.owner = pawn.id;
+
+    // Walled in on every side, so the bed itself is still perfectly good and merely out of
+    // reach — which is what makes abandoning it a bug rather than a sensible fallback.
+    for (const cell of cellsAdjacentTo(buildingCells(mine))) {
+      const index = world.map.idx(cell.x, cell.y, cell.z);
+      world.map.setBuildingAt(index, true, false);
+      world.reachability.markDirtyAt(index);
+    }
+    pawn.pos = pos(site.x, site.y);
+    expect(world.reachability.canReach(pawn.pos, mine.pos), 'the setup failed to seal the bed off')
+      .toBe(false);
+
+    exhaust(pawn);
+    sim.run(A_FULL_NIGHT);
+
+    const owned = [...world.buildings.values()].filter((b) => b.owner === pawn.id);
+    expect(
+      owned.length,
+      `${pawn.name} owns ${owned.length} beds; the abandoned one is unusable by anybody`,
+    ).toBe(1);
+    expect(spare.owner).toBe(pawn.id);
+    expect(mine.owner, 'the unreachable bed was never released').toBeNull();
   });
 });
 

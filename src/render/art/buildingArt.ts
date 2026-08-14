@@ -581,7 +581,7 @@ function drawBrand(g: Graphics, cx: number, baseY: number, w: number, h: number)
  * frame top. Measuring from the top instead is what once drew a hearth a whole storey
  * above its own footprint.
  */
-const MODEL_OVERLAY: Partial<Record<BuildingId, () => Graphics>> = {
+export const MODEL_OVERLAY: Partial<Record<BuildingId, () => Graphics>> = {
   [Building.Torch]: () => {
     const g = new Graphics();
     const groundY = HALF_TILE_H + BUILDING_HEIGHT[Building.Torch];

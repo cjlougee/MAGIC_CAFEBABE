@@ -173,9 +173,27 @@ export function toilClaimBed(pick: (job: Job) => number | null): Toil {
       // `bedOwner`, not `bed.owner`: a claim held by somebody who has died is not a claim,
       // and `findBed` already offers such a bed to the living. Reading the raw field here
       // would let a colonist sleep in it every night and never be able to call it theirs.
-      if (bed && buildingDef(bed.def).ownable && bedOwner(ctx.world, bed) === null) {
-        bed.owner = ctx.pawn.id;
+      if (!bed || !buildingDef(bed.def).ownable || bedOwner(ctx.world, bed) !== null) {
+        return 'done';
       }
+
+      /*
+       * **One colonist, one bed**, and giving up the old one is the whole of it.
+       *
+       * `findBed` skips a bed of your own that it cannot reach *this* night and falls
+       * through to the nearest unclaimed one — so barring a bedroom door for a single
+       * night was enough to leave a colonist owning two. The abandoned bed is then dead to
+       * the colony forever: `bedOwner` still names a living owner, so every other colonist
+       * skips it, no alert fires, and the owner keeps getting `SleptInOwnBed` for the new
+       * one so nothing in the mood readout says anything either.
+       *
+       * Precisely the ADR 0008 failure — correct behaviour, invisible cause — which M13
+       * closed for owners who had *died* and left open for owners who had merely moved.
+       */
+      for (const other of ctx.world.buildings.values()) {
+        if (other.id !== id && other.owner === ctx.pawn.id) other.owner = null;
+      }
+      bed.owner = ctx.pawn.id;
       return 'done';
     },
   };

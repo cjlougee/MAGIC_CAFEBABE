@@ -108,6 +108,20 @@ export function orientToNeighbours(
   if (result.kind !== 'building') return requested;
 
   const def = buildingDef(result.building);
+
+  /*
+   * **Something that cannot be turned is stored facing zero**, rather than merely never
+   * happening to be turned.
+   *
+   * The input layer already refuses to rotate a non-orientable buildable and resets the
+   * rotation whenever the selection changes, so nothing reachable ever asked for one — but
+   * the *art* now relies on it: the contact sheet renders only rotation 0 for these, and a
+   * safe or a floodlight has deliberate asymmetry, so a stored non-zero facing would draw
+   * a picture no review surface has ever looked at. Cheaper to make it true here than to
+   * assert it in three places.
+   */
+  if (!def.orientable) return 0;
+
   if (!def.blocksRoom || !def.passable) return requested;
 
   const seals = (dx: number, dy: number): number => {

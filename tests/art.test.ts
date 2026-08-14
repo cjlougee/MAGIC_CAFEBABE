@@ -290,9 +290,10 @@ describe('the colonist has a face', () => {
   const faceTones = new Set([skin, lit]);
 
   /**
-   * Measured at 62 with the fix in, against 6 before it. Set at 40 so an ordinary style
-   * change has room and a burial does not: the gap between a face and no face is an order
-   * of magnitude, not a few pixels.
+   * Measured: **47, 50, 55, 75, 77** across the five styles with the fix in, against
+   * **6, 13, 13, 23** for the four the old hair buried (the fifth was already shaved and
+   * fine). Forty sits between the two clusters with room on both sides — 15% of headroom
+   * under the tightest passing style, and roughly double the worst failing one.
    */
   const MIN_FACE = 40;
 

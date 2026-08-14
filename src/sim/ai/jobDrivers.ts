@@ -219,9 +219,14 @@ const SLEEP_TOILS: readonly Toil[] = [
  */
 function sleptWhere(world: World, pawn: Pawn, bedId: EntityId | null): ThoughtId {
   if (bedId === null) return Thought.SleptOnGround;
+
+  // Deconstructed out from under them while they slept, which the sleep job survives —
+  // it is `toilSleep` waiting on a need, not on the building. They did finish the night on
+  // the floor, so that is the memory they get.
   const bed = world.buildings.get(bedId);
-  if (bed && bed.owner === pawn.id) return Thought.SleptInOwnBed;
-  return Thought.SleptInBed;
+  if (!bed) return Thought.SleptOnGround;
+
+  return bed.owner === pawn.id ? Thought.SleptInOwnBed : Thought.SleptInBed;
 }
 
 const WANDER_TOILS: readonly Toil[] = [toilWalkTo((job) => asWander(job).to)];
@@ -281,13 +286,20 @@ const CONSTRUCT_TOILS: readonly Toil[] = [
       return site !== undefined && hasAllMaterials(site);
     },
 
-    // Wait rather than wall someone in. Anyone standing on the cell will move on;
-    // sealing them inside would leave a colonist who can reach nothing, ever again.
+    /*
+     * Wait rather than wall someone in. Anyone standing on the footprint will move on;
+     * sealing them inside would leave a colonist who can reach nothing, ever again.
+     *
+     * **Every cell of it**, which this asked of the anchor alone until M13 — see
+     * `finishSite`, which had the same hole. A 2×2 table finished over a colonist standing
+     * on any of its other three cells is the case that makes it ordinary.
+     */
     canProgress: (ctx) => {
       const site = ctx.world.sites.get(asConstruct(ctx.job).site);
       if (!site) return true;
-      const index = ctx.world.map.idx(site.pos.x, site.pos.y, site.pos.z);
-      return !pawnOccupies(ctx.world, index);
+      return !siteCells(site).some((cell) =>
+        pawnOccupies(ctx.world, ctx.world.map.idx(cell.x, cell.y, cell.z)),
+      );
     },
     complete: (ctx) => {
       const site = ctx.world.sites.get(asConstruct(ctx.job).site);

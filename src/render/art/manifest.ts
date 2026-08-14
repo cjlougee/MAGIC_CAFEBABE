@@ -18,7 +18,12 @@ import { ROTATIONS, sizeOf, type Footprint, type Rotation } from '../../sim/worl
 import { GROUND_LEVEL } from '../../sim/core/position';
 import { footprintBounds } from '../iso';
 import { sleeperCentreAt } from '../placement';
-import { BUILDING_HEIGHT, buildBuildingDrawList, buildBuildingGraphics } from './buildingArt';
+import {
+  BUILDING_HEIGHT,
+  buildBuildingDrawList,
+  buildBuildingGraphics,
+  MODEL_OVERLAY,
+} from './buildingArt';
 import { isModelled } from './model/buildingModels';
 import { translate, type DrawList } from './raster/drawList';
 import { drawListFromGraphics } from './raster/fromGraphics';
@@ -188,6 +193,19 @@ function facingsOf(def: { orientable: boolean }): readonly Rotation[] {
   return def.orientable ? ROTATIONS : [0];
 }
 
+/**
+ * The hand-drawn half of a modelled sprite, where there is one.
+ *
+ * `undefined` for a structure that is solids all the way down — the polygon check has
+ * nothing to say about a model, whose faces are convex quads by construction, and that is
+ * a property of the approach rather than a gap in the test. It is only a gap when a
+ * modelled structure carries vector marks *as well*.
+ */
+function overlayVector(def: BuildingId): (() => GraphicsContext) | undefined {
+  const overlay = MODEL_OVERLAY[def];
+  return overlay ? () => overlay().context : undefined;
+}
+
 function buildingEntries(): SpriteEntry[] {
   const entries: SpriteEntry[] = [];
 
@@ -209,8 +227,19 @@ function buildingEntries(): SpriteEntry[] {
           footprint: size,
           rotation,
           draw: () => buildBuildingDrawList(def.id, rotation, locked),
+          /*
+           * The vector source, and **a modelled sprite can still have one.**
+           *
+           * A torch is a post drawn as solids with a flame drawn as vectors over it, and
+           * saying "modelled, therefore no vector" quietly excused its flame from the two
+           * checks that only run on vector art: the self-intersection scan and the palette
+           * scan. Proved by a review, which gave `drawBrand` a bow-tie lean *and* an
+           * invented green, and watched the whole suite and the bake stay green —
+           * `tongue`'s own comment names `selfIntersections` as its guard, and for the one
+           * caller that needed it most the guard was not running.
+           */
           vector: isModelled(def.id)
-            ? undefined
+            ? overlayVector(def.id)
             : () => buildBuildingGraphics(def.id, rotation, locked).context,
           contract: { ...DEFAULT, ...BUILDING_CONTRACTS[def.id] },
         });

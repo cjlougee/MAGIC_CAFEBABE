@@ -30,7 +30,7 @@ import {
   type ZoneCommand,
 } from './core/commands';
 import { buildingCells } from './entities/building';
-import { createSite, type ConstructionSite } from './entities/constructionSite';
+import { createSite, siteCells, type ConstructionSite } from './entities/constructionSite';
 import { cancelConstruction, completeConstruction, setLocked } from './world/construction';
 import { buildingAt, pawnOccupies, siteAt } from './world/lookup';
 import { clearPath, type Pawn } from './entities/pawn';
@@ -311,15 +311,19 @@ export class Simulation {
    */
   private finishSite(site: ConstructionSite): boolean {
     const world = this.worldState;
-    const index = world.map.idx(site.pos.x, site.pos.y, site.pos.z);
     const result = buildableDef(site.def).result;
 
-    if (
-      result.kind === 'building' &&
-      !buildingDef(result.building).passable &&
-      pawnOccupies(world, index)
-    ) {
-      return false;
+    /*
+     * **Every cell, not the anchor.** ADR 0009's rule, and this was one of two places
+     * still asking about `site.pos` alone. It went unnoticed while the hearth was the only
+     * impassable structure covering more than one cell; M13 added a 2×2 table, a 2×1 desk
+     * and a 2×1 shelf, which makes a colonist standing on a cell that is not the anchor
+     * the ordinary case rather than a rare one.
+     */
+    if (result.kind === 'building' && !buildingDef(result.building).passable) {
+      for (const cell of siteCells(site)) {
+        if (pawnOccupies(world, world.map.idx(cell.x, cell.y, cell.z))) return false;
+      }
     }
 
     completeConstruction(world, site);

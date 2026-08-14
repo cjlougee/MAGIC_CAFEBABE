@@ -33,10 +33,11 @@ function costLabel(id: BuildableId): string {
  * `putImageData` is a copy where a data URL would mean encoding a PNG in the browser to
  * immediately decode it again.
  *
- * The canvas keeps the sprite's own pixel size and CSS scales it down inside a fixed box,
- * so a 2×2 table and a 1×1 stool sit at the same *scale* rather than being stretched to
- * the same size — which is the whole reason to show a picture at all. `image-rendering:
- * pixelated` in the stylesheet keeps the downscale from smearing it.
+ * The canvas keeps the sprite's own pixel size and is scaled down by **one factor shared
+ * across the whole set** (`THUMBNAIL_SCALE`), so a 2×2 table is twice a 1×1 stool on
+ * screen because it is twice a stool in the game. Fitting each sprite to a box instead
+ * normalises the wrong dimension and makes the biggest furniture read smallest, which is
+ * the opposite of the reason to show a picture at all.
  */
 function Thumbnail({ buildable }: { readonly buildable: BuildableId }) {
   const ref = useRef<HTMLCanvasElement>(null);

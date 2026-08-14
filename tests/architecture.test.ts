@@ -56,6 +56,7 @@ const FORBIDDEN_IMPORTS: ReadonlyArray<{ test: RegExp; why: string }> = [
 
 const simFiles = collectFiles(SIM_DIR);
 const scenarioFiles = collectFiles(SCENARIOS_DIR);
+const artFiles = collectFiles(join(ROOT, 'src', 'render', 'art'));
 
 /** The layering rule, stated once so both the sim and the scenarios can be held to it. */
 function expectNoPresentationImports(file: string, layer: string): void {
@@ -115,6 +116,31 @@ describe('enforcement rule 2: no unseeded randomness', () => {
       expect(
         /Math\s*\.\s*random\s*\(/.test(code),
         'sim/ must draw from the seeded Rng in world state',
+      ).toBe(false);
+    },
+  );
+
+  /*
+   * **`render/art` is outside enforcement rule 2 and held to it anyway**, which CLAUDE.md
+   * has said since M12 with nothing enforcing it.
+   *
+   * Determinism here is not about save/load — it is about the harness. Art that redrew
+   * differently on each run could not be asserted on, could not be diffed, and could not
+   * be regenerated identically after a context loss, and every measurement in
+   * `tests/art.test.ts` and every number in `art/report.json` rests on it. Seed a hash, as
+   * `terrainArt` does per `(id, variant)` and `model/surface.ts` does per material.
+   *
+   * Only `render/art`, deliberately. The layers above it may legitimately want an unseeded
+   * number for something that is not art — a jitter on a transition, say — and widening
+   * this to all of `render/` would be asserting a rule nobody has stated.
+   */
+  it.each(artFiles.map((f) => [relative(ROOT, f), f] as const))(
+    '%s does not call Math.random() either',
+    (_label, file) => {
+      const code = stripComments(readFileSync(file, 'utf8'));
+      expect(
+        /Math\s*\.\s*random\s*\(/.test(code),
+        'art must be reproducible — seed a hash, as terrainArt and surface.ts do',
       ).toBe(false);
     },
   );

@@ -70,11 +70,29 @@ function render(id: BuildableId): Raster {
   return rasterize(list, TILE_W, TILE_H + terrainHeight(terrain));
 }
 
+/**
+ * How far down a thumbnail is drawn — **one factor for every sprite, deliberately.**
+ *
+ * Half, so the largest frame in the set (a 2×2 hearth, 128×82) lands inside a menu button
+ * and a 1×1 lands at 32 wide beside it. Fitting each sprite to a box instead — a
+ * `max-height` in the stylesheet was the first attempt — normalises the wrong dimension
+ * and renders a table at 0.51 scale next to a stool at 1.00, so the biggest piece of
+ * furniture in the game reads as the smallest thing in the menu. Relative size *is* the
+ * information a picture carries here.
+ */
+const THUMBNAIL_SCALE = 0.5;
+
 /** Paints a buildable's sprite onto a canvas, sizing the canvas to match. */
 export function drawBuildableThumbnail(canvas: HTMLCanvasElement, id: BuildableId): void {
   const raster = buildableRaster(id);
   canvas.width = raster.width;
   canvas.height = raster.height;
+
+  // The backing store stays at the sprite's own resolution and CSS does the scaling, so
+  // the browser downsamples once with `image-rendering: pixelated` rather than us throwing
+  // pixels away here.
+  canvas.style.width = `${Math.round(raster.width * THUMBNAIL_SCALE)}px`;
+  canvas.style.height = `${Math.round(raster.height * THUMBNAIL_SCALE)}px`;
 
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
