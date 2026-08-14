@@ -265,6 +265,7 @@ export function HUD({ store, engine }: HUDProps) {
                 engine.cancelDesignation(selectedStructure.x, selectedStructure.y)
               }
               onSetLocked={(locked) => engine.setLocked(selectedStructure.id, locked)}
+              onReleaseOwner={() => engine.releaseOwner(selectedStructure.id)}
               onClose={() => engine.selectStructure(null)}
             />
           )}

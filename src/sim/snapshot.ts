@@ -12,6 +12,7 @@
  */
 
 import { activeThoughts, moodOf } from './ai/mood';
+import { bedOwner } from './ai/needs';
 import { isWorkbench, missingIngredientsFor } from './entities/building';
 import { recipeDef, recipesFor, type RecipeId } from './defs/recipes';
 import { countHeld } from './world/lookup';
@@ -119,6 +120,16 @@ export interface StructureSummary {
   readonly locked: boolean | null;
   /** True when a bill panel should appear beneath this one. */
   readonly isBench: boolean;
+  /**
+   * Who this belongs to, or null for unclaimed — and **absent entirely** for anything that
+   * cannot be owned.
+   *
+   * Three states rather than two, because "nobody has claimed this bed yet" and "a wall
+   * cannot be claimed" are different facts and the panel has to say different things about
+   * them. Already-resolved to a name here: `sim/` knows who owns what, and a UI that had to
+   * look a colonist up by id would be a second index over the pawn store.
+   */
+  readonly owner?: { readonly name: string | null };
 }
 
 export interface PoiSummary {
@@ -225,6 +236,11 @@ function structureSummaries(world: World): StructureSummary[] {
       markedForDeconstruct: world.designations.has(Designation.Deconstruct, index),
       locked: def.lockable ? building.locked : null,
       isBench: isWorkbench(building),
+      // Through `bedOwner`, so a claim held by a colonist who has died reads as unclaimed
+      // here exactly as it does to the colonist looking for somewhere to sleep.
+      ...(def.ownable
+        ? { owner: { name: world.pawns.get(bedOwner(world, building) ?? -1)?.name ?? null } }
+        : {}),
     });
   }
 

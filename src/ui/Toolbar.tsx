@@ -7,8 +7,8 @@
  */
 
 import type { Tool } from '../input/worldInput';
-import { BUILDABLE_DEFS, type BuildableId } from '../sim/defs/buildables';
-import { ITEM_DEFS } from '../sim/defs/items';
+import type { BuildableId } from '../sim/defs/buildables';
+import { BuildMenu } from './BuildMenu';
 
 interface ToolOption {
   readonly tool: Tool;
@@ -27,12 +27,6 @@ const TOOLS: readonly ToolOption[] = [
   { tool: 'stockpile', label: 'Stockpile', hint: 'Drag to mark where loose items should be stored' },
   { tool: 'erase', label: 'Erase', hint: 'Drag to clear designations, stockpiles, and blueprints' },
 ];
-
-function costLabel(id: BuildableId): string {
-  return BUILDABLE_DEFS[id].cost
-    .map((cost) => `${cost.count} ${ITEM_DEFS[cost.def].name}`)
-    .join(', ');
-}
 
 interface ToolbarProps {
   readonly active: Tool;
@@ -54,22 +48,9 @@ export function Toolbar({
 }: ToolbarProps) {
   return (
     <>
-      {/* The architect row only appears while building, so the bar stays readable. */}
+      {/* The architect menu only appears while building, so the bar stays readable. */}
       {active === 'build' && (
-        <nav className="toolbar toolbar--architect">
-          {BUILDABLE_DEFS.map((def) => (
-            <button
-              key={def.id}
-              type="button"
-              title={`${def.description} — costs ${costLabel(def.id)}`}
-              className={`toolbar__button${buildable === def.id ? ' is-active' : ''}`}
-              onClick={() => onPickBuildable(def.id)}
-            >
-              {def.name}
-              <span className="toolbar__cost">{costLabel(def.id)}</span>
-            </button>
-          ))}
-        </nav>
+        <BuildMenu buildable={buildable} onPickBuildable={onPickBuildable} />
       )}
 
       <nav className="toolbar">

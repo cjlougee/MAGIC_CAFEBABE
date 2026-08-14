@@ -58,6 +58,7 @@ const TERRAIN_BASE: Record<TerrainId, number> = {
   [Terrain.RuinFloor]: Palette.ruinFloor,
   [Terrain.RuinWall]: Palette.ruinWall,
   [Terrain.StoneFloor]: Palette.stoneFloor,
+  [Terrain.Carpet]: Palette.carpet,
 };
 
 /**
@@ -78,6 +79,7 @@ const TERRAIN_HEIGHT: Record<TerrainId, number> = {
   [Terrain.RuinFloor]: 0,
   [Terrain.RuinWall]: 22,
   [Terrain.StoneFloor]: 0,
+  [Terrain.Carpet]: 0,
 };
 
 export function terrainHeight(id: TerrainId): number {
@@ -273,6 +275,24 @@ function drawTopDetail(g: Graphics, id: TerrainId, base: number, rng: Rng): void
           HALF_TILE_H * 0.24,
         ).fill({ color: shade(base, rng.rangeFloat(-0.07, 0.09)) });
       }
+      break;
+
+    case Terrain.Carpet:
+      /*
+       * Pile, not pattern.
+       *
+       * The obvious idea is a border or a weave, and both are wrong here for the same
+       * reason a rim highlight is wrong on rock: a carpet **tiles**, and every tile is
+       * generated with no knowledge of its neighbours. A border draws a grid over the
+       * whole rug; a regular weave has a period that cannot line up across the diamond
+       * offset, so it beats against itself. See ADR 0002.
+       *
+       * So the read comes from colour and evenness instead. The mottle spread is the
+       * lowest of any terrain — a rug is *flat*, and that flatness against speckled dirt
+       * is what says somebody laid it — with fine dense speckle for the pile close up.
+       */
+      mottle(g, rng, base, 4, 11, 0.03);
+      speckle(g, rng, base, 30, 2, 0.07);
       break;
   }
 }

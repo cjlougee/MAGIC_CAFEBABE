@@ -98,22 +98,53 @@ export function bedHeadCell(bed: Building): TilePos {
   return headCellOf(bed.pos, footprintOfBuilding(bed.def), bed.rotation);
 }
 
-/** Nearest reachable bed nobody else has claimed or owns. */
+/**
+ * Whether this bed is available to this colonist, and how badly they want it.
+ *
+ * Exported because `toilClaimBed` asks the same question when it decides whether a bed is
+ * free to claim, and two copies of "is this owner still alive" would answer differently the
+ * first time one of them was updated.
+ *
+ * **A dead owner does not hold a bed.** Pawns are never removed from the store — death is
+ * a flag — so a claim outlives its owner forever, and a colony that lost somebody would
+ * find one of its beds permanently unusable with nothing on screen to say why. Exactly the
+ * shape of failure ADR 0008 warns about: perfectly correct behaviour, invisible cause.
+ */
+export function bedOwner(world: World, bed: Building): EntityId | null {
+  if (bed.owner === null) return null;
+  const owner = world.pawns.get(bed.owner);
+  return owner && !owner.dead ? bed.owner : null;
+}
+
+/**
+ * The best reachable bed: your own if you have one, otherwise the nearest unclaimed.
+ *
+ * **Ownership outranks distance**, which is the whole of what owning a bed means. Ranked by
+ * nearness alone a colonist would walk into whichever bed happened to be closest that
+ * night, their claim would never come up again, and `SleptInOwnBed` would fire more or less
+ * at random — a mood bonus the player could neither predict nor arrange.
+ */
 function findBed(world: World, pawn: Pawn): Building | null {
   let best: Building | null = null;
   let bestDistance = Infinity;
+  let bestIsOwn = false;
 
   for (const building of world.buildings.values()) {
     if (!isBed(building)) continue;
-    if (building.owner !== null && building.owner !== pawn.id) continue;
+    const owner = bedOwner(world, building);
+    if (owner !== null && owner !== pawn.id) continue;
     if (!world.reservations.canReserveEntity(building.id, pawn.id)) continue;
 
+    const isOwn = owner === pawn.id;
+    // Any bed of your own beats any bed that is not; among equals, the nearer one.
+    if (bestIsOwn && !isOwn) continue;
     const distance =
       Math.abs(building.pos.x - pawn.pos.x) + Math.abs(building.pos.y - pawn.pos.y);
-    if (distance >= bestDistance) continue;
+    if (isOwn === bestIsOwn && distance >= bestDistance) continue;
     if (!world.reachability.canReach(pawn.pos, building.pos)) continue;
 
     bestDistance = distance;
+    bestIsOwn = isOwn;
     best = building;
   }
 

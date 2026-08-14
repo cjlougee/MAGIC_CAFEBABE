@@ -242,6 +242,13 @@ tests rather than by structure:
   door continues the wall run it interrupts. The difference between that and the lock bar nobody could
   see is not in the pixels — it is whether someone wrote it down. Exact equality makes each a ratchet
   in both directions, so a leg that *reappears* fails as loudly as a bar that vanishes.
+- **`mayHide` counts marks at *zero*, so a mark crushed to the floor is invisible to it.** The
+  colonist's head contributed **six** pixels — all of them chin — with both eyes painted straight onto
+  the hair, and the harness reported only that the sunward crescent was hidden. Six is not zero and
+  the floor was 2, so nothing could say the sprite had no face. When the question is *"is this mark
+  still big enough to be the thing it is for"*, a per-mark floor is the wrong instrument: measure the
+  thing directly, and measure it on **every variant**. Only one of five hair styles was ever
+  rendered, and the defect lived in the other four too.
 - **`render/` must not call `Math.random()` either.** Enforcement rule 2 is about `sim/` and this is
   not it — but art that redrew differently on each run could not be asserted on, diffed, or
   regenerated identically after a context loss. Seed a hash, as `terrainArt` does per
@@ -304,6 +311,12 @@ tests rather than by structure:
   worldgen, or mining cutting through — and updates `naturalTerrain` too, because mined-out rock
   does not come back. `setSurfaceAt` lays something *over* the ground and leaves `naturalTerrain`
   alone, so lifting a floor gives back the sand it was laid on rather than a default we invented.
+- **`naturalTerrain` remembers exactly one layer down, so surfaces do not stack.** A second surface
+  over the first has nowhere to record what it covered: carpet laid on a stone floor would
+  deconstruct straight back to grass, destroying a floor the player paid for, with nothing on screen
+  to say it had happened. `canPlaceBlueprint` refuses a terrain-result blueprint on any cell whose
+  terrain the colony built — take the floor up first. Found in M13 with carpet; the same hole had
+  let Floor be laid on Floor for two stone and no effect since M4.
 - **A migration step must never import a live definition** — no `Terrain.StoneFloor`, no
   `ITEM_DEFS.length`. Those describe the game as it is *now*; a step describes a file as it was
   *then*. Renumber a table and every step that reached for a live constant starts quietly

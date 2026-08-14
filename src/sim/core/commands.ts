@@ -174,6 +174,19 @@ export interface SetLockedCommand {
   readonly locked: boolean;
 }
 
+/**
+ * Gives up a colonist's claim on a bed.
+ *
+ * Only ever *releases*. Assigning a bed to a named colonist is a different feature — it
+ * wants a picker, a rule for what happens when two beds are assigned to one person, and an
+ * answer to whether an assignment survives that colonist's death. Claiming happens by
+ * sleeping, and this is the undo; a control that can only loosen state cannot tangle it.
+ */
+export interface ReleaseOwnerCommand {
+  readonly type: 'releaseOwner';
+  readonly building: EntityId;
+}
+
 export type Command =
   | RegenerateCommand
   | MoveToCommand
@@ -184,6 +197,7 @@ export type Command =
   | SetWorkPriorityCommand
   | BuildCommand
   | SetLockedCommand
+  | ReleaseOwnerCommand
   | BillCommand
   | DebugCommand;
 

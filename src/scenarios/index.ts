@@ -22,6 +22,7 @@
 
 import type { ScenarioBuilder } from './builder';
 import { beds } from './beds';
+import { rooms } from './rooms';
 
 /**
  * Where to point the camera once the world is built.
@@ -53,7 +54,7 @@ export interface Scenario {
  * sharing a name would leave one of them permanently unreachable, and the failure would
  * look like "my change did nothing" rather than like a collision.
  */
-export const SCENARIOS: ReadonlyMap<string, Scenario> = register(beds);
+export const SCENARIOS: ReadonlyMap<string, Scenario> = register([...beds, ...rooms]);
 
 export function scenarioNames(): string[] {
   return [...SCENARIOS.keys()];

@@ -15,7 +15,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { Graphics } from 'pixi.js';
-import { spriteManifest, type SpriteEntry } from '../src/render/art/manifest';
+import { REVIEW_PAWN, spriteManifest, type SpriteEntry } from '../src/render/art/manifest';
+import { LIT_SHIFT, MIN_FEATURE } from '../src/render/art/language';
 import { cellsOf, headCellOf, ROTATIONS, type Rotation } from '../src/sim/world/footprint';
 import { Building, type BuildingId } from '../src/sim/defs/buildings';
 import { footprintCentre, sleeperCentreAt } from '../src/render/placement';
@@ -37,7 +38,7 @@ import {
   visibleCounts,
 } from '../src/render/art/raster/measure';
 import { rasterize } from '../src/render/art/raster/raster';
-import { Palette, PawnPalette } from '../src/render/art/palette';
+import { Palette, PawnPalette, shade } from '../src/render/art/palette';
 
 const MANIFEST = spriteManifest();
 const cases = MANIFEST.map((s) => [s.key, s] as const);
@@ -235,11 +236,23 @@ describe('rotations differ when they must, and match when they must', () => {
   );
 
   it.each(withRules.map((s) => [s.group, s] as const))('%s', (_group, sprite) => {
-    const siblings = MANIFEST.filter((s) => s.group === sprite.group && s.key.endsWith('open'));
-    const rasterFor = (rotation: number) => {
-      const found = siblings.find((s) => s.rotation === rotation)!;
-      return render(found).raster;
-    };
+    /*
+     * Rendered from `buildBuildingDrawList` rather than looked up in the manifest.
+     *
+     * The manifest only carries all four facings for structures that are `orientable`,
+     * because three duplicate rows in every four made the contact sheet a worse review
+     * surface once there were seventeen structures on it. That is a decision about the
+     * *sheet*; this is a claim about the *function*, and it would be a poor check if
+     * turning off a row could turn off an assertion. Frame comes from the sprite, whose
+     * footprint bounds are rotation-invariant for anything this rule is applied to.
+     */
+    const building = Number(sprite.key.split(':')[1]) as BuildingId;
+    const rasterFor = (rotation: number) =>
+      rasterize(
+        buildBuildingDrawList(building, rotation as Rotation, false),
+        sprite.width,
+        sprite.height,
+      );
 
     for (const [a, b] of sprite.contract.rotationsDiffer ?? []) {
       expect(samePixels(rasterFor(a), rasterFor(b)), `rot ${a} and rot ${b} are identical`).toBe(
@@ -248,6 +261,79 @@ describe('rotations differ when they must, and match when they must', () => {
     }
     for (const [a, b] of sprite.contract.rotationsMatch ?? []) {
       expect(samePixels(rasterFor(a), rasterFor(b)), `rot ${a} and rot ${b} differ`).toBe(true);
+    }
+  });
+});
+
+describe('the colonist has a face', () => {
+  /*
+   * The assertion no per-mark floor could make.
+   *
+   * `drawHair` drew a crown ellipse both wider *and* taller than the skull it sat on, for
+   * three of the five styles, so the hair covered the head outright. Measured on the style
+   * the sheet happened to render: the head contributed **six** visible pixels, all of them
+   * chin and jaw corner, and both eyes were `Palette.ink` painted onto hair.
+   *
+   * `mayHide` counts marks at *zero* and the floor is 2 — an eye is deliberately two pixels
+   * on a 26px figure. Six is neither, so the harness reported two hidden marks (the
+   * crescent and its cut-back) and had nothing to say about the face they were meant to be
+   * on. **The floor is the wrong instrument**: it asks whether a mark exists, and the
+   * question here is whether a mark is still big enough to be the thing it is for.
+   *
+   * So this measures the face directly, and on **every** style — the defect was
+   * style-dependent, which is exactly why one entry on the sheet was not enough.
+   */
+  const skin = PawnPalette.skin[REVIEW_PAWN.skinTone];
+  const lit = shade(skin, LIT_SHIFT);
+
+  /** Face pixels: the skin base and its sunward crescent, wherever they survive. */
+  const faceTones = new Set([skin, lit]);
+
+  /**
+   * Measured at 62 with the fix in, against 6 before it. Set at 40 so an ordinary style
+   * change has room and a burial does not: the gap between a face and no face is an order
+   * of magnitude, not a few pixels.
+   */
+  const MIN_FACE = 40;
+
+  it.each(
+    MANIFEST.filter((s) => s.key.startsWith('pawn:standing')).map((s) => [s.key, s] as const),
+  )('%s shows skin below the hairline', (_key, sprite) => {
+    const { raster } = render(sprite);
+
+    let face = 0;
+    for (let i = 0; i < raster.rgba.length; i += 4) {
+      if (raster.rgba[i + 3] < 255) continue;
+      const colour = (raster.rgba[i] << 16) | (raster.rgba[i + 1] << 8) | raster.rgba[i + 2];
+      if (faceTones.has(colour)) face++;
+    }
+
+    expect(
+      face,
+      `only ${face}px of face survive this hair style — the head is buried under it, ` +
+        `and the eyes are being drawn onto hair\n${ascii(raster)}`,
+    ).toBeGreaterThanOrEqual(MIN_FACE);
+  });
+
+  it('the sunward crescent is visible, on every style', () => {
+    /*
+     * Stated separately from the face count because it is a *different* failure. A face
+     * can be perfectly visible with the crescent still buried — that is the state the last
+     * milestone shipped — and the crescent is the shape language's own worked example, on
+     * the most-looked-at sprite in the game. If it is invisible here it is decoration
+     * nobody reads, and the rule it demonstrates is not being demonstrated.
+     */
+    for (const sprite of MANIFEST.filter((s) => s.key.startsWith('pawn:standing'))) {
+      const { raster } = render(sprite);
+      let crescent = 0;
+      for (let i = 0; i < raster.rgba.length; i += 4) {
+        const colour = (raster.rgba[i] << 16) | (raster.rgba[i + 1] << 8) | raster.rgba[i + 2];
+        if (raster.rgba[i + 3] === 255 && colour === lit) crescent++;
+      }
+      // `language.ts`' own floor: below it a mark is not a detail the player reads.
+      expect(crescent, `${sprite.key} draws no visible sunward crescent`).toBeGreaterThanOrEqual(
+        MIN_FEATURE,
+      );
     }
   });
 });

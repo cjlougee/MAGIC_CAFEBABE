@@ -24,6 +24,15 @@ export const Palette = {
   /** Player-laid paving. Warmer than relic plating, so built floors read as *yours*. */
   stoneFloor: 0x77706a,
   wall: 0x6a6259,
+  /**
+   * Woven floor covering — the one terrain the player lays for how it looks.
+   *
+   * The rule is *terrain desaturated, technology saturated*, and a carpet is neither
+   * wilderness nor tech: it is manufactured, so it may carry colour, but it covers the
+   * largest areas of any furnishing, so a saturated one would shout down the colonists
+   * standing on it. A dull red is as far as that goes.
+   */
+  carpet: 0x7a4038,
 
   // ── Accents: saturated. Reserved for tech, alerts, and UI emphasis ─────────
   relic: 0x53d6c4,

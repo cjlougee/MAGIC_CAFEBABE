@@ -261,17 +261,119 @@ body {
   font-weight: 600;
 }
 
-.toolbar--architect {
+/* ── Architect menu ───────────────────────────────────────────────────────── */
+
+.build-menu {
+  position: absolute;
+  left: 50%;
   bottom: 78px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px;
+  max-width: min(920px, 94vw);
+  background: color-mix(in srgb, var(--c-panel) 92%, transparent);
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 7px;
+  backdrop-filter: blur(6px);
+  user-select: none;
 }
 
-.toolbar__cost {
-  display: block;
-  margin-top: 1px;
+.build-menu__tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--c-panelEdge);
+  padding-bottom: 5px;
+}
+
+.build-menu__tab {
+  padding: 4px 11px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--c-textDim);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    color 90ms ease,
+    background-color 90ms ease;
+}
+
+.build-menu__tab:hover {
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-panelEdge) 60%, transparent);
+}
+
+.build-menu__tab.is-active {
+  color: var(--c-void);
+  background: var(--c-relic);
+  font-weight: 600;
+}
+
+.build-menu__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.build-menu__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  width: 84px;
+  padding: 4px 4px 5px;
+  font-family: var(--font-ui);
+  color: var(--c-textDim);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  transition:
+    color 90ms ease,
+    background-color 90ms ease;
+}
+
+.build-menu__item:hover {
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-panelEdge) 60%, transparent);
+}
+
+.build-menu__item.is-active {
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-relic) 22%, transparent);
+  border-color: var(--c-relic);
+}
+
+/*
+ * A fixed box the sprite is fitted *into*, never stretched to fill.
+ *
+ * `max-width`/`max-height` rather than `width`/`height`: a 2×2 table's frame is twice a
+ * stool's, and forcing both to one size would make the stool the same size as the table
+ * on screen — which is precisely the information the thumbnail exists to convey.
+ * `pixelated` keeps the downscale from smearing art drawn for nearest sampling.
+ */
+.build-menu__sprite {
+  max-width: 100%;
+  max-height: 40px;
+  image-rendering: pixelated;
+}
+
+.build-menu__name {
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.build-menu__cost {
   font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: 0.03em;
-  opacity: 0.75;
+  text-align: center;
+  opacity: 0.7;
 }
 
 .toolbar__divider {
@@ -1482,5 +1584,28 @@ body {
   font-size: 11px;
   font-style: italic;
   color: var(--c-textDim);
+}
+
+.structure-panel__owner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.structure-panel__release {
+  padding: 3px 8px;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  color: var(--c-textDim);
+  background: transparent;
+  border: 1px solid var(--c-panelEdge);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.structure-panel__release:hover {
+  color: var(--c-text);
+  border-color: var(--c-textDim);
 }
 

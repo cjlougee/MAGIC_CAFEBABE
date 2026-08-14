@@ -325,6 +325,54 @@ describe('blueprints', () => {
     expect(countItem(world, ItemDef.Stone)).toBe(before + 5);
   });
 
+  it('refuses to lay a surface over one the colony already laid', () => {
+    /*
+     * **`naturalTerrain` remembers exactly one layer down.** `setSurfaceAt` lays a floor
+     * over ground and leaves `naturalTerrain` holding what was underneath, so lifting the
+     * floor gives back sand where there was sand. A *second* surface has nowhere to record
+     * what it covered — so carpet over a stone floor would deconstruct straight back to
+     * grass, quietly destroying a floor the player paid stone and labour for.
+     *
+     * Sneaks up in exactly the way the M15 landing-site bug did: every part is correct and
+     * the composition is not. Nothing on screen would ever have said so.
+     */
+    const { sim, world, origin } = buildSite();
+    const at = pos(origin.x + 6, origin.y);
+    const area = { x0: at.x, y0: at.y, x1: at.x, y1: at.y, z: 0 };
+    const index = world.map.idx(at.x, at.y);
+    const natural = world.map.naturalTerrainAt(index);
+
+    sim.dispatch({ type: 'build', buildable: Buildable.Floor, area, instant: true });
+    sim.flushCommands();
+    expect(world.map.terrainAt(index)).toBe(Terrain.StoneFloor);
+
+    sim.dispatch({ type: 'build', buildable: Buildable.Carpet, area });
+    sim.flushCommands();
+
+    expect(world.sites.size, 'carpet may not be laid over a built floor').toBe(0);
+    // And the ground the floor was laid over is still the ground it was laid over.
+    expect(world.map.naturalTerrainAt(index)).toBe(natural);
+  });
+
+  it('lays a surface on natural ground, and gives that ground back', () => {
+    // The other half: the rule must refuse *stacking*, not laying.
+    const { sim, world, origin } = buildSite();
+    const at = pos(origin.x + 7, origin.y);
+    const area = { x0: at.x, y0: at.y, x1: at.x, y1: at.y, z: 0 };
+    const index = world.map.idx(at.x, at.y);
+    const natural = world.map.naturalTerrainAt(index);
+
+    sim.dispatch({ type: 'build', buildable: Buildable.Carpet, area, instant: true });
+    sim.flushCommands();
+    expect(world.map.terrainAt(index)).toBe(Terrain.Carpet);
+
+    sim.dispatch({ type: 'designate', action: 'deconstruct', area });
+    sim.flushCommands();
+    sim.run(30000);
+
+    expect(world.map.terrainAt(index)).toBe(natural);
+  });
+
   it('is never assigned to a colonist with Build switched off', () => {
     const { sim, world, origin } = buildSite(1);
     const pawn = [...world.pawns.values()][0];

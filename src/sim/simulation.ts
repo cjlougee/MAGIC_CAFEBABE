@@ -208,6 +208,14 @@ export class Simulation {
           if (door) setLocked(this.worldState, door, command.locked);
           break;
         }
+        case 'releaseOwner': {
+          const owned = this.worldState.buildings.get(command.building);
+          // No invalidation of anything: ownership changes who *wants* a bed, not what
+          // the world is shaped like. Nothing to mark dirty, which is why this does not
+          // live beside `setLocked` in `construction.ts`.
+          if (owned) owned.owner = null;
+          break;
+        }
         case 'debug':
           this.applyDebug(command);
           break;

@@ -79,7 +79,7 @@ export function canPlaceFootprint(
 ): boolean {
   for (const cell of cellsOf(anchor, footprintOfBuildable(buildable), rotation)) {
     if (!world.map.inBounds(cell.x, cell.y, cell.z)) return false;
-    if (!canPlaceBlueprint(world, world.map.idx(cell.x, cell.y, cell.z))) return false;
+    if (!canPlaceBlueprint(world, world.map.idx(cell.x, cell.y, cell.z), buildable)) return false;
   }
   return true;
 }
@@ -125,10 +125,42 @@ export function orientToNeighbours(
   return requested;
 }
 
-/** Whether a single cell could take a blueprint. The footprint check above calls it per cell. */
-export function canPlaceBlueprint(world: World, cellIndex: number): boolean {
+/**
+ * Whether a single cell could take a blueprint. The footprint check above calls it per cell.
+ *
+ * `buildable` is optional only because the drag preview asks the question before the player
+ * has committed to a drag; pass it wherever it is known, or the surface rule below goes
+ * quiet and the preview starts promising something the simulation refuses.
+ */
+export function canPlaceBlueprint(
+  world: World,
+  cellIndex: number,
+  buildable?: BuildableId,
+): boolean {
   if (!world.map.isStorableAt(cellIndex)) return false;
   if (buildingAt(world, cellIndex)) return false;
   if (siteAt(world, cellIndex)) return false;
+  if (buildable !== undefined && wouldStackSurfaces(world, cellIndex, buildable)) return false;
   return true;
+}
+
+/**
+ * Whether laying this surface would bury one the colony already laid.
+ *
+ * **`naturalTerrain` remembers exactly one layer down**, and that is the whole rule.
+ * `setSurfaceAt` puts a floor *over* the ground and leaves `naturalTerrain` alone so that
+ * lifting the floor gives back the sand it was laid on rather than a default we invented —
+ * but a second surface over the first has nowhere to record what it covered. Carpet over a
+ * stone floor would deconstruct straight back to grass, silently destroying a floor the
+ * player paid stone and labour for, and nothing in the game could say it had happened.
+ *
+ * So the surfaces do not stack: take the floor up first. That also closes a hole that has
+ * been open since M4 — Floor could be laid on Floor for two stone and no effect whatsoever.
+ *
+ * Only ever asked of a *surface*. A chair on a carpet is not this question: a building
+ * stands on terrain and does not replace it.
+ */
+function wouldStackSurfaces(world: World, cellIndex: number, buildable: BuildableId): boolean {
+  if (buildableDef(buildable).result.kind !== 'terrain') return false;
+  return buildableProducingTerrain(world.map.terrainAt(cellIndex)) !== undefined;
 }

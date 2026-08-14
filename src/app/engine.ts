@@ -338,6 +338,13 @@ export class Engine {
     this.store.update({ snapshot: this.sim.snapshot() });
   }
 
+  /** Gives up a colonist's claim on a bed. Republished at once, like the lock. */
+  releaseOwner(building: EntityId): void {
+    this.sim.dispatch({ type: 'releaseOwner', building });
+    this.sim.flushCommands();
+    this.store.update({ snapshot: this.sim.snapshot() });
+  }
+
   // Bills. Each republishes the snapshot immediately rather than waiting for the next
   // 10Hz tick, so a click on "+" moves the number now — and so they still work while
   // the game is paused, which is when a player is most likely to be setting quotas.

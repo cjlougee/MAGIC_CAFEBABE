@@ -25,6 +25,7 @@ import { drawListFromGraphics } from './raster/fromGraphics';
 import {
   buildPawnGraphics,
   buildSleepingPawnGraphics,
+  HAIR_STYLES,
   PAWN_ASLEEP_GROUND_Y,
   PAWN_ASLEEP_H,
   PAWN_ASLEEP_W,
@@ -149,7 +150,43 @@ const BUILDING_CONTRACTS: Partial<Record<BuildingId, Partial<SpriteContract>>> =
    * quietly dropped.
    */
   3: { mayOverhang: 0.06 },
+  /*
+   * The same case as the bed, and reached the same way: four posts, and the far one stands
+   * entirely behind the seat. Which post that is changes with the facing while the count
+   * does not — two marks, in all four rotations, because a leg's top is hidden by
+   * construction and only its two side faces are ever drawn.
+   */
+  7: {
+    mayHide: { count: 2, why: 'the far leg stands entirely behind the seat' },
+    rotationsDiffer: [[0, 2]],
+  },
+  8: {
+    mayHide: { count: 2, why: 'the far leg stands entirely behind the table top' },
+    rotationsMatch: [[0, 1], [0, 2], [0, 3]],
+  },
+  // The drawer bank is at one end, so turning the desk has to move it end to end.
+  9: { rotationsDiffer: [[0, 2]] },
+  // The uprights are symmetric; the lips are all on the front, so the facings differ.
+  10: { rotationsDiffer: [[0, 2]] },
+  // The cloth hangs on one side of the pole.
+  16: { rotationsDiffer: [[0, 2]] },
 };
+
+/**
+ * Which facings of a structure are worth a row on the sheet.
+ *
+ * All four for anything `orientable`, and rotation 0 alone for the rest. A wall, a
+ * campfire and a hearth each occupied four identical rows, which was affordable at six
+ * structures and is not at seventeen — the sheet is the review surface, and three
+ * duplicate rows in every four is a worse one.
+ *
+ * The check that turning a square structure really *is* a no-op does not live here and
+ * never did: `rotationsMatch` renders its siblings through `buildBuildingDrawList`
+ * directly, which tests the function rather than this list.
+ */
+function facingsOf(def: { orientable: boolean }): readonly Rotation[] {
+  return def.orientable ? ROTATIONS : [0];
+}
 
 function buildingEntries(): SpriteEntry[] {
   const entries: SpriteEntry[] = [];
@@ -157,7 +194,7 @@ function buildingEntries(): SpriteEntry[] {
   for (const def of BUILDING_DEFS) {
     const states = def.lockable ? [false, true] : [false];
     for (const locked of states) {
-      for (const rotation of ROTATIONS) {
+      for (const rotation of facingsOf(def)) {
         const size = sizeOf(def.footprint, rotation);
         const rise = BUILDING_HEIGHT[def.id];
         const box = footprintBounds(0, 0, size.w, size.h, 0, rise);
@@ -187,39 +224,53 @@ function buildingEntries(): SpriteEntry[] {
 /** A stand-in colonist. Any appearance will do — the pose is what is under review. */
 export const REVIEW_PAWN = { skinTone: 1, hairStyle: 2, hairColour: 0, apparelColour: 3 };
 
+/**
+ * A colonist, once per hair style.
+ *
+ * **One entry was the gap that shipped the faceless colonist.** The defect was
+ * style-dependent — a crown ellipse larger than the skull, on three styles of five — and
+ * the sheet rendered exactly one style, so the four that were never drawn were also never
+ * looked at. A variant that no review surface renders is a variant nobody reviews.
+ *
+ * Everything else about the appearance is held fixed: skin, hair colour and apparel change
+ * no geometry, so varying them would add rows without adding coverage.
+ */
 function pawnEntries(): SpriteEntry[] {
-  const entries: SpriteEntry[] = [
-    {
-      key: 'pawn:standing',
+  /*
+   * No footprint: a pawn stands on a cell but does not claim it, and their sprite is
+   * taller than a tile on purpose. The floor is 2 rather than 6 because an eye is
+   * deliberately two pixels — on a 26px figure that is a readable feature.
+   *
+   * `mayHide` is **absent, and that is the assertion**: every mark on a colonist is meant
+   * to be visible. It used to declare two, for a sunward crescent buried under hair, and
+   * the declaration is what made the burial look accounted for. See `tests/art.test.ts`
+   * for the check that the face itself survives, which no per-mark floor could make —
+   * the head contributed six pixels, and six is not zero.
+   */
+  const CONTRACT: SpriteContract = {
+    minVisibleInk: 2,
+    containment: 'frame',
+    aspect: [0.35, 0.75],
+  };
+
+  const entries: SpriteEntry[] = [];
+
+  for (let hairStyle = 0; hairStyle < HAIR_STYLES; hairStyle++) {
+    const appearance = { ...REVIEW_PAWN, hairStyle };
+    entries.push({
+      key: `pawn:standing:${hairStyle}`,
       group: 'Colonist',
-      label: 'awake',
+      label: `hair ${hairStyle}`,
       width: PAWN_W,
       height: PAWN_H,
       rise: 0,
       rotation: 0,
-      draw: () => drawListFromGraphics(buildPawnGraphics(REVIEW_PAWN).context, 'pawn:standing'),
-      vector: () => buildPawnGraphics(REVIEW_PAWN).context,
-      /*
-       * No footprint: a pawn stands on a cell but does not claim it, and their sprite is
-       * taller than a tile on purpose. The floor is 2 rather than 6 because an eye is
-       * deliberately two pixels — on a 26px figure that is the whole face.
-       *
-       * **The two hidden marks are a real defect, not a decoration.** The head's sunward
-       * crescent — the shape language's own worked example — is drawn at `headY - 1` and
-       * then covered outright by a hair ellipse drawn after it at the same centre and a
-       * larger radius. It contributes *zero* pixels on three of the five hair styles and
-       * under 16 on the other two. Recorded here and scheduled in the roadmap rather than
-       * fixed, because M12 is the harness and not the art pass — but it is exactly the
-       * kind of thing the harness was built to stop shipping.
-       */
-      contract: {
-        minVisibleInk: 2,
-        containment: 'frame',
-        aspect: [0.35, 0.75],
-        mayHide: { count: 2, why: 'head crescent buried under hair — known defect, see ROADMAP M13' },
-      },
-    },
-  ];
+      draw: () =>
+        drawListFromGraphics(buildPawnGraphics(appearance).context, `pawn:standing:${hairStyle}`),
+      vector: () => buildPawnGraphics(appearance).context,
+      contract: CONTRACT,
+    });
+  }
 
   for (const rotation of ROTATIONS) {
     entries.push({
@@ -307,50 +358,18 @@ function sleeperOnBedEntries(): SpriteEntry[] {
   );
 }
 
-/**
- * The drawings the models replaced, still drawn, still on the sheet.
+/*
+ * `legacyEntries()` lived here — the hand-drawn bed and bedroll kept on the sheet as
+ * `— before` rows so the conversion could be judged side by side rather than taken on
+ * faith. M12 wrote "delete when M13 signs the models off", and M13 signs them off:
+ * measured over the same ink area, the bed carries 55 distinct tones against the drawing's
+ * 10 and the bedroll 38 against 5. Every structure M13 added is modelled on that evidence.
  *
- * "Keep variants rather than overwriting them" is a rule this project learned the hard
- * way: the first order cursor was wrong by the brief and better in practice, and it
- * survived only because the alternative was added beside it instead of over it. A
- * conversion is exactly the case where that matters most — the new thing is more
- * *systematic*, which is not the same as better, and the only way to know is to see them
- * next to each other at the same scale.
- *
- * Each keeps its own historical rise, because that is what it was drawn for: the bedroll
- * was flat by construction until the model gave it thickness.
- *
- * **Delete when M13 signs the models off.**
+ * Kept in the history rather than in the manifest, because the comparison is answered.
+ * Wall, door and hearth have no `— before` row for the opposite reason: they were not
+ * converted, and are M14's.
  */
-const LEGACY_RISE: Partial<Record<BuildingId, number>> = { 0: 0, 4: 11 };
-
-function legacyEntries(): SpriteEntry[] {
-  return BUILDING_DEFS.filter((def) => isModelled(def.id)).flatMap((def) =>
-    ROTATIONS.map((rotation) => {
-      const size = sizeOf(def.footprint, rotation);
-      const rise = LEGACY_RISE[def.id] ?? 0;
-      const box = footprintBounds(0, 0, size.w, size.h, 0, rise);
-
-      return {
-        key: `legacy:${def.id}:${rotation}`,
-        group: `${def.name} — before`,
-        label: `rot ${rotation}`,
-        width: box.width,
-        height: box.height,
-        rise,
-        footprint: size,
-        rotation,
-        draw: () =>
-          drawListFromGraphics(buildBuildingGraphics(def.id, rotation, false).context, 'legacy'),
-        vector: () => buildBuildingGraphics(def.id, rotation, false).context,
-        // Held to containment and self-intersection, which are facts about any art, but
-        // not to the mark floor: these are being compared, not maintained.
-        contract: { minVisibleInk: 0, containment: 'footprint' as const },
-      };
-    }),
-  );
-}
 
 export function spriteManifest(): SpriteEntry[] {
-  return [...buildingEntries(), ...pawnEntries(), ...sleeperOnBedEntries(), ...legacyEntries()];
+  return [...buildingEntries(), ...pawnEntries(), ...sleeperOnBedEntries()];
 }

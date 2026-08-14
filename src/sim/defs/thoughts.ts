@@ -34,6 +34,7 @@ export const Thought = {
   Exhausted: 6,
   // Appended after the fact — a memory, despite sitting past the situational block.
   AteMeal: 7,
+  SleptInOwnBed: 8,
 } as const;
 
 export type ThoughtId = (typeof Thought)[keyof typeof Thought];
@@ -95,6 +96,23 @@ export const THOUGHT_DEFS: readonly ThoughtDef[] = [
     // player feels the decision to build it.
     mood: +0.06,
     durationTicks: hours(6),
+    situational: false,
+  },
+  {
+    id: Thought.SleptInOwnBed,
+    label: 'Slept in my own bed',
+    /*
+     * Replaces `SleptInBed` rather than stacking with it, so the ladder is
+     * ground → bedroll → a bed of your own, each a step up.
+     *
+     * Both sides stay reachable, which is why `ownable` is a flag on the *def* and not
+     * simply `isBed`: the party's bedrolls belong to nobody, so a colonist sleeping rough
+     * or on shared bedding never gets this, and building beds is what earns it. Making
+     * every bed claimable on first use would have retired `SleptInBed` on night one and
+     * left a thought in the table that nothing could ever produce.
+     */
+    mood: +0.07,
+    durationTicks: hours(10),
     situational: false,
   },
 ];

@@ -19,6 +19,7 @@ interface StructurePanelProps {
   readonly onDeconstruct: () => void;
   readonly onCancelDeconstruct: () => void;
   readonly onSetLocked: (locked: boolean) => void;
+  readonly onReleaseOwner: () => void;
   readonly onClose: () => void;
 }
 
@@ -27,6 +28,7 @@ export function StructurePanel({
   onDeconstruct,
   onCancelDeconstruct,
   onSetLocked,
+  onReleaseOwner,
   onClose,
 }: StructurePanelProps) {
   const footprint =
@@ -66,6 +68,31 @@ export function StructurePanel({
           >
             {structure.locked ? 'Locked' : 'Unlocked'}
           </button>
+        )}
+
+        {/*
+          Only for something that can be owned, and it says so even when nobody has
+          claimed it — "Unclaimed" is a fact about the bed, where the absence of the row
+          entirely is a fact about walls. A colonist claims a bed by sleeping in it; this
+          is the only way to undo that, so without the row the state would be invisible
+          and permanent.
+        */}
+        {structure.owner && (
+          <div className="structure-panel__owner">
+            <span className="structure-panel__note">
+              {structure.owner.name ? `${structure.owner.name}'s` : 'Unclaimed'}
+            </span>
+            {structure.owner.name && (
+              <button
+                type="button"
+                className="structure-panel__release"
+                onClick={onReleaseOwner}
+                title="Give it up. The next colonist to sleep here claims it."
+              >
+                Release
+              </button>
+            )}
+          </div>
         )}
 
         {/*

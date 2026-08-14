@@ -34,35 +34,132 @@ export const PAWN_GROUND_Y = 40;
 
 const CENTRE = PAWN_W / 2;
 
+/** How many hair styles exist. The review surfaces render every one; see `manifest.ts`. */
+export const HAIR_STYLES = 5;
 
+// ── The hairline ────────────────────────────────────────────────────────────────
+//
+// Hair is drawn *after* the skin, so the only thing keeping a face on a colonist is
+// where the hair is allowed to stop. Three of the five styles had no such line: their
+// crown was an ellipse both wider *and* taller than the skull it sat on, so it covered
+// the head outright.
+//
+// Measured on the sprite that shipped — style 2, the one the contact sheet happened to
+// render — the head contributed **six visible pixels**, all of them chin and jaw corner,
+// and both eyes were `Palette.ink` painted straight onto the hair. The sunward crescent,
+// which is the shape language's own worked example, contributed none.
+//
+// The harness said "two marks are hidden" and could not say more: `mayHide` counts marks
+// at *zero*, and a mark crushed to six pixels is not zero. The assertion that names this
+// bug is in `tests/art.test.ts` — the face is measured directly, on all five styles.
+
+/** Lowest a hair mark may reach across the face, as an offset from `headY`. Above the eyes. */
+const HAIRLINE = -1.5;
+
+/**
+ * Half-width of the face no hair mark may cross below the hairline.
+ *
+ * Temples, sideburns and a long style's fall all live *outside* it, which is what lets
+ * them run past the jaw without touching the face.
+ */
+const FACE_HALF_W = 4;
+
+/** Width of a long style's fall, either side of the face. */
+const FALL_W = 2.6;
+
+/**
+ * The crown of a skull: an elliptical arc closed flat along the hairline.
+ *
+ * A polygon rather than an ellipse, because an ellipse cannot be cut. A horizontal
+ * ellipse sitting on top of a vertical one is the shape the old styles reached for, and
+ * on a 12px head it is a mushroom — wider than the skull at the height where the skull is
+ * narrowest. Tracing the skull's own upper arc gives hair that follows the head, and gives
+ * it a hairline that is a stated number rather than whatever the ellipse happened to do.
+ */
+function crown(cx: number, cy: number, rx: number, ry: number, cutY: number): number[] {
+  /*
+   * Walked in the ellipse's own parameter, not in screen angle — those differ whenever
+   * `rx !== ry`, and taking `atan2` of the screen offsets puts every intermediate vertex
+   * slightly off the curve. On a 12px head that is a lumpy silhouette rather than a wrong
+   * one, which is the kind of thing nobody finds by looking.
+   */
+  const phi = Math.asin(Math.max(-1, Math.min(1, (cutY - cy) / ry)));
+  // From the left hairline, round the top (sin = -1), to the right one. The polygon
+  // closes itself along the hairline, so neither end is repeated.
+  const from = Math.PI - phi;
+  const sweep = Math.PI + 2 * phi;
+
+  const STEPS = 14;
+  const points: number[] = [];
+  for (let i = 0; i <= STEPS; i++) {
+    const angle = from + (sweep * i) / STEPS;
+    points.push(cx + rx * Math.cos(angle), cy + ry * Math.sin(angle));
+  }
+  return points;
+}
 
 function drawHair(g: Graphics, style: number, colour: number, headY: number): void {
   const dark = shade(colour, -0.25);
+  // Half a pixel proud of the skull all round, so hair reads as sitting *on* the head
+  // rather than as a painted patch of it.
+  const rx = 6;
+  const ry = 6.5;
 
-  switch (style % 5) {
-    case 0: // Cropped cap.
-      g.ellipse(CENTRE, headY - 1, 6.5, 5.5).fill({ color: colour });
-      g.rect(CENTRE - 6.5, headY - 1, 13, 2).fill({ color: colour });
+  switch (style % HAIR_STYLES) {
+    case 0: // Cropped cap, cut level at the hairline.
+      g.poly(crown(CENTRE, headY, rx, ry, headY + HAIRLINE)).fill({ color: colour });
       break;
 
-    case 1: // Cap with a fringe over one eye.
-      g.ellipse(CENTRE, headY - 1, 6.5, 5.5).fill({ color: colour });
-      g.rect(CENTRE - 6.5, headY - 1, 8, 4).fill({ color: colour });
+    case 1: // The same cap with a fringe swept over one eye.
+      g.poly(crown(CENTRE, headY, rx, ry, headY + HAIRLINE)).fill({ color: colour });
+      /*
+       * The one mark in the file that crosses `FACE_HALF_W` on purpose — a fringe is a
+       * piece of hair *on* the face, and the rule exists so that breaking it is a decision
+       * rather than an accident.
+       *
+       * Deliberately one eye, and deliberately the shaded side: the sunward cheek carries
+       * the crescent, and a fringe over that would bury the highlight all over again.
+       */
+      g.rect(CENTRE - 5, headY + HAIRLINE, 4.2, 3.5).fill({ color: colour });
       break;
 
-    case 2: // Long, falling past the jaw.
-      g.ellipse(CENTRE, headY - 1, 7, 6).fill({ color: colour });
-      g.rect(CENTRE - 7, headY - 1, 2.5, 10).fill({ color: dark });
-      g.rect(CENTRE + 4.5, headY - 1, 2.5, 10).fill({ color: dark });
+    case 2: // Long, falling past the jaw on both sides.
+      g.poly(crown(CENTRE, headY, rx, ry, headY + HAIRLINE)).fill({ color: colour });
+      /*
+       * Both falls are placed from their *inner* edge, outside `FACE_HALF_W`, which is
+       * what lets them run the whole length of the face without covering any of it.
+       *
+       * The sunward one clears it by a further half pixel. Flush against the boundary it
+       * clipped the cheek's lit rim down to three pixels — so this was the one style of
+       * five where the crescent still all but vanished, which is the same defect a size
+       * smaller, and the reason the crescent gets its own assertion rather than being
+       * folded into the face count.
+       */
+      g.rect(CENTRE - FACE_HALF_W - 0.4 - FALL_W, headY - 3, FALL_W, 11).fill({ color: dark });
+      g.rect(CENTRE + FACE_HALF_W + 0.9, headY - 3, FALL_W, 11).fill({ color: dark });
       break;
 
-    case 3: // Crest.
-      g.rect(CENTRE - 1.5, headY - 8, 3, 7).fill({ color: colour });
-      g.ellipse(CENTRE, headY, 6.5, 4).fill({ color: dark });
+    case 3: {
+      /*
+       * A knot gathered above the crown, over cropped sides — so this style shows the most
+       * face of the five.
+       *
+       * It was a crest, drawn as a 3×7 rect, and it read as a pipe standing on someone's
+       * head. Tapering it into a ridge did not save it: above a crown traced from the skull
+       * there are three rows left to work in, and a taper across three rows rounds back to
+       * a rectangle. A knot is a shape that survives being small, which a mohawk is not —
+       * and it is still the one silhouette here with something *above* the head, which is
+       * the variety the style was for.
+       */
+      g.poly(crown(CENTRE, headY, rx - 0.4, ry - 0.5, headY - 3)).fill({ color: dark });
+      g.ellipse(CENTRE, headY - 7.4, 2.7, 2.5).fill({ color: colour });
       break;
+    }
 
-    default: // Shaved.
-      g.ellipse(CENTRE, headY - 2, 5.5, 3).fill({ color: shade(colour, -0.4) });
+    default: // Shaved: stubble on the crown, nothing on the face at all.
+      g.poly(crown(CENTRE, headY, rx - 0.6, ry - 0.7, headY - 3.5)).fill({
+        color: shade(colour, -0.4),
+      });
       break;
   }
 }
@@ -105,15 +202,29 @@ export function buildPawnGraphics(appearance: PawnAppearance): Graphics {
   const headY = PAWN_GROUND_Y - 29;
   g.roundRect(CENTRE - 2, PAWN_GROUND_Y - 25, 4, 4, 1.5).fill({ color: shade(skin, -0.15) });
   g.ellipse(CENTRE, headY, 5.5, 6).fill({ color: skin });
-  // A crescent, not a full pass: drawn slightly up-and-right and then cut back by the
-  // skin tone, so the highlight survives only along the sunward rim.
-  g.ellipse(CENTRE + 1, headY - 1, 5, 5.4).fill({ color: shade(skin, LIT_SHIFT) });
-  g.ellipse(CENTRE - 0.5, headY - 0.4, 4.8, 5.2).fill({ color: skin });
+  /*
+   * A crescent, not a full pass: drawn slightly up-and-right and then cut back by the
+   * skin tone, so the highlight survives only along the sunward rim.
+   *
+   * Both ellipses are **inset inside the skull**, which the first version was not — it
+   * reached half a pixel past the head's widest point, and would have laid a stray lit
+   * mark beside the face the moment the hair stopped burying it. Exactly the failure
+   * `litCapsule` documents for a bed: a highlight that escapes its silhouette reads as a
+   * line lying next to the object.
+   */
+  g.ellipse(CENTRE + 0.6, headY, 4.8, 5.4).fill({ color: shade(skin, LIT_SHIFT) });
+  g.ellipse(CENTRE - 1, headY + 0.8, 4.4, 4.6).fill({ color: skin });
 
   drawHair(g, appearance.hairStyle, hair, headY);
 
-  // Eyes last, so hair never covers them — a pawn you can't read the face of reads as
-  // a prop rather than a person.
+  /*
+   * Eyes last, so nothing can cover them.
+   *
+   * That was true before and it was the whole problem: drawing them last guaranteed they
+   * were *visible*, and hid the fact that they were being painted onto a solid mass of
+   * hair rather than onto a face. Two dark marks on dark hair is not a face, it is two
+   * dark marks. `HAIRLINE` is what makes this line honest.
+   */
   g.rect(CENTRE - 2.5, headY, 1.5, 2).fill({ color: Palette.ink });
   g.rect(CENTRE + 1, headY, 1.5, 2).fill({ color: Palette.ink });
 

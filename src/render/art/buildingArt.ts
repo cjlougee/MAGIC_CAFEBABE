@@ -13,7 +13,7 @@ import { isModelled, MODELLED } from './model/buildingModels';
 import { renderModel } from './model/render';
 import type { DrawList } from './raster/drawList';
 import { drawListFromGraphics } from './raster/fromGraphics';
-import { HALF_TILE_H, HALF_TILE_W, TILE_H, TILE_W } from '../constants';
+import { HALF_TILE_H, HALF_TILE_W, LEVEL_HEIGHT, TILE_H, TILE_W } from '../constants';
 import { footprintCellCentre as cellCentre } from '../iso';
 import {
   diamond,
@@ -61,6 +61,27 @@ export const BUILDING_HEIGHT: Record<BuildingId, number> = {
   // Not a cap by decree — see ADR 0003 — there is simply nothing yet for a second storey
   // to *be*. Slice 4 builds levels properly and takes the constraint away.
   [Building.Hearth]: 18,
+
+  /*
+   * Furniture. Each is its model's tallest solid rounded up, plus a pixel or two of slack.
+   *
+   * For a modelled structure this number is a **ceiling, not a hint**: a solid above
+   * `rise / LEVEL_HEIGHT` storeys projects off the top of its own frame, which the harness
+   * fails on rather than cropping quietly. Too generous is merely wasteful; too tight
+   * slices the top off the sprite.
+   */
+  [Building.Stool]: 6,
+  [Building.Chair]: 12,
+  [Building.Table]: 14,
+  [Building.Desk]: 15,
+  [Building.Shelf]: 19,
+  [Building.Crate]: 16,
+  [Building.Safe]: 16,
+  // Room above the bracket for the flame, which is drawn over the model rather than in it.
+  [Building.Torch]: 24,
+  [Building.Lamp]: 19,
+  [Building.Floodlight]: 22,
+  [Building.Banner]: 21,
 };
 
 /**
@@ -73,6 +94,16 @@ export const BUILDING_HEIGHT: Record<BuildingId, number> = {
 export const BUILDING_LIGHT: Partial<Record<BuildingId, number>> = {
   [Building.Campfire]: Palette.firelight,
   [Building.Hearth]: Palette.firelight,
+  // A torch burns, so it casts the same warm light a fire does.
+  [Building.Torch]: Palette.firelight,
+  /*
+   * A lamp and a floodlight are salvage that never went out, so they cast the cold glow
+   * relic plating does. The *colour of the light* is the clearest statement of the ladder
+   * anywhere in the game: walk into a colony at night and warm light means somebody lit a
+   * fire, cold light means somebody found something.
+   */
+  [Building.Lamp]: Palette.relicGlow,
+  [Building.Floodlight]: Palette.relicGlow,
 };
 
 // ── Footprint geometry ──────────────────────────────────────────────────────────
@@ -426,16 +457,140 @@ function drawDoor(g: Graphics, rotation: Rotation, locked: boolean): void {
   ).fill({ color: Palette.relic });
 }
 
-/** One tongue of flame: a leaning spike, widest at its base. */
-function flame(g: Graphics, x: number, base: number, halfW: number, tall: number, lean: number, colour: number): void {
+// ── Fire ────────────────────────────────────────────────────────────────────────
+//
+// Fire is the one thing here the model layer cannot help with. A solid is shaded by which
+// way its faces point, and flame has no faces — it is an *emitter*, so the one sun does
+// not apply to it and its whole read comes from silhouette and value instead.
+
+/**
+ * One tongue of flame.
+ *
+ * Eight points rather than five, and the extra three are the entire difference between a
+ * flame and a spike. A tongue bulges low, draws in through a shoulder, and **curls** — its
+ * tip offset sideways from its own base. The shape this replaces was a straight-sided
+ * triangle, and five of them rising from a shared base point resolved, at every size, into
+ * a symmetrical crown of spikes.
+ *
+ * `lean` is kept under about 0.6 of `halfW` by every caller: past that the left edge climbs
+ * out over the right one and the outline winds through itself, which `selfIntersections`
+ * would catch but which is easier not to write.
+ */
+function tongue(
+  g: Graphics,
+  x: number,
+  base: number,
+  halfW: number,
+  tall: number,
+  lean: number,
+  colour: number,
+): void {
+  const tipX = x + lean;
   g.poly([
     x - halfW, base,
+    x - halfW * 0.98, base - tall * 0.26,
+    x - halfW * 0.62, base - tall * 0.58,
+    tipX - halfW * 0.3, base - tall * 0.85,
+    tipX, base - tall,
+    tipX + halfW * 0.26, base - tall * 0.78,
+    x + halfW * 0.8, base - tall * 0.34,
     x + halfW, base,
-    x + halfW * 0.4 + lean * 0.5, base - tall * 0.55,
-    x + lean, base - tall,
-    x - halfW * 0.5 + lean * 0.5, base - tall * 0.5,
   ]).fill({ color: colour });
 }
+
+/**
+ * A fire, at whatever size the thing burning it is.
+ *
+ * **One function and two call sites.** A campfire and a hearth are the same fire at two
+ * scales, and until now they were the same five calls copied out with two sets of numbers
+ * to keep in step — so the campfire and the hearth could drift apart one edit at a time.
+ *
+ * The value structure is the other half of the fix. The old ramp put its brightest tone in
+ * a wedge that reached the fuel and its coolest tone on the outline, which is fire drawn
+ * inside out. Heat collects **low and central**: deep red at the rim, orange through the
+ * body, gold in a core sitting *in* the logs, and one small pale heart inside that. Nothing
+ * is symmetric about the middle, because a fire that is symmetric is a cone.
+ *
+ * **No sparks.** They are the obvious next idea and they are wrong here: this sprite is
+ * baked once and never animated, so a spark is a dot frozen in the air above the fire in
+ * every frame forever, which reads as a fleck of dirt rather than as motion. Sparks arrive
+ * with an animation path, and there isn't one — see `filmstrip.html`.
+ */
+function drawFire(g: Graphics, cx: number, baseY: number, w: number, h: number): void {
+  const red = shade(Palette.danger, -0.32);
+  const redHi = shade(Palette.danger, -0.22);
+
+  /*
+   * Each tone is **a broad low mass with licks rising out of it**, at three clearly
+   * different heights with their tips well apart.
+   *
+   * Two earlier arrangements failed in opposite directions and the pair is the lesson.
+   * Narrow tongues placed side by side left a sliver of each showing down the outside —
+   * two red sticks flanking the fire, reading as candles. Nesting them concentrically
+   * instead fixed that and gave back a single peak: one silhouette coming to one point,
+   * which is a cone whatever colour it is. A fire has several licks at once, and they have
+   * to share a base or they are not one fire.
+   */
+  tongue(g, cx, baseY, w * 0.95, h * 0.48, 0, red);
+  tongue(g, cx - w * 0.4, baseY, w * 0.4, h * 0.68, -w * 0.22, red);
+  tongue(g, cx + w * 0.36, baseY, w * 0.38, h * 0.82, w * 0.2, redHi);
+  tongue(g, cx - w * 0.02, baseY, w * 0.46, h, w * 0.06, redHi);
+
+  /*
+   * The body: three licks, and **no broad mass under them**.
+   *
+   * There was one, mirroring the red. The harness found it contributing a pixel — the
+   * licks covered everything but a sliver at each end — and the answer to a mark that
+   * contributes nothing is to delete it, not to declare it hidden. Twenty-one pixels of
+   * fire will not hold four concentric rings; the red base is the only broad mass the
+   * width can pay for.
+   */
+  tongue(g, cx - w * 0.34, baseY, w * 0.34, h * 0.5, -w * 0.14, shade(Palette.hazard, -0.14));
+  tongue(g, cx + w * 0.3, baseY, w * 0.34, h * 0.62, w * 0.12, Palette.hazard);
+  tongue(g, cx - w * 0.02, baseY, w * 0.38, h * 0.8, w * 0.04, Palette.hazard);
+
+  // The core, low and off centre, and its heart.
+  tongue(g, cx + w * 0.03, baseY, w * 0.24, h * 0.46, 0, Palette.gold);
+  tongue(g, cx + w * 0.04, baseY, w * 0.12, h * 0.26, 0, shade(Palette.gold, 0.3));
+}
+
+/**
+ * A brand: the same tongues at a size with room for three of them.
+ *
+ * Not `drawFire` with smaller numbers. Scaled down to a torch's ten pixels, its heart
+ * comes out four pixels of ink — below the floor a mark has to clear to be a detail anyone
+ * reads, and the harness says so. **How many tones a fire can carry is a function of how
+ * big it is**, so a small fire gets fewer licks rather than the same licks shrunk.
+ */
+function drawBrand(g: Graphics, cx: number, baseY: number, w: number, h: number): void {
+  tongue(g, cx, baseY, w, h * 0.62, -w * 0.12, shade(Palette.danger, -0.3));
+  tongue(g, cx + w * 0.06, baseY, w * 0.72, h, w * 0.1, Palette.hazard);
+  tongue(g, cx + w * 0.04, baseY, w * 0.34, h * 0.55, 0, Palette.gold);
+}
+
+/**
+ * Vector marks drawn *over* a modelled structure.
+ *
+ * The seam between the two ways art is made, at the one place a single object genuinely
+ * needs both. A torch is a post — solids in tile space, shaded by the one sun — with a
+ * flame on it, and flame has no faces to shade. Composing them is a concatenation because
+ * `DrawList` was already the shared form both paths produce; nothing new was needed to
+ * express it.
+ *
+ * Positioned from the frame's own ground plane, which for a 1×1 sits `rise` below the
+ * frame top. Measuring from the top instead is what once drew a hearth a whole storey
+ * above its own footprint.
+ */
+const MODEL_OVERLAY: Partial<Record<BuildingId, () => Graphics>> = {
+  [Building.Torch]: () => {
+    const g = new Graphics();
+    const groundY = HALF_TILE_H + BUILDING_HEIGHT[Building.Torch];
+    // The top of the bracket the model puts at 0.7 storeys.
+    const bracketTop = groundY - 0.7 * LEVEL_HEIGHT;
+    drawBrand(g, HALF_TILE_W, bracketTop + 1, 6, 14);
+    return g;
+  },
+};
 
 /**
  * A ring of stones with a fire in it.
@@ -484,13 +639,7 @@ function drawCampfire(g: Graphics): void {
     color: shade(log, 0.12),
   });
 
-  // Three tongues, hottest and brightest at the core, leaning slightly apart so the
-  // silhouette isn't a symmetrical cone.
-  flame(g, cx - 5, cy - 3, 5, height * 0.75, -2, shade(Palette.hazard, -0.2));
-  flame(g, cx + 5, cy - 3, 5, height * 0.85, 2, shade(Palette.hazard, -0.1));
-  flame(g, cx, cy - 2, 7, height * 1.25, 0, Palette.hazard);
-  flame(g, cx, cy - 2, 4, height * 0.95, 0, shade(Palette.gold, 0.05));
-  flame(g, cx, cy - 1, 2, height * 0.6, 0, shade(Palette.gold, 0.45));
+  drawFire(g, cx, cy - 2, 11, height * 1.35);
 
   for (const s of stones) {
     if (!s.front) continue;
@@ -543,13 +692,9 @@ function drawHearth(g: Graphics): void {
     color: shade(log, 0.12),
   });
 
-  // Same five-tongue build as the campfire, scaled up. Leaning apart so the silhouette
-  // is not a symmetrical cone.
-  flame(g, c.x - 7, fireY - 3, 6, height * 0.8, -3, shade(Palette.hazard, -0.2));
-  flame(g, c.x + 7, fireY - 3, 6, height * 0.9, 3, shade(Palette.hazard, -0.1));
-  flame(g, c.x, fireY - 2, 9, height * 1.3, 0, Palette.hazard);
-  flame(g, c.x, fireY - 2, 5, height * 1.0, 0, shade(Palette.gold, 0.05));
-  flame(g, c.x, fireY - 1, 2.5, height * 0.65, 0, shade(Palette.gold, 0.45));
+  // The same fire, larger. One call, so the pair cannot drift apart the way two copied
+  // blocks of five could.
+  drawFire(g, c.x, fireY - 2, 18, height * 1.3);
 }
 
 /**
@@ -607,11 +752,14 @@ export function buildBuildingDrawList(
   locked = false,
 ): DrawList {
   if (isModelled(def)) {
-    return renderModel(MODELLED[def](), {
+    const marks = renderModel(MODELLED[def](), {
       footprint: buildingDef(def).footprint,
       rotation,
       rise: BUILDING_HEIGHT[def],
     });
+    const overlay = MODEL_OVERLAY[def];
+    if (!overlay) return marks;
+    return [...marks, ...drawListFromGraphics(overlay().context, `building:${def}:overlay`)];
   }
   return drawListFromGraphics(buildBuildingGraphics(def, rotation, locked).context, `building:${def}`);
 }

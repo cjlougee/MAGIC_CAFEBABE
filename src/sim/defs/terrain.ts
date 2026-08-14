@@ -20,6 +20,7 @@ export const Terrain = {
   RuinFloor: 7,
   RuinWall: 8,
   StoneFloor: 9,
+  Carpet: 10,
 } as const;
 
 export type TerrainId = (typeof Terrain)[keyof typeof Terrain];
@@ -99,6 +100,10 @@ export const TERRAIN_DEFS: readonly TerrainDef[] = [
   // Player-laid paving. Slightly faster than open ground — the first thing built for
   // convenience rather than survival.
   { id: Terrain.StoneFloor, name: 'Stone Floor', walkCost: 9, variants: 4, solid: false, storable: true, ...NOT_MINEABLE },
+  // A woven covering, and the first terrain laid for how it looks rather than what it
+  // does. No faster than paving — a rug is not a road — and storable, because a room with
+  // a carpet in it is exactly where a colonist will want to put things down.
+  { id: Terrain.Carpet, name: 'Carpet', walkCost: 10, variants: 4, solid: false, storable: true, ...NOT_MINEABLE },
 ];
 
 export function isMineable(id: TerrainId): boolean {

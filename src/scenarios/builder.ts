@@ -18,7 +18,7 @@ import { bedHeadCell } from '../sim/ai/needs';
 import { interrupt, startJob, tickJob } from '../sim/ai/think';
 import type { EntityId } from '../sim/core/entityStore';
 import type { TilePos } from '../sim/core/position';
-import { buildableProducing, type BuildableId } from '../sim/defs/buildables';
+import { buildableDef, buildableProducing, type BuildableId } from '../sim/defs/buildables';
 import { buildingDef, type BuildingId } from '../sim/defs/buildings';
 import type { TerrainId } from '../sim/defs/terrain';
 import { buildingCells, createBuilding, isBed, type Building } from '../sim/entities/building';
@@ -61,6 +61,15 @@ export interface ScenarioBuilder {
   generated(size?: number): void;
   /** Raises a finished structure, or throws saying which one it could not raise. */
   place(def: BuildingId, at: TilePos, rotation?: Rotation): Building;
+  /**
+   * Lays a surface — a floor, a carpet — on one cell.
+   *
+   * Through the same build command `place` uses, which means it inherits the rule that
+   * **surfaces do not stack**: laying carpet over a stone floor throws here rather than
+   * quietly producing a cell the game would have refused. A scenario that could reach
+   * states the player cannot is worse than no scenario.
+   */
+  floor(at: TilePos, buildable: BuildableId): void;
   /** Puts a colonist to sleep in a bed. Takes the next one not already posed. */
   sleeperIn(bed: Building, pawn?: Pawn): Pawn;
   /** Moves the clock to an hour, without simulating the time in between. */
@@ -109,6 +118,29 @@ export class Builder implements ScenarioBuilder {
 
     for (const cell of buildingCells(building)) this.placed.push(cell);
     return building;
+  }
+
+  floor(at: TilePos, buildable: BuildableId): void {
+    const simulation = this.activeSimulation();
+    const world = simulation.world;
+    const index = world.map.idx(at.x, at.y, at.z);
+    const before = world.map.terrainAt(index);
+
+    simulation.dispatch({
+      type: 'build',
+      buildable,
+      area: { x0: at.x, y0: at.y, x1: at.x, y1: at.y, z: at.z },
+      instant: true,
+    });
+    simulation.flushCommands();
+
+    if (world.map.terrainAt(index) === before) {
+      throw new Error(
+        `scenario: could not lay ${buildableDef(buildable).name} at ${at.x},${at.y},${at.z} — ` +
+          'the cell is occupied, not storable, or already carries a surface the colony laid',
+      );
+    }
+    this.placed.push(at);
   }
 
   /**

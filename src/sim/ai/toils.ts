@@ -12,6 +12,7 @@
  */
 
 import { samePos, type TilePos } from '../core/position';
+import { buildingDef } from '../defs/buildings';
 import { Need } from '../defs/needs';
 import type { Item } from '../entities/item';
 import type { Pawn } from '../entities/pawn';
@@ -19,6 +20,7 @@ import { clearPath, fallAsleep, wakeUp } from '../entities/pawn';
 import { cellsAdjacentTo, isAdjacentToFootprint } from '../world/footprint';
 import type { World } from '../world/world';
 import type { ActiveJob, Job } from './job';
+import { bedOwner } from './needs';
 
 export type ToilResult = 'running' | 'done' | 'failed';
 
@@ -141,6 +143,40 @@ export function toilReserveEntity(
       if (id === null) return 'done';
       if (!exists(ctx, id)) return 'failed';
       return ctx.world.reservations.reserveEntity(id, ctx.pawn.id) ? 'done' : 'failed';
+    },
+  };
+}
+
+/**
+ * Claims a bed for whoever is about to sleep in it, if it is the kind that can be owned.
+ *
+ * `Building.owner` has been on the entity, in the save and in the hash since M3 and nothing
+ * ever set it. This is the thing that sets it.
+ *
+ * **In the driver, not the giver**, which is the same rule reservations follow: a giver
+ * that assigned ownership would hand it out to a colonist who then failed to reach the bed,
+ * or was interrupted on the way, and the claim would outlive the job that made it. By the
+ * time this runs the bed is reserved and the colonist is standing on it.
+ *
+ * Never steals. A bed already owned by somebody else does not reach this toil — `findBed`
+ * will not offer it — and if one somehow does, the claim is simply skipped rather than
+ * transferred.
+ */
+export function toilClaimBed(pick: (job: Job) => number | null): Toil {
+  return {
+    name: 'claimBed',
+    tick: (ctx) => {
+      const id = pick(ctx.job);
+      if (id === null) return 'done';
+
+      const bed = ctx.world.buildings.get(id);
+      // `bedOwner`, not `bed.owner`: a claim held by somebody who has died is not a claim,
+      // and `findBed` already offers such a bed to the living. Reading the raw field here
+      // would let a colonist sleep in it every night and never be able to call it theirs.
+      if (bed && buildingDef(bed.def).ownable && bedOwner(ctx.world, bed) === null) {
+        bed.owner = ctx.pawn.id;
+      }
+      return 'done';
     },
   };
 }

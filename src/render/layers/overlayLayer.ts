@@ -64,7 +64,14 @@ const REJECTED_ALPHA = 0.55;
  * Delegates to the same predicates the command handlers use, so the preview can never
  * promise something the simulation then refuses.
  */
-function acceptsCell(world: World, tool: PreviewTool, x: number, y: number, z: number): boolean {
+function acceptsCell(
+  world: World,
+  tool: PreviewTool,
+  x: number,
+  y: number,
+  z: number,
+  buildable?: BuildableId,
+): boolean {
   if (!world.map.inBounds(x, y, z)) return false;
   const index = world.map.idx(x, y, z);
 
@@ -79,7 +86,10 @@ function acceptsCell(world: World, tool: PreviewTool, x: number, y: number, z: n
     case 'stockpile':
       return canPlaceStockpile(world.map, index);
     case 'build':
-      return canPlaceBlueprint(world, index);
+      // Handed the buildable, so the greyed-out cells include the ones a surface may not
+      // be laid on. Without it the preview would light up a stone floor for carpet and the
+      // command would then refuse it.
+      return canPlaceBlueprint(world, index, buildable);
     case 'erase':
       // Erase always applies; there is nothing to be refused.
       return true;
@@ -167,7 +177,12 @@ export class OverlayLayer {
           if (!world.map.inBounds(x, y, preview.z)) continue;
           // Cells the tool will skip are marked before the player commits, rather than
           // silently doing nothing and leaving them to wonder whether it registered.
-          place(x, y, previewTexture, !acceptsCell(world, preview.tool, x, y, preview.z));
+          place(
+            x,
+            y,
+            previewTexture,
+            !acceptsCell(world, preview.tool, x, y, preview.z, preview.buildable),
+          );
         }
       }
     }

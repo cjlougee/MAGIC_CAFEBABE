@@ -30,6 +30,18 @@ export const Building = {
   Campfire: 3,
   Bed: 4,
   Hearth: 5,
+  // ── M13: what goes *in* a room ────────────────────────────────────────────
+  Stool: 6,
+  Chair: 7,
+  Table: 8,
+  Desk: 9,
+  Shelf: 10,
+  Crate: 11,
+  Safe: 12,
+  Torch: 13,
+  Lamp: 14,
+  Floodlight: 15,
+  Banner: 16,
 } as const;
 
 export type BuildingId = (typeof Building)[keyof typeof Building];
@@ -79,6 +91,19 @@ export interface BuildingDef {
    */
   readonly orientable: boolean;
   /**
+   * Whether a colonist can claim this as theirs.
+   *
+   * True for a bed and **false for a bedroll**, which is the whole reason this is a flag
+   * rather than `isBed`: bedrolls are the landing party's shared kit, so the upgrade to a
+   * bed of your own is something a colonist can actually notice. Without a distinction
+   * here, `SleptInOwnBed` would be unreachable in one direction — a colonist would own a
+   * bed from their first night and the ordinary thought would never fire again, which is
+   * the same lie as a work column with no giver behind it.
+   *
+   * `owner` itself has been on `Building` since M3, saved and hashed and never set.
+   */
+  readonly ownable: boolean;
+  /**
    * Whether it forms the edge of a room.
    *
    * Separate from `passable` because a **door is both**: colonists walk through it, and
@@ -102,9 +127,11 @@ export const BUILDING_DEFS: readonly BuildingDef[] = [
     blocksRoom: false,
     lockable: false,
     orientable: true,
+    // Shared kit the party landed with. Nobody's own.
+    ownable: false,
   },
-  { id: Building.Wall, name: 'Wall', footprint: SINGLE_CELL, isBed: false, lightRadius: 0, passable: false, blocksRoom: true, lockable: false, orientable: false },
-  { id: Building.Door, name: 'Door', footprint: SINGLE_CELL, isBed: false, lightRadius: 0, passable: true, blocksRoom: true, lockable: true, orientable: true },
+  { id: Building.Wall, name: 'Wall', footprint: SINGLE_CELL, isBed: false, lightRadius: 0, passable: false, blocksRoom: true, lockable: false, orientable: false, ownable: false },
+  { id: Building.Door, name: 'Door', footprint: SINGLE_CELL, isBed: false, lightRadius: 0, passable: true, blocksRoom: true, lockable: true, orientable: true, ownable: false },
   // Impassable but not a room edge: you cannot walk through a fire, and a fire in the
   // middle of a hut must not cut the hut into two rooms. Exactly the case those two
   // flags were kept separate for.
@@ -118,6 +145,7 @@ export const BUILDING_DEFS: readonly BuildingDef[] = [
     blocksRoom: false,
     lockable: false,
     orientable: false,
+    ownable: false,
   },
   // The upgrade the roadmap promised in M4 and could not deliver until a building was
   // allowed to be longer than it is wide. Passable, because you walk onto a bed to
@@ -132,6 +160,7 @@ export const BUILDING_DEFS: readonly BuildingDef[] = [
     blocksRoom: false,
     lockable: false,
     orientable: true,
+    ownable: true,
   },
   // The first structure that is impassable across *several* cells, which is the case a
   // 2×1 bedroll cannot exercise: blocking, standing beside rather than on, and a solid
@@ -148,6 +177,177 @@ export const BUILDING_DEFS: readonly BuildingDef[] = [
     // Square, and drawn the same from every side. Turning it would be a control that
     // visibly does nothing.
     orientable: false,
+    ownable: false,
+  },
+
+  /*
+   * ── Furniture ─────────────────────────────────────────────────────────────
+   *
+   * Everything below is the same three questions answered eleven times, which is the
+   * point: `passable` / `blocksRoom` / `orientable` were all in place before any of this
+   * existed, so a piece of furniture is data rather than a system.
+   *
+   * **Nothing here seals a room.** A table in the middle of a hut must not cut the hut in
+   * two, exactly as a hearth must not — that is what the flag pair M4 kept separate is
+   * for, and eleven more structures is eleven more chances to conflate them.
+   *
+   * Passability follows what you *do* with the thing. You sit on a stool, so you walk onto
+   * it; you stand beside a desk, so you do not. Chosen deliberately to keep the number of
+   * ways a player can wall a colonist in as small as the furniture allows — the backstop
+   * is `buildAlerts`' "X is cut off from the colony", and nothing here removes it.
+   */
+  {
+    id: Building.Stool,
+    name: 'Stool',
+    footprint: SINGLE_CELL,
+    isBed: false,
+    lightRadius: 0,
+    // You sit on it, so you stand on it. Round in fiction, so turning it does nothing.
+    passable: true,
+    blocksRoom: false,
+    lockable: false,
+    orientable: false,
+    ownable: false,
+  },
+  {
+    id: Building.Chair,
+    name: 'Chair',
+    footprint: SINGLE_CELL,
+    isBed: false,
+    lightRadius: 0,
+    passable: true,
+    blocksRoom: false,
+    lockable: false,
+    // One cell in every rotation, like a door — and like a door it still has a facing,
+    // because the back is on one side. The same reason `orientable` is not "more than one
+    // cell": see ADR 0009.
+    orientable: true,
+    ownable: false,
+  },
+  {
+    id: Building.Table,
+    name: 'Table',
+    footprint: { w: 2, h: 2 },
+    isBed: false,
+    lightRadius: 0,
+    passable: false,
+    blocksRoom: false,
+    lockable: false,
+    // Square, so turning it covers identical cells and draws an identical picture.
+    orientable: false,
+    ownable: false,
+  },
+  {
+    id: Building.Desk,
+    name: 'Desk',
+    footprint: { w: 2, h: 1 },
+    isBed: false,
+    lightRadius: 0,
+    passable: false,
+    blocksRoom: false,
+    lockable: false,
+    orientable: true,
+    ownable: false,
+  },
+  {
+    id: Building.Shelf,
+    name: 'Shelf',
+    footprint: { w: 2, h: 1 },
+    isBed: false,
+    lightRadius: 0,
+    passable: false,
+    blocksRoom: false,
+    lockable: false,
+    orientable: true,
+    ownable: false,
+  },
+  {
+    id: Building.Crate,
+    name: 'Supply Crate',
+    footprint: SINGLE_CELL,
+    isBed: false,
+    lightRadius: 0,
+    passable: false,
+    blocksRoom: false,
+    lockable: false,
+    orientable: false,
+    ownable: false,
+  },
+  {
+    id: Building.Safe,
+    name: 'Safe',
+    footprint: SINGLE_CELL,
+    isBed: false,
+    lightRadius: 0,
+    passable: false,
+    blocksRoom: false,
+    lockable: false,
+    orientable: false,
+    ownable: false,
+  },
+
+  /*
+   * ── Light ──────────────────────────────────────────────────────────────────
+   *
+   * The three of these are the `scrap → refined → relic` ladder stated in light, which is
+   * the clearest place in the game to state it: a torch burns and casts firelight, a lamp
+   * and a floodlight are salvaged tech and cast the cold `relicGlow` that says *this was
+   * made by somebody who could*. Reach follows the tier.
+   *
+   * All three are two data fields and nothing else — `lightRadius` here and a colour in
+   * `BUILDING_LIGHT`. `LightingLayer` has read both since M6.
+   */
+  {
+    id: Building.Torch,
+    name: 'Torch',
+    footprint: SINGLE_CELL,
+    isBed: false,
+    lightRadius: 4,
+    passable: false,
+    blocksRoom: false,
+    lockable: false,
+    orientable: false,
+    ownable: false,
+  },
+  {
+    id: Building.Lamp,
+    name: 'Lamp',
+    footprint: SINGLE_CELL,
+    isBed: false,
+    lightRadius: 7,
+    passable: false,
+    blocksRoom: false,
+    lockable: false,
+    orientable: false,
+    ownable: false,
+  },
+  {
+    id: Building.Floodlight,
+    name: 'Floodlight',
+    footprint: SINGLE_CELL,
+    isBed: false,
+    // Further than a hearth, which is the point of it: the first light that covers a yard
+    // rather than a room.
+    lightRadius: 11,
+    passable: false,
+    blocksRoom: false,
+    lockable: false,
+    orientable: false,
+    ownable: false,
+  },
+  {
+    id: Building.Banner,
+    name: 'Banner',
+    footprint: SINGLE_CELL,
+    isBed: false,
+    lightRadius: 0,
+    // Passable: decoration the player scatters should never be a thing that traps anyone.
+    passable: true,
+    blocksRoom: false,
+    lockable: false,
+    // The cloth hangs on one side of the pole.
+    orientable: true,
+    ownable: false,
   },
 ];
 

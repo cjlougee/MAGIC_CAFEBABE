@@ -20,9 +20,42 @@ export const Buildable = {
   Campfire: 3,
   Bed: 4,
   Hearth: 5,
+  // ── M13 ───────────────────────────────────────────────────────────────────
+  Stool: 6,
+  Chair: 7,
+  Table: 8,
+  Desk: 9,
+  Shelf: 10,
+  Crate: 11,
+  Safe: 12,
+  Torch: 13,
+  Lamp: 14,
+  Floodlight: 15,
+  Banner: 16,
+  Carpet: 17,
 } as const;
 
 export type BuildableId = (typeof Buildable)[keyof typeof Buildable];
+
+/**
+ * How the architect menu is divided.
+ *
+ * **Not saved, and deliberately strings rather than an append-only numeric table.** Every
+ * other id in this file is written into colonies on disk and may never be renumbered;
+ * a category is a heading in a menu, so tying it to that discipline would be borrowing a
+ * constraint for nothing. Regrouping the menu should cost one word.
+ */
+export type BuildCategory = 'structure' | 'floors' | 'furniture' | 'production' | 'light' | 'decor';
+
+/** Display order of the category strip, and the label on each tab. */
+export const BUILD_CATEGORIES: readonly { readonly id: BuildCategory; readonly label: string }[] = [
+  { id: 'structure', label: 'Structure' },
+  { id: 'floors', label: 'Floors' },
+  { id: 'furniture', label: 'Furniture' },
+  { id: 'production', label: 'Production' },
+  { id: 'light', label: 'Light' },
+  { id: 'decor', label: 'Decor' },
+];
 
 export interface MaterialCost {
   readonly def: ItemDefId;
@@ -41,6 +74,8 @@ export interface BuildableDef {
   /** Ticks of construction work once every material has arrived. */
   readonly work: number;
   readonly result: BuildResult;
+  /** Which tab of the architect menu this appears under. */
+  readonly category: BuildCategory;
 }
 
 /** Indexed by BuildableId — array position must equal `id`. */
@@ -52,6 +87,7 @@ export const BUILDABLE_DEFS: readonly BuildableDef[] = [
     cost: [{ def: ItemDef.Stone, count: 5 }],
     work: 260,
     result: { kind: 'building', building: Building.Wall },
+    category: 'structure',
   },
   {
     id: Buildable.Door,
@@ -62,6 +98,7 @@ export const BUILDABLE_DEFS: readonly BuildableDef[] = [
     cost: [{ def: ItemDef.Scrap, count: 6 }],
     work: 320,
     result: { kind: 'building', building: Building.Door },
+    category: 'structure',
   },
   {
     id: Buildable.Floor,
@@ -70,6 +107,7 @@ export const BUILDABLE_DEFS: readonly BuildableDef[] = [
     cost: [{ def: ItemDef.Stone, count: 2 }],
     work: 120,
     result: { kind: 'terrain', terrain: Terrain.StoneFloor },
+    category: 'floors',
   },
   {
     id: Buildable.Campfire,
@@ -80,6 +118,7 @@ export const BUILDABLE_DEFS: readonly BuildableDef[] = [
     cost: [{ def: ItemDef.Stone, count: 8 }],
     work: 180,
     result: { kind: 'building', building: Building.Campfire },
+    category: 'production',
   },
   {
     id: Buildable.Bed,
@@ -93,6 +132,7 @@ export const BUILDABLE_DEFS: readonly BuildableDef[] = [
     ],
     work: 400,
     result: { kind: 'building', building: Building.Bed },
+    category: 'furniture',
   },
   {
     id: Buildable.Hearth,
@@ -101,6 +141,147 @@ export const BUILDABLE_DEFS: readonly BuildableDef[] = [
     cost: [{ def: ItemDef.Stone, count: 24 }],
     work: 520,
     result: { kind: 'building', building: Building.Hearth },
+    category: 'production',
+  },
+
+  /*
+   * ── M13: contents ─────────────────────────────────────────────────────────
+   *
+   * Priced almost entirely in **scrap**, and that is the setting rather than a shortcut.
+   * The colony has two materials — stone out of rock, scrap out of the fallen
+   * civilization's bulkheads — and furniture is the first thing you make out of wreckage
+   * because you want to rather than because you must. Stone appears where a piece needs a
+   * base or a weight.
+   *
+   * There is no timber item, so nothing here costs wood even where the art draws salvaged
+   * planks. Trees arrive in M15 with the flora pass; inventing a resource here to justify
+   * a texture would be the tail wagging the dog.
+   */
+  {
+    id: Buildable.Stool,
+    name: 'Stool',
+    description: 'Somewhere to sit. Walk onto it.',
+    cost: [{ def: ItemDef.Scrap, count: 3 }],
+    work: 140,
+    result: { kind: 'building', building: Building.Stool },
+    category: 'furniture',
+  },
+  {
+    id: Buildable.Chair,
+    name: 'Chair',
+    description: 'A stool with a back. Faces the way you turn it.',
+    cost: [{ def: ItemDef.Scrap, count: 6 }],
+    work: 200,
+    result: { kind: 'building', building: Building.Chair },
+    category: 'furniture',
+  },
+  {
+    id: Buildable.Table,
+    name: 'Table',
+    description: 'Two cells square. Stand around it.',
+    cost: [
+      { def: ItemDef.Scrap, count: 10 },
+      { def: ItemDef.Stone, count: 4 },
+    ],
+    work: 340,
+    result: { kind: 'building', building: Building.Table },
+    category: 'furniture',
+  },
+  {
+    id: Buildable.Desk,
+    name: 'Desk',
+    description: 'Salvaged plate, cut square. Two cells long.',
+    cost: [
+      { def: ItemDef.Scrap, count: 12 },
+      { def: ItemDef.Stone, count: 6 },
+    ],
+    work: 380,
+    result: { kind: 'building', building: Building.Desk },
+    category: 'furniture',
+  },
+  {
+    id: Buildable.Shelf,
+    name: 'Shelf',
+    description: 'Two cells of shelving, shoulder high.',
+    cost: [{ def: ItemDef.Scrap, count: 8 }],
+    work: 260,
+    result: { kind: 'building', building: Building.Shelf },
+    category: 'furniture',
+  },
+  {
+    id: Buildable.Crate,
+    name: 'Supply Crate',
+    description: 'A lashed bundle of supplies.',
+    cost: [{ def: ItemDef.Scrap, count: 5 }],
+    work: 160,
+    result: { kind: 'building', building: Building.Crate },
+    category: 'furniture',
+  },
+  {
+    id: Buildable.Safe,
+    name: 'Safe',
+    description: 'Refined plate with a relic lock. Heavy.',
+    cost: [
+      { def: ItemDef.Scrap, count: 16 },
+      { def: ItemDef.Stone, count: 8 },
+    ],
+    work: 520,
+    result: { kind: 'building', building: Building.Safe },
+    category: 'furniture',
+  },
+  {
+    id: Buildable.Torch,
+    name: 'Torch',
+    description: 'A burning brand on a post. Cheap light.',
+    cost: [
+      { def: ItemDef.Scrap, count: 3 },
+      { def: ItemDef.Stone, count: 2 },
+    ],
+    work: 120,
+    result: { kind: 'building', building: Building.Torch },
+    category: 'light',
+  },
+  {
+    id: Buildable.Lamp,
+    name: 'Lamp',
+    description: 'Salvaged relic tech, still running. Lights a room.',
+    cost: [
+      { def: ItemDef.Scrap, count: 10 },
+      { def: ItemDef.Stone, count: 4 },
+    ],
+    work: 300,
+    result: { kind: 'building', building: Building.Lamp },
+    category: 'light',
+  },
+  {
+    id: Buildable.Floodlight,
+    name: 'Floodlight',
+    description: 'Lights a yard, not a room. Expensive.',
+    cost: [
+      { def: ItemDef.Scrap, count: 20 },
+      { def: ItemDef.Stone, count: 6 },
+    ],
+    work: 560,
+    result: { kind: 'building', building: Building.Floodlight },
+    category: 'light',
+  },
+  {
+    id: Buildable.Banner,
+    name: 'Banner',
+    description: 'Cloth on a pole. Does nothing, and is the point.',
+    cost: [{ def: ItemDef.Scrap, count: 4 }],
+    work: 180,
+    result: { kind: 'building', building: Building.Banner },
+    category: 'decor',
+  },
+  {
+    id: Buildable.Carpet,
+    name: 'Carpet',
+    description: 'Woven floor covering. Softer underfoot than stone.',
+    cost: [{ def: ItemDef.Scrap, count: 3 }],
+    work: 90,
+    result: { kind: 'terrain', terrain: Terrain.Carpet },
+    category: 'floors',
   },
 ];
 

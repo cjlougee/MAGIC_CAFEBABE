@@ -6,16 +6,18 @@
  * adding an entry here and, ideally, no new toils at all.
  */
 
+import type { EntityId } from '../core/entityStore';
 import type { TilePos } from '../core/position';
 import { buildableDef, deconstructWork } from '../defs/buildables';
 import { recipeDef } from '../defs/recipes';
 import { plantDef } from '../defs/plants';
 import { terrainDef } from '../defs/terrain';
-import { Thought } from '../defs/thoughts';
+import { Thought, type ThoughtId } from '../defs/thoughts';
 import { buildingCells, hasIngredientsFor } from '../entities/building';
 import { hasAllMaterials, outstanding, siteCells } from '../entities/constructionSite';
 import { outstandingOf } from '../entities/materials';
 import { isRipe } from '../entities/plant';
+import type { Pawn } from '../entities/pawn';
 import { builtHere, completeConstruction, deconstruct } from '../world/construction';
 import { Designation } from '../world/designations';
 import { buildingAt, countHeld, pawnOccupies } from '../world/lookup';
@@ -30,6 +32,7 @@ import {
   toilReserveEntity,
   toilDeposit,
   toilReserveItem,
+  toilClaimBed,
   toilSleep,
   toilWalkAdjacentTo,
   toilWalkTo,
@@ -191,18 +194,35 @@ const SLEEP_TOILS: readonly Toil[] = [
     (ctx, id) => ctx.world.buildings.get(id) !== undefined,
   ),
   toilWalkTo((job) => asSleep(job).spot),
+  // After the walk, so a colonist who never arrives never claims anything.
+  toilClaimBed((job) => asSleep(job).bed),
   toilSleep({
     // Not a full bar: waking at 90% means colonists get up and do something rather
     // than lying in until the last percent trickles in.
     wakeAt: 0.9,
     onWake: (ctx) => {
-      addThought(ctx.pawn, asSleep(ctx.job).bed === null ? Thought.SleptOnGround : Thought.SleptInBed);
+      addThought(ctx.pawn, sleptWhere(ctx.world, ctx.pawn, asSleep(ctx.job).bed));
       // A roof is worth something on its own, so this stacks with the bed thought
       // rather than replacing it.
       if (ctx.world.rooms.isIndoors(ctx.pawn.pos)) addThought(ctx.pawn, Thought.SleptIndoors);
     },
   }),
 ];
+
+/**
+ * Which of the three sleeping memories this night earned.
+ *
+ * A ladder, not a stack: the ground, shared bedding, and a bed of your own. Read off the
+ * bed's `owner` rather than off anything the job remembers, so a colonist who lost their
+ * claim while asleep — the bed deconstructed under them, say — wakes up with the honest
+ * thought rather than one recorded hours earlier.
+ */
+function sleptWhere(world: World, pawn: Pawn, bedId: EntityId | null): ThoughtId {
+  if (bedId === null) return Thought.SleptOnGround;
+  const bed = world.buildings.get(bedId);
+  if (bed && bed.owner === pawn.id) return Thought.SleptInOwnBed;
+  return Thought.SleptInBed;
+}
 
 const WANDER_TOILS: readonly Toil[] = [toilWalkTo((job) => asWander(job).to)];
 

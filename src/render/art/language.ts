@@ -136,16 +136,45 @@ export const MIN_FEATURE = 3;
 export const HEIGHT = {
   /** Flat on the ground: a bedroll, a carpet, a spill. */
   flat: 0,
-  /** Furniture you sit on or put things on. */
-  seat: 0.19,
+  /**
+   * Furniture you sit on.
+   *
+   * **Raised from 0.19 by the projection, not by anatomy.** A top face's diamond hangs
+   * `side × HALF_TILE_H` below its own plane — about twelve pixels for a chair's seat —
+   * while 0.19 of a storey lifts it four and a half. The legs were therefore inside their
+   * own seat's silhouette, showing a one-pixel sliver at two of the four corners, and no
+   * amount of thickening them fixed it.
+   *
+   * So this is the floor below which a piece of furniture cannot show its own structure in
+   * a 2:1 view, and anything lower has to be drawn as a *body* rather than as legs. Worth
+   * knowing before the next low thing is modelled.
+   */
+  seat: 0.26,
+  /**
+   * The back of a chair — roughly where a seated colonist's shoulders are.
+   *
+   * Has to clear `seat` by enough to read as a back rather than a rail. At 0.45 it stood
+   * four pixels above the seat, and a wide seat with a low rail along one edge is a *bed*
+   * — which is exactly what the first chair looked like next to one.
+   */
+  back: 0.58,
   bed: 0.46,
   table: 0.55,
   /** Waist-high: a counter, a crate, a low wall. */
   counter: 0.6,
-  /** A wall. Deliberately under a storey — see ADR 0003 on why nothing may reach 1.0 yet. */
-  wall: 0.92,
+  /** Storage you reach into rather than put things on top of. */
+  shelf: 0.75,
   /** A doorway, shorter than the run it interrupts so it reads as a gap. */
   door: 0.67,
+  /**
+   * Where a thing on a post lives: a lamp head, a torch bracket, the top of a banner.
+   *
+   * Below `wall` on purpose. A light that stood taller than the walls of the room it lit
+   * would be the first thing in the game to break the storey budget, and for decoration.
+   */
+  standing: 0.85,
+  /** A wall. Deliberately under a storey — see ADR 0003 on why nothing may reach 1.0 yet. */
+  wall: 0.92,
 } as const;
 
 /** Frame pixels for a height in storeys. */

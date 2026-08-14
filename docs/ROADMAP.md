@@ -487,19 +487,87 @@ changes, and a golden that fails on every one of them trains people to regenerat
 See [`superpowers/specs/2026-08-13-scenario-harness-design.md`](superpowers/specs/2026-08-13-scenario-harness-design.md).
 
 ### M13 — The architect grows up, and rooms get contents *(items 4, 9)*
-- [ ] A **categorised** build menu with real sprites rendered into DOM. The current architect list is
-      one undivided `BUILDABLE_DEFS`; it works at four and will not at forty, and M13 creates the
-      forty
-- [ ] **Furniture** — chairs, desks, tables, shelves, lamps, safes, supplies. Carpet is a surface and
-      `setSurfaceAt` already handles it
-- [ ] Whatever ownership and interaction furniture turns out to need — a desk you sit at is a bench
-      by another name, and the M6 bill system should absorb it rather than growing a sibling
+
+**The first milestone since M10 that is mostly content, and the test of whether M12 and M12.5 paid.**
+They did: eleven modelled sprites went in against the harness rather than against a browser, and the
+loop was `npm run art` → read eighteen named complaints → fix → re-bake, at ~240 ms a pass. Not one
+of them needed a dev server.
+
+- [x] A **categorised** build menu — six tabs over eighteen buildables — **with the game's own
+      sprites rendered into DOM**. `render/art/thumbnail.ts` rasterizes the *same draw list*
+      `ArtProvider` uploads and `tests/art.test.ts` measures, into an `ImageData` on a `<canvas>`.
+      No GPU, no PNG encoder, no second opinion about what a shelf looks like — the M12 rasterizer
+      paying for itself in a React component it was never designed for
+- [x] **Eleven pieces of furniture and a carpet**: stool, chair, table, desk, shelf, supply crate,
+      safe, torch, lamp, floodlight, banner. All modelled; costs are Stone and Scrap only, because
+      those are the only items that exist
+- [x] **The light ladder is the crafting ladder made visible.** Torch → lamp → floodlight, radius
+      4/7/11, and the *colour of the light* carries the tier: a torch burns `firelight`, a lamp and a
+      floodlight are salvage that never went out and cast `relicGlow`. Walk into a colony at night
+      and warm light means somebody lit a fire, cold light means somebody *found* something. Two data
+      fields each and nothing else — `LightingLayer` has read both since M6
+- [x] **Bed ownership.** `Building.owner` had been on the entity, in `serialize.ts` and in
+      `hashWorld()` since M3 and nothing ever set it. A colonist claims a bed by sleeping in it,
+      prefers their own over a nearer one, and gets `SleptInOwnBed` instead of `SleptInBed`. Bedrolls
+      are `ownable: false` — the party shares those — which is what keeps **both** sides of the
+      thought reachable rather than retiring the old one on night one
+- [x] **A dead colonist stops holding a bed.** Pawns are never removed from the store, so a claim
+      would otherwise outlive its owner forever: one bed unusable for the rest of the game, no alert,
+      no visible cause. The ADR 0008 failure shape again
+- [x] **The pawn head — worse than recorded, and not a one-liner.** M12 logged "the crescent is buried
+      under hair". Decoded pixel by pixel, the head contributed **six visible pixels**, all of them
+      chin, and both eyes were `Palette.ink` painted straight onto the hair. The colonist had no face.
+      `drawHair` drew a crown ellipse both wider *and* taller than the skull for three styles of
+      five; hair is now an arc traced from the skull and cut at a stated `HAIRLINE`, and the face
+      measures 47–77 px on every style
+- [x] **The harness could not have caught it, and now can.** `mayHide` counts marks at *zero* and the
+      floor was 2 — six is neither. A named assertion measures the face directly, on **all five hair
+      styles**, which the manifest now carries: the defect was style-dependent and exactly one style
+      was ever rendered
+- [x] **The fire was three spikes**, and it was: five straight-sided triangles from one base point,
+      nested, with the brightest tone reaching the fuel — fire drawn inside out. Now one `drawFire`
+      shared by campfire and hearth at two scales, with curling tongues at separated heights and the
+      heat low and central. A torch gets `drawBrand` instead, because at ten pixels the core scales
+      down to four and the floor correctly rejects it: **how many licks a fire can carry is a function
+      of how big it is**
+- [x] **Surfaces do not stack.** Found while adding carpet: `naturalTerrain` remembers one layer down,
+      so carpet over a stone floor would deconstruct back to grass and eat the floor silently.
+      `canPlaceBlueprint` refuses it, the drag preview asks the same question, and the same hole had
+      let Floor be laid on Floor for two stone and no effect since M4
 - [x] ~~**The sleeping pose centred on the bed**~~ — *done in M12*, which is where the harness needed a
       real defect to go green on. A harness that is green on arrival validates nothing
-- [ ] **The pawn head's crescent, buried under hair** — found by M12's harness: zero visible pixels on
-      three of five styles. A genuine one-liner, and worth doing early because colonists are the
-      most-looked-at sprite in the game
-- **Playable check:** furnish a hut and it stops being a box.
+- **Playable check:** ✅ `furnished-room` and `furnished-room-night` — a hut with a carpet, two beds,
+  a table, chairs, a shelf, a desk, storage and a lamp, at noon and after dark. It stops being a box.
+  `lights-at-night` puts all five emitters in one frame, which is the only way the warm/cold claim is
+  checkable. Three scenarios, two calls each.
+
+**The model-layer question, answered with numbers rather than taste.** Tones over the same ink area:
+
+| sprite | ink px | tones |
+|---|---|---|
+| Bed — modelled | 1740 | **55** |
+| Bed — hand-drawn | 1565 | 10 |
+| Bedroll — modelled | 1356 | **38** |
+| Bedroll — hand-drawn | 1188 | 5 |
+| Hearth — vector | 5452 | 14 |
+| Wall — vector | 2432 | 7 |
+| Door — vector | 1453 | 5 |
+
+Five to one on the same area, so **every new sprite is modelled** and the `— before` rows are
+deleted: the models are signed off. **Wall, door and hearth stay on the vector path** and are M14's,
+which has to touch them anyway for materials and ornament — converting them here would be doing that
+work twice. The campfire stays vector *permanently*: it is mostly flame, and flame has no faces to
+shade.
+
+**What forty sprites taught, and it was not what the milestone predicted.** The trap written down in
+advance was the material table — *if sprite thirty needs a new material, that is a signal about the
+vocabulary*. It never came up: eleven pieces spent `scrap → refined → relic` as it stood and asked for
+nothing. What did bite, three times, was the **projection**: a top face's diamond hangs `side ×
+HALF_TILE_H` below its own plane, which is about twelve pixels for a chair seat against the four and
+a half that `HEIGHT.seat` lifted it. So the legs were inside their own seat's silhouette; a shelf's
+back panel was invisible behind its own boards; a stool was a pancake. `HEIGHT.seat` moved 0.19 → 0.26
+and `HEIGHT.back` 0.45 → 0.58 **because of the camera, not because of anatomy**, and it is written
+down in `language.ts` where the next low thing will find it.
 
 ### M14 — Buildings that look like buildings *(item 8, minus the storeys)*
 
@@ -509,6 +577,12 @@ to do with levels — materials, ornament, silhouette — and exactly one part c
 converting it when levels land is building it twice, which is the rework the verticality decision
 exists to refuse. So the tall half moves to Slice 4 and everything else ships here, on schedule.
 
+- [ ] **Wall, door and hearth onto the model layer**, inherited from M13 with the numbers to justify
+      it: 7, 5 and 14 tones against modelled furniture's 26–45, which makes them the three flattest
+      things on screen. Deferred here rather than done there because this milestone has to touch all
+      three for materials anyway, and converting twice is the rework M13 refused. **A wall tiles**,
+      so it needs a `seamless` flag suppressing the bevel and the top-edge AO — a lit lip on every
+      wall segment draws a bright grid down a run of them, which is what ADR 0002 exists to prevent
 - [ ] Materials and ornament: brick versus wood versus scrap, windows, awnings, trim, doorframes.
       A hovel should not be a shorter skyscraper — and until levels land it is not a *shorter*
       anything, it is a differently-built one
@@ -621,8 +695,14 @@ cost about twenty tool calls, six of them spent persuading colonists to lie on t
 scenario is now a function that builds a world, and `__scenario.capture(name)` turns one into a PNG on
 disk in two calls.
 
-**Next is M13**, and it is the first real test of whether either paid: forty sprites, and the question
-is whether each costs visibly less than M10's did.
+**M13 is done, and it was the test of whether either paid.** Eleven modelled sprites, a categorised
+build menu showing the game's own art, bed ownership, and a colonist who has a face for the first
+time. The loop was one command and a picture: `npm run art` named eighteen faults by part on the
+first bake — *"chair leg 0 right, under the 6px floor"* — and no sprite in the milestone needed a dev
+server to judge. The one thing that did need the running game was the menu, which is a DOM question.
+
+**Next is M14**, which inherits wall, door and hearth: measured at 7, 5 and 14 tones against modelled
+furniture's 26–45, and they are the three flattest things left on screen.
 
 **Slice 4 is verticality**, scheduled at last rather than deferred a fifth time. See the section
 below for what finally triggered it and why capping decorative height was refused.

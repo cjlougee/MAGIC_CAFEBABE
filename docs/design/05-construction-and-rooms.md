@@ -89,6 +89,29 @@ distinction is carried by two setters that are easy to confuse and must not be:
 It is not derivable from `terrain` — a stone floor says nothing about what it covers — so
 unlike `walkCost` it has to be saved, and it is why the save format went to version 2.
 
+### …which is exactly one layer, so surfaces do not stack
+
+`naturalTerrain` is one grid, not a stack, so it can answer "what was here before the
+floor" and nothing deeper. That is enough for every surface the game had until M13 added a
+second one — and the moment carpet existed, laying it over a stone floor became a way to
+destroy that floor silently: the carpet's removal restores `naturalTerrain`, which is the
+*grass*, and the stone the player paid for is gone with nothing on screen to mark its
+passing.
+
+The fix is a refusal rather than a deeper model. `canPlaceBlueprint` rejects a
+terrain-result blueprint on any cell whose terrain a blueprint produced — check it with
+`buildableProducingTerrain` — so **you take the floor up before you lay the carpet.** One
+condition, no new state, no save change.
+
+Two things fall out of it that are worth having anyway. It closes a hole open since M4, in
+which Floor could be laid on Floor for two stone and no effect whatsoever. And it is the
+rule the `furnished-room` scenario ran into on its first build, which is the cheapest
+possible place to discover that a scenario was describing a world the game refuses.
+
+A real surface stack — carpet over floor over ground, each remembered — is a save-format
+change and buys one thing: not having to lift the floor first. It can wait until something
+wants it.
+
 ### A mark on a wall has to be drawn on the wall
 
 Designation marks live in `OverlayLayer`, which sits *below* objects so pawns and walls

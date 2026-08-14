@@ -54,11 +54,20 @@ Three things come free, and all three were bugs before:
   diamonds. Not checkable-and-fixed — *not expressible*.
 - **Depth ordering within the object**, because solids draw in the order you list them.
 
-Two rules it does not give you:
+Three rules it does not give you:
 
 - `rise / LEVEL_HEIGHT` is a **ceiling**. A solid above it projects off the top of its own frame. The
   harness fails on it rather than cropping silently.
 - A face thinner than a pixel is dropped. If a part vanishes, it was under 1px thick.
+- **A horizontal surface hides everything under it, and by more than you expect.** A top face's
+  diamond hangs `side × HALF_TILE_H` below its own plane — about twelve pixels for a chair seat,
+  forty for a 2×1 shelf board — so anything shorter than that is inside its own top's silhouette.
+  This cost M13 three sprites: a chair whose legs showed a one-pixel sliver at two corners, a shelf
+  whose back panel was invisible behind its own boards, and a stool that read as a pancake. The
+  answers are to **raise it** (`HEIGHT.seat` went 0.19 → 0.26 for the camera, not for anatomy), to
+  draw it as a **body rather than legs** when it is too low to raise, or to put the detail on the
+  **front face** where a shelf actually shows it. Reach for `npm run art` early here — the harness
+  names the buried part.
 
 ### Hand-drawn vectors — for organic and tiling things
 
@@ -72,9 +81,14 @@ Applied consistently across pawns, items, plants and buildings:
 1. **A lit edge on the sunward side, a shadow on the other.** For rounded masses use a *crescent*:
    draw the lit shape nudged up-and-right, then cut it back with the base tone so light survives only
    along the rim. Bushes and pawn heads use exactly this.
-   **Check the crescent survives.** The pawn's head crescent is drawn and then covered outright by a
-   hair ellipse at the same centre and a larger radius — zero visible pixels on three of five hair
-   styles. It shipped, and it took a mark-visibility count to notice.
+   **Check the crescent survives, and check what it was drawn on survives too.** The pawn's head
+   crescent was covered outright by a hair ellipse at the same centre and a larger radius — and when
+   M13 went to fix that "one-liner", the head underneath it turned out to be contributing **six**
+   visible pixels, all of them chin, with both eyes painted straight onto the hair. The colonist had
+   no face and had shipped that way for three milestones. Keep the crescent inset *inside* its own
+   silhouette while you are there: the version that had been hidden all along reached half a pixel
+   past the widest point of the head, and would have laid a stray lit mark beside the face the moment
+   it became visible.
 2. **A contact shadow.** Without it objects float. Ground-level shading where terrain meets something
    raised is `contactShadow.ts` and belongs to the ground, not the object.
 3. **Two tones per form, not one** — and on a modelled surface, four. A chunk split into a lit and a

@@ -18,20 +18,21 @@
 
 import { Building } from '../../../sim/defs/buildings';
 import { HEIGHT } from '../language';
+import {
+  bannerModel,
+  chairModel,
+  crateModel,
+  deskModel,
+  floodlightModel,
+  lampModel,
+  safeModel,
+  shelfModel,
+  stoolModel,
+  tableModel,
+  torchModel,
+} from './furniture';
 import type { Solid } from './render';
-
-/**
- * How far the furniture holds back from the edge of the cells it stands on.
- *
- * Structures that *tile* — walls, floors — must fill their cell exactly or a run of them
- * shows a grid of gaps. Furniture is the opposite: it needs visible ground around it or a
- * bed placed against a wall reads as part of the wall. An eighth of a tile is enough to
- * separate without looking like it is floating in the middle of the room.
- */
-const MARGIN = 0.12;
-
-/** Posts are square in plan and thin — a leg that reads as a slab is a plinth. */
-const LEG = 0.17;
+import { legsAt, LEG, MARGIN } from './shape';
 
 /**
  * A bed: four posts, a slab frame, a mattress, a pillow.
@@ -55,19 +56,9 @@ export function bedModel(): Solid[] {
   const y0 = MARGIN;
   const y1 = 1 - MARGIN;
 
-  const legs: Solid[] = [
-    [x0, y0], [x1 - LEG, y0], [x0, y1 - LEG], [x1 - LEG, y1 - LEG],
-  ].map(([lx, ly], i) => ({
-    x0: lx, y0: ly, z0: 0,
-    x1: lx + LEG, y1: ly + LEG, z1: frameBottom + 0.04,
-    material: 'wood' as const,
-    label: `bed leg ${i}`,
-    // A post runs *into* the frame above it, so its top face is never visible on any of
-    // the four legs in any of the four rotations. Said here rather than excused in the
-    // contract: the harness named all four leg tops on the first bake, and a declaration
-    // covering them would have been covering for the model instead of describing it.
-    hideTop: true,
-  }));
+  // Through the shared helper, so a bed's posts and a table's are inset by the same rule
+  // rather than by two numbers that happen to match today. See `shape.ts`.
+  const legs = legsAt(x0, y0, x1, y1, frameBottom + 0.04, 'wood', 'bed leg', LEG);
 
   return [
     // Legs first, so the frame lands on top of them. The far pair end up entirely behind
@@ -127,10 +118,29 @@ export function bedrollModel(): Solid[] {
   ];
 }
 
-/** Which structures are drawn from a model. Everything else stays on the vector path. */
+/**
+ * Which structures are drawn from a model. Everything else stays on the vector path.
+ *
+ * **Everything M13 added is here**, on the measured evidence that a modelled sprite carries
+ * five times the tone count of a hand-drawn one over the same ink: bed 10 → 55, bedroll
+ * 5 → 38. Wall, door and hearth stay vector for now and are M14's, alongside the materials
+ * and ornament pass that has to touch them anyway. The campfire stays vector permanently —
+ * it is mostly flame, and flame has no faces to shade.
+ */
 export const MODELLED = {
-  [Building.Bed]: bedModel,
   [Building.Bedroll]: bedrollModel,
+  [Building.Bed]: bedModel,
+  [Building.Stool]: stoolModel,
+  [Building.Chair]: chairModel,
+  [Building.Table]: tableModel,
+  [Building.Desk]: deskModel,
+  [Building.Shelf]: shelfModel,
+  [Building.Crate]: crateModel,
+  [Building.Safe]: safeModel,
+  [Building.Torch]: torchModel,
+  [Building.Lamp]: lampModel,
+  [Building.Floodlight]: floodlightModel,
+  [Building.Banner]: bannerModel,
 } as const;
 
 export type ModelledBuilding = keyof typeof MODELLED;
