@@ -43,8 +43,20 @@ describe('Simulation.install', () => {
     const fresh = createWorld(1234, { width: 32, height: 32, colonists: 2 });
     sim.install(fresh);
 
-    expect(sim.world).toBe(fresh);
-    expect(sim.world).not.toBe(before);
+    /*
+     * Compared as booleans, deliberately.
+     *
+     * `expect(world).toBe(other)` is a landmine: on failure vitest pretty-prints a diff of
+     * both operands, and a `World` holds a tile grid, four entity stores, pathfinder
+     * scratch and a reachability map. Measured — with the drain removed so this genuinely
+     * fails, the object form took the worker past 2GB and killed it after ninety seconds
+     * with "Worker exited unexpectedly"; the boolean form fails cleanly in two.
+     *
+     * The failure path is the one nobody exercises until something breaks, which is
+     * exactly when a dead worker is least helpful.
+     */
+    expect(sim.world === fresh, 'install did not swap the world').toBe(true);
+    expect(sim.world === before, 'install left the old world in place').toBe(false);
 
     sim.tick();
     expect(sim.world).toBe(fresh);
