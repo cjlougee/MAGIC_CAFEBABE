@@ -16,10 +16,19 @@
  *     an edge read as an edge rather than a colour change.
  *  4. **A quantised ramp** — four deliberate tones per material instead of one flat fill.
  *
- * Solids are drawn **in the order the author lists them**, exactly as the hand-drawn art
- * already works (legs, then frame, then mattress, then pillow). Not sorted: an automatic
- * painter's sort over a handful of deliberately overlapping parts is a source of surprises,
- * and the author knows the answer already.
+ * Solids are drawn in **depth order**, with the author's order breaking ties.
+ *
+ * This file used to say the opposite — that sorting was a source of surprises and the
+ * author knew the answer already — and that was true for as long as every model stacked its
+ * parts in `z`. A bed is legs, then frame, then mattress, then pillow, and each sits on the
+ * last: the order is the same from every side, so writing it down worked.
+ *
+ * It stops being true the moment a part is offset in the **ground plane**. A banner's cloth
+ * hangs to one side of its pole, so at two facings the cloth is behind the pole and at the
+ * other two it is in front — and no single author order can be right for all four. What
+ * shipped was a pole painted straight through the near face of its own banner, twice, while
+ * every measurement of the sprite passed. **The author cannot know an answer that changes
+ * with the rotation.**
  */
 
 import { Polygon } from 'pixi.js';
@@ -69,8 +78,13 @@ export function renderModel(solids: readonly Solid[], frame: ModelFrame): DrawLi
   const project = projector(rotatedHeight, rise);
   const marks: Mark[] = [];
 
-  for (const solid of solids) {
-    const box = rotateBox(solid, footprint, rotation);
+  // Turned first, then ordered: which part is in front is a question about the *rotated*
+  // boxes, and asking it of the unrotated ones would give the same answer four times.
+  const boxes = solids.map((solid) => rotateBox(solid, footprint, rotation));
+
+  for (const index of paintOrder(boxes)) {
+    const solid = solids[index];
+    const box = boxes[index];
     const label = solid.label ?? MATERIALS[solid.material].name;
 
     /*
@@ -100,6 +114,88 @@ export function renderModel(solids: readonly Solid[], frame: ModelFrame): DrawLi
 
 interface Box {
   x0: number; y0: number; z0: number; x1: number; y1: number; z1: number;
+}
+
+/**
+ * Whether `a` can hide part of `b` — the separating-axis test for boxes under a camera
+ * that never moves.
+ *
+ * `+x` runs down-right, `+y` down-left and `+z` up, so a box lying entirely beyond another
+ * along any one of those three is nearer the viewer and paints over it. If none of the three
+ * separates them the boxes interpenetrate, neither is strictly in front, and the author's
+ * order decides — which is the case for every part of a bed, and why sorting changes that
+ * sprite not at all.
+ */
+function nearerThan(a: Box, b: Box): boolean {
+  /*
+   * Beyond `b` along one axis **and overlapping it on the other two**, which is the part
+   * that is easy to leave out and produces nonsense when you do.
+   *
+   * A bed's far-right leg is beyond its pillow along `+y` and sits a third of a storey
+   * below it: the two share no screen pixel and neither can hide the other, but the
+   * one-sided test calls the leg "in front" anyway. That edge then propagates through the
+   * sort and drags the bed's frame out from under three of its own legs — a sprite that had
+   * been correct for two milestones, broken by a constraint between two parts that never
+   * touch.
+   */
+  const overX = a.x0 < b.x1 && b.x0 < a.x1;
+  const overY = a.y0 < b.y1 && b.y0 < a.y1;
+  const overZ = a.z0 < b.z1 && b.z0 < a.z1;
+
+  if (a.x0 >= b.x1) return overY && overZ;
+  if (a.y0 >= b.y1) return overX && overZ;
+  if (a.z0 >= b.z1) return overX && overY;
+  return false;
+}
+
+/**
+ * The order to paint boxes in: anything behind, before the thing in front of it.
+ *
+ * A topological sort rather than a sort key, because "is in front of" is **not a total
+ * order** on boxes — a pillow is above a mattress but nearer than nothing else, and any
+ * scalar depth that ranked the two would have to choose between `x + y` and `z` and be
+ * wrong about the other. Ranking a bed by `x + y` puts its pillow under its own mattress.
+ *
+ * Ties break on the author's index, so a model whose parts all interpenetrate comes out in
+ * exactly the order it was written — which is every model here except the banner and the
+ * shelf. A cycle (boxes mutually beyond one another) cannot overlap on screen, so the
+ * remainder simply keeps author order.
+ */
+function paintOrder(boxes: readonly Box[]): number[] {
+  const n = boxes.length;
+  const waitingOn = new Array<number>(n).fill(0);
+  const behindMe: number[][] = boxes.map(() => []);
+
+  for (let a = 0; a < n; a++) {
+    for (let b = 0; b < n; b++) {
+      if (a === b || !nearerThan(boxes[a], boxes[b])) continue;
+      // `a` is in front of `b`, so `b` is painted first.
+      behindMe[b].push(a);
+      waitingOn[a]++;
+    }
+  }
+
+  const order: number[] = [];
+  const ready: number[] = [];
+  for (let i = 0; i < n; i++) if (waitingOn[i] === 0) ready.push(i);
+
+  while (ready.length > 0) {
+    // Lowest author index among everything currently free, which is what makes the sort
+    // stable — and what makes it a no-op for a model with nothing to reorder.
+    let pick = 0;
+    for (let i = 1; i < ready.length; i++) if (ready[i] < ready[pick]) pick = i;
+    const next = ready.splice(pick, 1)[0];
+    order.push(next);
+    for (const dependent of behindMe[next]) {
+      if (--waitingOn[dependent] === 0) ready.push(dependent);
+    }
+  }
+
+  if (order.length < n) {
+    const placed = new Set(order);
+    for (let i = 0; i < n; i++) if (!placed.has(i)) order.push(i);
+  }
+  return order;
 }
 
 /** Turns an axis-aligned box by rotating its corners and re-taking the extremes. */

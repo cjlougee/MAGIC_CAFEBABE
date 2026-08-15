@@ -241,37 +241,37 @@ export function floodlightModel(): Solid[] {
   ];
 }
 
-/** A banner: cloth hung down one side of a pole. Does nothing, and is the point. */
+/**
+ * A banner: a standard hung round a pole. Does nothing, and is the point.
+ *
+ * **Symmetric, and the projection decided that, not taste.** Under the four quarter turns a
+ * point `(px, py)` takes the sums `px+py`, `1+px−py`, `2−px−py` and `1−px+py`, and those are
+ * equal **only at (0.5, 0.5)**. Screen y is `(x + y) × HALF_TILE_H`, so any part far enough
+ * off-centre to make the facings look different is, by exactly the same number, far enough
+ * off-centre to slide down its own post as it turns. There is no offset that buys one
+ * without the other.
+ *
+ * Four one-sided versions proved it the slow way — raising the hem, shrinking the sheet,
+ * moving it to the top of the post — and each fixed the drop by making the banner smaller
+ * until it read as a signpost arm. The last of them also needed the depth sort in
+ * `render.ts` before the pole stopped painting straight through it, which is a real fix and
+ * a separate one.
+ *
+ * So the cloth wraps the pole. It reads the same from every side, which is what a hanging
+ * standard does anyway, and the def is `orientable: false` — the game stops offering a turn
+ * that could only ever make it worse.
+ */
 export function bannerModel(): Solid[] {
   return [
     // Top hidden: the pole stands in it.
     { x0: 0.42, y0: 0.42, z0: 0, x1: 0.58, y1: 0.58, z1: 0.06, material: 'stone', label: 'banner foot', hideTop: true },
-    /*
-     * **Small, and hung right at the top**, because the swing cannot be designed away.
-     *
-     * A part offset from the tile centre swings vertically as the model rotates: under the
-     * four quarter turns a point `(px, py)` takes sums `px+py`, `1+px−py`, `2−px−py` and
-     * `1−px+py`, and those are all equal **only at (0.5, 0.5)**. So a banner that visibly
-     * hangs to one side necessarily drops by `offset × TILE_H` pixels at two of its four
-     * facings — sideways offset and vertical swing are the same number, and one cannot be
-     * bought without the other.
-     *
-     * That kills the obvious fixes. Centring the cloth removes the swing and makes the
-     * facings identical; simply raising the hem does not work either, because the sheet has
-     * *depth* — a box wide enough to read as a banner reaches toward the camera, and its
-     * near-bottom corner hangs far below its own hem. The first attempt raised the hem to
-     * 0.44 storeys and still left four pixels of bare post at two facings.
-     *
-     * So the cloth is **shallower and shorter, and sits in the top fifth of the post**:
-     * three pixels of swing against nine of clearance at the worst facing, twelve at the
-     * best. Both read as hanging, which is the only thing the player is judging.
-     *
-     * Cloth before pole, which is the order the object is in at two of the four facings.
-     * The model layer does not depth-sort — see `render.ts` — so a part offset in the
-     * ground plane cannot be correctly ordered for all four, and a pole drawn across the
-     * near face of its own banner is the reading that survives being wrong.
-     */
-    { x0: 0.36, y0: 0.34, z0: 0.6, x1: 0.46, y1: 0.66, z1: 0.83, material: 'cloth', label: 'banner cloth' },
-    { x0: 0.46, y0: 0.46, z0: 0.04, x1: 0.54, y1: 0.54, z1: HEIGHT.standing, material: 'wood', label: 'banner pole' },
+    // Top hidden too: the finial caps it.
+    { x0: 0.46, y0: 0.46, z0: 0.04, x1: 0.54, y1: 0.54, z1: HEIGHT.standing, material: 'wood', label: 'banner pole', hideTop: true },
+    // Around the pole, so it never needs ordering against it and never moves relative to it.
+    // Hem clear of the foot and head clear of the finial, so the post reads as continuous
+    // through the cloth rather than ending at it.
+    { x0: 0.36, y0: 0.36, z0: 0.28, x1: 0.64, y1: 0.64, z1: 0.72, material: 'cloth', label: 'banner cloth' },
+    // The only asymmetry left, and it is vertical: a cap that finishes the post.
+    slab(0.4, 0.4, 0.6, 0.6, HEIGHT.standing + 0.05, 0.06, 'scrap', 'banner finial'),
   ];
 }

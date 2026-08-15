@@ -59,12 +59,21 @@ Three rules it does not give you:
 - `rise / LEVEL_HEIGHT` is a **ceiling**. A solid above it projects off the top of its own frame. The
   harness fails on it rather than cropping silently.
 - A face thinner than a pixel is dropped. If a part vanishes, it was under 1px thick.
-- **A sideways offset is a downward offset too.** Screen y is `(x + y) × HALF_TILE_H`, so a part
-  hung to one side of a pivot does not merely swing left and right as the model rotates — it swings
-  *down* by `offset × TILE_H` pixels as well. A banner's cloth at an offset of 0.14 tiles dropped
-  four and a half pixels at two of its four facings, onto a hem only seven pixels off the ground,
-  and read as a sign lying against its own post. Any part offset in the ground plane needs clearance
-  for the swing, or a smaller offset.
+- **A sideways offset is a downward offset too, and you cannot buy one without the other.** Under
+  the four quarter turns a point `(px, py)` takes the sums `px+py`, `1+px−py`, `2−px−py` and
+  `1−px+py`, and those are equal **only at (0.5, 0.5)**. Screen y is `(x + y) × HALF_TILE_H`, so a
+  part far enough off-centre to make the facings look different is, by exactly the same number, far
+  enough off-centre to slide vertically as it turns. A banner's cloth hung to one side dropped four
+  and a half pixels at two facings and read as a sign lying against its own post — and no amount of
+  raising the hem or shrinking the sheet fixed it, because the two are the same quantity. **The
+  answer was to make the part symmetric and the def `orientable: false`**, not to keep tuning.
+
+- **Measure parts against each other, don't look at the sprite.** The banner above was "fixed"
+  twice by eye and was wrong both times, because the eye reported the symptom (*the sign is on the
+  ground*) and not the cause. Counting the pixels each *named part* owns, per rotation, found it in
+  one pass: the cloth lost 27% of itself at two facings because the pole was painted over it. The
+  harness already keeps a `raster.owner` map for exactly this — use it before reaching for another
+  number to nudge.
 
 - **A horizontal surface hides everything under it, and by more than you expect.** A top face's
   diamond hangs `side × HALF_TILE_H` below its own plane — about twelve pixels for a chair seat,

@@ -345,8 +345,15 @@ export const BUILDING_DEFS: readonly BuildingDef[] = [
     passable: true,
     blocksRoom: false,
     lockable: false,
-    // The cloth hangs on one side of the pole.
-    orientable: true,
+    /*
+     * The cloth wraps the pole, so it looks the same from every side.
+     *
+     * Not a shrug — the projection forces it. A part off-centre enough for the facings to
+     * differ is off-centre enough to slide vertically as the model turns, by the very same
+     * offset. See `bannerModel`. Offering a turn that can only make it worse is the kind of
+     * control ADR 0009 exists to refuse.
+     */
+    orientable: false,
     ownable: false,
   },
 ];

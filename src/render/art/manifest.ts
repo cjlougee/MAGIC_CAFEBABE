@@ -119,13 +119,53 @@ export interface SpriteEntry {
 const DEFAULT: SpriteContract = { minVisibleInk: 6, containment: 'footprint' };
 
 /**
+ * A per-building contract, in which `mayHide.count` may differ per facing.
+ *
+ * **Because it genuinely does.** A bed buries one leg whichever way it points, so one
+ * number covered all four — but a shelf turned back-to-front hides its whole face, and a
+ * single count cannot say "none at rotations 0 and 3, eight at 1 and 2". Forcing one would
+ * mean either declaring eight everywhere, which stops the ratchet noticing a part
+ * disappearing from the *front* of the shelf, or reshaping the model to make a false
+ * statement true.
+ *
+ * Four numbers is a *stronger* claim than one, not a looser one: it pins the exact count at
+ * each facing rather than one figure loose enough to cover the worst.
+ */
+type BuildingContract = Omit<Partial<SpriteContract>, 'mayHide'> & {
+  readonly mayHide?: {
+    readonly count: number | readonly [number, number, number, number];
+    readonly why: string;
+  };
+};
+
+/** The contract as one rotation sees it. */
+function contractFor(def: BuildingId, rotation: Rotation): SpriteContract {
+  const declared = BUILDING_CONTRACTS[def];
+  if (!declared) return DEFAULT;
+
+  const { mayHide, ...rest } = declared;
+  return {
+    ...DEFAULT,
+    ...rest,
+    ...(mayHide
+      ? {
+          mayHide: {
+            count: typeof mayHide.count === 'number' ? mayHide.count : mayHide.count[rotation],
+            why: mayHide.why,
+          },
+        }
+      : {}),
+  };
+}
+
+/**
  * Per-building contracts, keyed by id.
  *
  * Every exception here is a sentence about the art, not a workaround. If one of these
  * needs relaxing to make a change pass, that is the moment to check whether the change
  * is right rather than whether the number is.
  */
-const BUILDING_CONTRACTS: Partial<Record<BuildingId, Partial<SpriteContract>>> = {
+const BUILDING_CONTRACTS: Partial<Record<BuildingId, BuildingContract>> = {
   /*
    * Four posts, two visible faces each once their tops are suppressed. Exactly one leg —
    * the far one — is entirely behind the frame, and which one that is changes with the
@@ -171,10 +211,29 @@ const BUILDING_CONTRACTS: Partial<Record<BuildingId, Partial<SpriteContract>>> =
   },
   // The drawer bank is at one end, so turning the desk has to move it end to end.
   9: { rotationsDiffer: [[0, 2]] },
-  // The uprights are symmetric; the lips are all on the front, so the facings differ.
-  10: { rotationsDiffer: [[0, 2]] },
-  // The cloth hangs on one side of the pole.
-  16: { rotationsDiffer: [[0, 2]] },
+  /*
+   * A shelf shows its **back** at two of the four facings, and its three shelf fronts are
+   * then entirely behind the carcass — nine marks each with nothing to say.
+   *
+   * Found by depth-ordering the model rather than by looking: the fronts stand proud of the
+   * carcass in `+y`, so turning the unit past 90° puts them behind it. That is correct, and
+   * it is *useful* — a shelf you can see the shelves of is one that is facing into the
+   * room, which is the whole point of being able to turn it.
+   *
+   * Eight rather than nine because the lowest front's top face still catches a sliver over
+   * the carcass at those facings. Exact, so a front vanishing from the *visible* side fails
+   * just as loudly.
+   */
+  10: {
+    mayHide: {
+      count: [0, 8, 8, 0],
+      why: 'the open face is turned away at two of the four facings',
+    },
+    rotationsDiffer: [[0, 2]],
+  },
+  // The cloth wraps the pole, so turning it must be a no-op — the same claim the hearth
+  // makes, and the reason the banner stopped being orientable. See `bannerModel`.
+  16: { rotationsMatch: [[0, 1], [0, 2], [0, 3]] },
 };
 
 /**
@@ -241,7 +300,7 @@ function buildingEntries(): SpriteEntry[] {
           vector: isModelled(def.id)
             ? overlayVector(def.id)
             : () => buildBuildingGraphics(def.id, rotation, locked).context,
-          contract: { ...DEFAULT, ...BUILDING_CONTRACTS[def.id] },
+          contract: contractFor(def.id, rotation),
         });
       }
     }

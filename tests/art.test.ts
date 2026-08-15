@@ -17,12 +17,12 @@ import { describe, expect, it } from 'vitest';
 import { Graphics } from 'pixi.js';
 import { REVIEW_PAWN, spriteManifest, type SpriteEntry } from '../src/render/art/manifest';
 import { LIT_SHIFT, MIN_FEATURE } from '../src/render/art/language';
-import { cellsOf, headCellOf, ROTATIONS, type Rotation } from '../src/sim/world/footprint';
-import { Building, type BuildingId } from '../src/sim/defs/buildings';
+import { cellsOf, headCellOf, ROTATIONS, sizeOf, type Rotation } from '../src/sim/world/footprint';
+import { Building, buildingDef, type BuildingId } from '../src/sim/defs/buildings';
 import { footprintCentre, sleeperCentreAt } from '../src/render/placement';
 import { BUILDING_HEIGHT, buildBuildingDrawList } from '../src/render/art/buildingArt';
 import { GROUND_LEVEL } from '../src/sim/core/position';
-import { footprintCellCentre, tileToWorld } from '../src/render/iso';
+import { footprintBounds, footprintCellCentre, tileToWorld } from '../src/render/iso';
 import { HALF_TILE_W } from '../src/render/constants';
 import { drawListFromGraphics, paintedInstructions } from '../src/render/art/raster/fromGraphics';
 import { footprintMask } from '../src/render/art/raster/footprintMask';
@@ -38,6 +38,8 @@ import {
   visibleCounts,
 } from '../src/render/art/raster/measure';
 import { rasterize } from '../src/render/art/raster/raster';
+import { renderModel, type Solid } from '../src/render/art/model/render';
+import { bedModel, MODELLED } from '../src/render/art/model/buildingModels';
 import { Palette, PawnPalette, shade } from '../src/render/art/palette';
 
 const MANIFEST = spriteManifest();
@@ -262,6 +264,115 @@ describe('rotations differ when they must, and match when they must', () => {
     for (const [a, b] of sprite.contract.rotationsMatch ?? []) {
       expect(samePixels(rasterFor(a), rasterFor(b)), `rot ${a} and rot ${b} differ`).toBe(true);
     }
+  });
+});
+
+describe('a model paints what is behind before what is in front', () => {
+  /*
+   * The banner shipped twice with its own pole painted straight through the near face of
+   * its cloth, and every measurement of the sprite passed both times.
+   *
+   * The renderer used to draw solids in the order the author listed them, on the grounds
+   * that the author knows the answer. That holds exactly as long as a model stacks its
+   * parts in `z` — a bed is legs, then frame, then mattress, then pillow, and that order is
+   * the same from every side. It fails the moment a part is offset in the **ground plane**,
+   * because then the part is behind at two facings and in front at the other two, and *no*
+   * author order is right for all four.
+   *
+   * These are the claims the sort has to keep, and the third is the one that matters most:
+   * it must change nothing about a model that was already correct.
+   */
+  const SQUARE = { w: 1, h: 1 };
+  const FRAME = { footprint: SQUARE, rotation: 0 as Rotation, rise: 24 };
+
+  const slab = (label: string, x0: number, x1: number): Solid => ({
+    x0, y0: 0.1, z0: 0, x1, y1: 0.9, z1: 0.5, material: 'stone', label,
+  });
+
+  /** Where a part's first face lands in the draw list. */
+  const at = (marks: readonly { label: string }[], part: string) =>
+    marks.findIndex((mark) => mark.label.startsWith(part));
+
+  it('reorders a near part the author listed first', () => {
+    // Separated along +x, so `near` is unambiguously in front — and listed first, which
+    // would have painted it *under* the thing behind it.
+    const marks = renderModel([slab('near', 0.6, 1), slab('far', 0, 0.4)], FRAME);
+    expect(at(marks, 'far')).toBeLessThan(at(marks, 'near'));
+  });
+
+  it('swaps them again when the model turns', () => {
+    // The whole point: turning the model turns which part is in front, so the answer the
+    // author wrote down cannot be right at every facing.
+    const solids = [slab('near', 0.6, 1), slab('far', 0, 0.4)];
+    const turned = renderModel(solids, { ...FRAME, rotation: 2 });
+    expect(at(turned, 'near')).toBeLessThan(at(turned, 'far'));
+  });
+
+  it('leaves parts that interpenetrate in the order they were written', () => {
+    /*
+     * A bed is four legs, a frame *on* them, a mattress *in* that and a pillow *on* the
+     * mattress — every pair overlaps on all three axes, so none is strictly in front of
+     * another and the author's order is the only answer there is. If the sort ever starts
+     * ranking these, a pillow ends up under its own mattress.
+     */
+    const marks = renderModel(bedModel(), {
+      footprint: { w: 2, h: 1 },
+      rotation: 0,
+      rise: BUILDING_HEIGHT[Building.Bed],
+    });
+    const written = ['bed leg 0', 'bed leg 1', 'bed leg 2', 'bed leg 3', 'bed frame', 'mattress', 'pillow'];
+    const found = written.map((part) => at(marks, part));
+    expect(found, `the bed came out as ${written.join(', ')} reordered`).toEqual(
+      [...found].sort((a, b) => a - b),
+    );
+  });
+
+  /*
+   * The guarantee that makes the sort safe to have at all.
+   *
+   * A painter's order applied to every model in the game is a change with a very wide blast
+   * radius and a failure mode — a part quietly drawn on the wrong side of another — that no
+   * existing check would name. So the claim is not "the sort is right", it is **"the sort
+   * changes nothing except where the ordering genuinely depends on the facing"**, and the
+   * exceptions are listed rather than discovered.
+   *
+   * Measured, byte for byte, against rendering each solid alone in the written sequence:
+   *
+   *  - **Desk**, 15px at two facings — its drawer bank against the end panel beside it.
+   *  - **Shelf**, 808px at two facings — the shelf fronts correctly behind the carcass when
+   *    the open face is turned away.
+   *  - **Safe**, 175px at two facings — the door and lock standing proud of one face. It is
+   *    not orientable, so the game never draws those, but the model is still right.
+   *
+   * Anything else appearing here means a new model has an ordering that depends on which
+   * way it points, which is worth knowing before it ships rather than after.
+   */
+  it('changes nothing about a model whose parts do not reorder', () => {
+    const reordered = new Set<string>();
+
+    for (const key of Object.keys(MODELLED)) {
+      const def = Number(key) as BuildingId;
+      const footprint = buildingDef(def).footprint;
+      const model = MODELLED[def as keyof typeof MODELLED]();
+      const rise = BUILDING_HEIGHT[def];
+
+      for (const rotation of ROTATIONS) {
+        const { w, h } = sizeOf(footprint, rotation);
+        const box = footprintBounds(0, 0, w, h, GROUND_LEVEL, rise);
+        const frame = { footprint, rotation, rise };
+
+        const sorted = rasterize(renderModel(model, frame), box.width, box.height);
+        // Author order: each solid rendered alone, composited in the sequence written.
+        const asWritten = rasterize(
+          model.flatMap((solid) => renderModel([solid], frame)),
+          box.width,
+          box.height,
+        );
+        if (!samePixels(sorted, asWritten)) reordered.add(buildingDef(def).name);
+      }
+    }
+
+    expect([...reordered].sort()).toEqual(['Desk', 'Safe', 'Shelf']);
   });
 });
 
