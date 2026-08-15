@@ -45,6 +45,22 @@ Rotations 0 and 2 occupy identical cells; so do 1 and 3. Keeping all four costs 
 the middle of. `headCellOf` is the only thing that can tell 0 from 2, and without it "rotate the bed"
 would be a control that visibly does nothing.
 
+### The cursor holds a structure by its facing cell
+
+*Added in M13, from playing it.* The consequence of the paragraph above is that turning a 2×1 moved
+its far end east, south, east, south — because the anchor is the minimum corner, so half of every
+turn left the cells where they were and only mirrored the sprite. Each step is correct and the
+control still feels broken: a player turning something expects it to keep going the same way round.
+
+So the cell under the cursor is the **facing** cell, and the anchor is derived from it — `anchorFor`,
+the exact inverse of `headCellOf`. The far end then goes east, south, west, north, and the thing the
+player is pointing at stays put while the rest swings around it.
+
+This is deliberately a fact about *where the pointer is* and not about the entity. The stored anchor
+is still the minimum corner, `cellsOf` still extends right and down from it, and **no save changes
+meaning** — which is why the conversion is applied at the input's edge rather than in the model. It
+also gives `s.place(def, at, rotation)` a better reading in a scenario: `at` is where the head goes.
+
 ### Why rotation lands now rather than when something needs it
 
 The same argument as `TilePos.z` in ADR 0003, and it is the reason that ADR exists. Rotation touches

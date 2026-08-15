@@ -287,7 +287,11 @@ tests rather than by structure:
   and a second copy of that arithmetic will disagree the first time the convention moves.
   Rotations 0 and 2 cover *identical* cells and differ only in facing, which is why
   rotation has to be in `hashWorld()` — a bed restored backwards round-trips perfectly by
-  every other measure. Anything that used to say "the cell" now has to say "every cell":
+  every other measure. **That is also why the cursor holds a structure by its facing cell**
+  (`anchorFor`, the inverse of `headCellOf`): anchored at the minimum corner, four presses
+  of E send the far end east, south, east, south, and a rotation control that oscillates
+  reads as broken however correct each step is. The pivot is an input concern and changes
+  no stored state. Anything that used to say "the cell" now has to say "every cell":
   legality is all-or-nothing, a demolition mark covers the whole structure, deconstruct
   refunds once rather than once per cell, and "adjacent" excludes the footprint itself or
   a pawn on one end of a bed counts as standing beside it. See ADR 0009.

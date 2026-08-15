@@ -103,7 +103,22 @@ export function HUD({ store, engine }: HUDProps) {
        * hint bar changes to say Q/E turn. Escape and right-click both still leave the
        * tool, so nothing is trapped behind the borrowed key.
        */
-      if (engine.canRotate && (event.code === 'KeyQ' || event.code === 'KeyE')) {
+      /*
+       * **Consumed whenever the build tool is up, not only when the thing turns.**
+       *
+       * `canRotate` also asks whether the *buildable* is orientable, and gating the key on
+       * it meant that pressing Q while holding a safe fell through to `TOOL_KEYS` and
+       * switched to the select tool — so the architect menu closed and the player lost
+       * what they were holding, for pressing the rotate key on something that does not
+       * rotate. That is exactly the state-dependent gesture ADR 0005 forbids: the key means
+       * "turn this" inside the build tool and "select tool" outside it, and *which
+       * buildable is held* is a third meaning nobody asked for.
+       *
+       * So the tool decides, and a safe simply does not turn. `canRotate` stays as it was
+       * — it answers a different question, which is whether the hint bar should offer Q/E
+       * at all.
+       */
+      if (tool === 'build' && (event.code === 'KeyQ' || event.code === 'KeyE')) {
         engine.rotateBuildable(event.code === 'KeyE' ? 1 : -1);
         return;
       }

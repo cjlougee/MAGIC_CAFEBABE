@@ -16,6 +16,7 @@ import type { Camera } from '../render/camera/camera';
 import type { DragPreview, PreviewTool } from '../render/layers/overlayLayer';
 import { Buildable, type BuildableId } from '../sim/defs/buildables';
 import {
+  anchorFor,
   footprintOfBuildable,
   isOrientable,
   isSingleCell,
@@ -176,6 +177,23 @@ export class WorldInput {
     this.instantBuild = instant;
   }
 
+  /**
+   * Where a structure held over `cell` actually anchors.
+   *
+   * The cursor holds the structure by its **facing cell**, so turning it swings the rest
+   * around the cursor rather than flipping the whole thing between two positions. See
+   * `anchorFor`; the conversion lives in `sim/` and is applied here, at the one place that
+   * knows where the pointer is, so the ghost and the command it commits cannot disagree
+   * about it — they are the same rectangle.
+   */
+  private anchorUnder(cell: { x: number; y: number }): { x: number; y: number } {
+    return anchorFor(
+      { x: cell.x, y: cell.y, z: GROUND_LEVEL },
+      footprintOfBuildable(this.buildable),
+      this.rotation,
+    );
+  }
+
   /** The rectangle currently being dragged, or the cell the build tool is hovering. */
   get preview(): DragPreview | null {
     /*
@@ -187,11 +205,12 @@ export class WorldInput {
      */
     if (!this.dragFrom || !this.dragTo) {
       if (this.tool !== 'build' || !this.hover) return null;
+      const anchor = this.anchorUnder(this.hover);
       return {
-        x0: this.hover.x,
-        y0: this.hover.y,
-        x1: this.hover.x,
-        y1: this.hover.y,
+        x0: anchor.x,
+        y0: anchor.y,
+        x1: anchor.x,
+        y1: anchor.y,
         z: GROUND_LEVEL,
         tool: 'build',
         buildable: this.buildable,
@@ -199,11 +218,15 @@ export class WorldInput {
       };
     }
 
-    // A multi-tile blueprint follows the cursor rather than sweeping an area, so the
-    // rectangle collapses onto wherever the pointer currently is.
-    const from = this.dragsAnArea ? this.dragFrom : this.dragTo;
+    /*
+     * A multi-tile blueprint follows the cursor rather than sweeping an area, so the
+     * rectangle collapses onto wherever the pointer currently is — and onto the *anchor*
+     * that pointer implies, which for the far two rotations is not the pointer's own cell.
+     */
+    const held = this.dragsAnArea ? this.dragTo : this.anchorUnder(this.dragTo);
+    const from = this.dragsAnArea ? this.dragFrom : held;
 
-    const rect = normaliseRect(from.x, from.y, this.dragTo.x, this.dragTo.y, GROUND_LEVEL);
+    const rect = normaliseRect(from.x, from.y, held.x, held.y, GROUND_LEVEL);
     // The tool travels with the rectangle so the overlay can grey out cells it would
     // skip — a drag across a river should say so before the player commits. The
     // buildable goes too, because a footprint's legality is a question about several
@@ -314,7 +337,14 @@ export class WorldInput {
         this.handlers.dispatch({ type: 'designate', action: 'mine', area });
         break;
       case 'deconstruct':
-        this.handlers.dispatch({ type: 'designate', action: 'deconstruct', area });
+        // Carries the same debug flag the build tool does: "place finished" and "take it
+        // down now" are one switch, because they are the same impatience.
+        this.handlers.dispatch({
+          type: 'designate',
+          action: 'deconstruct',
+          area,
+          instant: this.instantBuild,
+        });
         break;
       case 'stockpile':
         this.handlers.dispatch({ type: 'zone', action: 'stockpile', area });

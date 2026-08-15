@@ -247,16 +247,25 @@ export function bannerModel(): Solid[] {
     // Top hidden: the pole stands in it.
     { x0: 0.42, y0: 0.42, z0: 0, x1: 0.58, y1: 0.58, z1: 0.06, material: 'stone', label: 'banner foot', hideTop: true },
     /*
-     * Cloth **before** the pole, which is the order the object is in: hung on the low-x
-     * side, the sheet sits further back than the pole it hangs from, so the pole has to
-     * draw over it. Written the other way round, the cloth's own top face reached forward
-     * far enough to cover the top of the pole — a solid a fifth of a storey shorter hiding
-     * the tip of the thing holding it up.
+     * **Hung high, and close to the pole**, because in a 2:1 view a sideways offset is a
+     * *downward* one too.
      *
-     * Thin in x and broad in y, so its down-right face is the sheet you read. Hanging on
-     * one side is also what makes the two facings different.
+     * The sheet sits to one side of the pole in the ground plane — that is what makes the
+     * facings differ — and rotating it therefore swings it through `2 × offset` tiles of
+     * `x + y`, which the projection turns into `offset × TILE_H` pixels of screen drop.
+     * At an offset of 0.14 tiles and a hem 0.3 storeys up, the far two facings dropped the
+     * cloth four and a half pixels onto a hem seven pixels off the ground, and the banner
+     * read as a sign lying against its own post.
+     *
+     * So the hem starts at nearly half a storey and the offset is smaller: the swing is
+     * three pixels against ten of clearance, and it reads as hanging at every facing.
+     *
+     * Cloth before pole, which is the order the object is in at two of the four facings.
+     * The model layer does not depth-sort — see `render.ts` — so a part offset in the
+     * ground plane cannot be correctly ordered for all four, and a pole drawn across the
+     * near face of its own banner is the reading that survives being wrong.
      */
-    { x0: 0.3, y0: 0.24, z0: 0.3, x1: 0.42, y1: 0.76, z1: 0.8, material: 'cloth', label: 'banner cloth' },
+    { x0: 0.34, y0: 0.24, z0: 0.44, x1: 0.45, y1: 0.76, z1: 0.82, material: 'cloth', label: 'banner cloth' },
     { x0: 0.46, y0: 0.46, z0: 0.04, x1: 0.54, y1: 0.54, z1: HEIGHT.standing, material: 'wood', label: 'banner pole' },
   ];
 }

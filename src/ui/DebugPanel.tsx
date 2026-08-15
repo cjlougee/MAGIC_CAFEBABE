@@ -130,13 +130,19 @@ export function DebugPanel({
 
         <h3 className="debug-panel__group">Building</h3>
         <div className="debug-panel__row">
-          <label className="debug-toggle">
+          {/*
+            One switch for both directions. It raised finished structures and left
+            Deconstruct still marking them for a colonist to walk over and undo — so
+            clearing a mistake cost an in-game hour while making one cost nothing, which
+            is the wrong way round for the tool that exists to skip the waiting.
+          */}
+          <label className="debug-toggle" title="Build and deconstruct take effect at once">
             <input
               type="checkbox"
               checked={instantBuild}
               onChange={(event) => onToggleInstantBuild(event.target.checked)}
             />
-            Place finished
+            Instant build
           </label>
           <button type="button" className="debug-btn" onClick={onFinishBlueprints}>
             Finish queued

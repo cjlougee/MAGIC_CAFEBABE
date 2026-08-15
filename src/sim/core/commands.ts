@@ -84,6 +84,17 @@ export interface DesignateCommand {
   readonly type: 'designate';
   readonly action: 'mine' | 'deconstruct' | 'cancel';
   readonly area: TileRectangle;
+  /**
+   * Take it down now rather than marking it for somebody to come and do.
+   *
+   * The mirror of `BuildCommand.instant`, and it lives on the ordinary designate command
+   * for the same reason that one lives on the ordinary build command: it is the *same*
+   * decision about the *same* cells — what may be taken down, what a footprint covers,
+   * what the salvage is — and a debug-only path of its own would be a second answer to
+   * all three. Only `deconstruct` reads it; marking rock for mining instantly would be
+   * mining, which is a different verb.
+   */
+  readonly instant?: boolean;
 }
 
 /** Paints or erases stockpile cells. */

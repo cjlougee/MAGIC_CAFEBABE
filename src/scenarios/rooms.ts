@@ -108,6 +108,24 @@ export const rooms: Scenario[] = [
     frame: ROOM_FRAME,
   },
   {
+    name: 'crowded-fires',
+    /*
+     * Five campfires shoulder to shoulder, which is the case that broke the lighting.
+     *
+     * One emitter told us nothing: additive glows summed past white only where several
+     * overlapped, so the failure needed a *crowd* to appear at all and looked like a
+     * nuclear flash when it did. A picture of one campfire would have passed at every
+     * stage of tuning it.
+     */
+    about: 'Five campfires in a row, close enough that their glows overlap. Night.',
+    build: (s) => {
+      s.flat(SIZE);
+      for (let i = 0; i < 5; i++) s.place(Building.Campfire, at(i * 2, 2 + (i % 2)));
+      s.timeOfDay('night');
+    },
+    frame: { fit: 'contents', zoom: 2 },
+  },
+  {
     name: 'lights-at-night',
     /*
      * The three tiers side by side, which is the only way the claim they make is

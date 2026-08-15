@@ -31,7 +31,12 @@ import {
 } from './core/commands';
 import { buildingCells } from './entities/building';
 import { createSite, siteCells, type ConstructionSite } from './entities/constructionSite';
-import { cancelConstruction, completeConstruction, setLocked } from './world/construction';
+import {
+  cancelConstruction,
+  completeConstruction,
+  deconstruct,
+  setLocked,
+} from './world/construction';
 import { buildingAt, pawnOccupies, siteAt } from './world/lookup';
 import { clearPath, type Pawn } from './entities/pawn';
 import { GROUND_LEVEL, type TilePos } from './core/position';
@@ -511,6 +516,22 @@ export class Simulation {
         // Marking natural rock or an empty field would create work no colonist can do
         // and a mark the player can't explain.
         if (!canDesignateDeconstruct(world, index)) return;
+
+        /*
+         * Instant: the debug panel's Place-finished, run backwards.
+         *
+         * Through `deconstruct` — the *same* function the driver's `complete` toil calls —
+         * so the salvage, the refund-once-per-structure rule, the stranded ingredients a
+         * bench was holding and both invalidations all happen exactly as they would have.
+         * Skipping the colonist must not mean skipping any of that.
+         *
+         * It takes the whole structure down from any of its cells, so a drag across a 2×2
+         * hits it once and the remaining three cells find nothing left to remove.
+         */
+        if (command.instant) {
+          deconstruct(world, index);
+          return;
+        }
 
         // A structure is marked whole. Buildings are shown as marked by *tinting the
         // sprite*, so a 2x2 hearth with one cell marked would tint entirely while three

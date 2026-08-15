@@ -69,9 +69,9 @@ export class LightingLayer {
 
     this.glowTexture ??= buildGlowTexture({
       radius: GLOW_TEXTURE_RADIUS,
-      // Below 1: additive light at full strength saturates the core to white and hides
-      // the campfire inside its own glow. Light should reveal its source, not erase it.
-      peak: 0.72,
+      // Below 1: light at full strength saturates the core to white and hides the campfire
+      // inside its own glow. Light should reveal its source, not erase it.
+      peak: 0.35,
       falloff: 3,
     });
 
@@ -108,8 +108,21 @@ export class LightingLayer {
     if (!sprite) {
       sprite = new Sprite(this.glowTexture ?? Texture.WHITE);
       sprite.anchor.set(0.5);
-      // Additive, so overlapping fires pool their light instead of one hiding the other.
-      sprite.blendMode = 'add';
+      /*
+       * **Screen, not add.** Overlapping fires still pool their light instead of one
+       * hiding the other, but `1 - (1-a)(1-b)` approaches white without ever reaching it,
+       * where addition clips.
+       *
+       * Addition was fine for the one campfire the game had in M6 and stops being fine the
+       * moment a colony has several: put four next to each other and their glows summed
+       * past 1 across a wide area, flattening every colour under them to white — a
+       * nuclear flash rather than a camp. Anything that saturates hides its own source,
+       * which is the same failure the glow's `peak` is held below 1 to avoid, one scale up.
+       *
+       * Worth keeping in mind for Slice 5: additive light blowing out *is* what an
+       * explosion looks like, and this is the blend mode to reach back for.
+       */
+      sprite.blendMode = 'screen';
       sprite.eventMode = 'none';
       this.pool[index] = sprite;
       this.glow.addChild(sprite);

@@ -108,6 +108,29 @@ export function headCellOf(anchor: TilePos, footprint: Footprint, rotation: Rota
 }
 
 /**
+ * The anchor for a footprint turning about the cell the player is pointing at.
+ *
+ * **The inverse of `headCellOf`**, and that is the whole idea: the cell under the cursor is
+ * the *facing* cell, and rotating swings the rest of the structure around it.
+ *
+ * Without this, turning a 2×1 appeared to oscillate rather than rotate. The anchor is the
+ * minimum corner, so rotations 0 and 2 cover identical cells — press E four times and the
+ * far cell went east, south, east, south, while the sprite flipped underneath. Every
+ * individual part of that is correct and the gesture still reads as broken, because a
+ * player turning something expects the thing to keep going the same way round.
+ *
+ * Pivoting on the facing cell gives east, south, west, north — one continuous turn — and
+ * costs the simulation nothing: the stored anchor is still the minimum corner, still what
+ * `cellsOf` extends from, and no save changes meaning. This is a fact about *where the
+ * cursor is*, which is why it lives at the input's edge and not in the entity.
+ */
+export function anchorFor(pivot: TilePos, footprint: Footprint, rotation: Rotation): TilePos {
+  if (rotation < 2) return { ...pivot };
+  const { w, h } = sizeOf(footprint, rotation);
+  return { x: pivot.x - (w - 1), y: pivot.y - (h - 1), z: pivot.z };
+}
+
+/**
  * Whether a structure anchored here stands on this cell.
  *
  * Arithmetic rather than building a list, because `buildingAt` calls this once per

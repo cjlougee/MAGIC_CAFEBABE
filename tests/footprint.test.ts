@@ -20,6 +20,7 @@ import { deserializeWorld, serializeWorld } from '../src/sim/save/serialize';
 import { Simulation } from '../src/sim/simulation';
 import { Designation } from '../src/sim/world/designations';
 import {
+  anchorFor,
   cellsAdjacentTo,
   cellsOf,
   footprintOfBuilding,
@@ -117,6 +118,73 @@ describe('footprint arithmetic', () => {
     // Diagonally off the far end still counts; two cells clear does not.
     expect(isAdjacentToFootprint(pos(12, 11), cells)).toBe(true);
     expect(isAdjacentToFootprint(pos(13, 10), cells)).toBe(false);
+  });
+});
+
+describe('turning something keeps turning it the same way', () => {
+  /*
+   * The complaint this exists for: rotating a desk *felt* like it flipped back and forth
+   * rather than going round.
+   *
+   * Every part of the old behaviour was correct. The anchor is the minimum corner, so
+   * rotations 0 and 2 cover identical cells and differ only in facing — so pressing E four
+   * times sent the far cell east, south, east, south while the sprite mirrored underneath.
+   * Nothing was wrong except that a player turning something expects it to keep going the
+   * same way round, and it did not.
+   *
+   * Pivoting on the *facing* cell fixes it without the simulation changing at all: the
+   * stored anchor is still the minimum corner and no save changes meaning.
+   */
+  const BED = footprintOfBuilding(Building.Bed);
+  const pivot = pos(10, 10);
+
+  /** Where the far end of a 2×1 sits, relative to the cell under the cursor. */
+  function farEnd(rotation: Rotation) {
+    const anchor = anchorFor(pivot, BED, rotation);
+    const far = cellsOf(anchor, BED, rotation).find(
+      (cell) => cell.x !== pivot.x || cell.y !== pivot.y,
+    )!;
+    return { dx: far.x - pivot.x, dy: far.y - pivot.y };
+  }
+
+  it('sends the far end round the compass, a quarter turn at a time', () => {
+    expect([0, 1, 2, 3].map((r) => farEnd(r as Rotation))).toEqual([
+      { dx: 1, dy: 0 }, // east
+      { dx: 0, dy: 1 }, // south
+      { dx: -1, dy: 0 }, // west
+      { dx: 0, dy: -1 }, // north
+    ]);
+  });
+
+  it('never leaves the pivot cell', () => {
+    // The thing the player is pointing at is the thing that stays put. Without this the
+    // whole structure jumps sideways as it turns, which is the other way to make a
+    // rotation control feel wrong.
+    for (const rotation of [0, 1, 2, 3] as Rotation[]) {
+      const anchor = anchorFor(pivot, BED, rotation);
+      const cells = cellsOf(anchor, BED, rotation);
+      expect(
+        cells.some((cell) => cell.x === pivot.x && cell.y === pivot.y),
+        `rotation ${rotation} moved the structure off the cursor`,
+      ).toBe(true);
+    }
+  });
+
+  it('pivots on the facing cell, so a bed turns about its pillow', () => {
+    // `anchorFor` is the exact inverse of `headCellOf`, which is what makes the cell the
+    // player points at the cell the colonist's head ends up on.
+    for (const rotation of [0, 1, 2, 3] as Rotation[]) {
+      const anchor = anchorFor(pivot, BED, rotation);
+      expect(headCellOf(anchor, BED, rotation)).toEqual(pivot);
+    }
+  });
+
+  it('is a no-op for anything one cell across', () => {
+    // Walls are dragged out in runs, and shifting their anchor by rotation would move a
+    // whole drag off the cells the player swept.
+    for (const rotation of [0, 1, 2, 3] as Rotation[]) {
+      expect(anchorFor(pivot, footprintOfBuilding(Building.Wall), rotation)).toEqual(pivot);
+    }
   });
 });
 

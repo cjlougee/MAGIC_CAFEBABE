@@ -541,6 +541,27 @@ of them needed a dev server.
   `lights-at-night` puts all five emitters in one frame, which is the only way the warm/cold claim is
   checkable. Three scenarios, two calls each.
 
+**What playing it found, which no still could.** Six things, and five of them were about *motion or
+accumulation* rather than about any single frame:
+
+- **Rotation oscillated instead of turning.** Anchored at the minimum corner, rotations 0 and 2 cover
+  identical cells — so four presses of E sent a desk's far end east, south, east, south while the
+  sprite mirrored underneath. Every step correct, the gesture broken. The cursor now holds a
+  structure by its **facing cell** (`anchorFor`, the inverse of `headCellOf`) and the far end goes
+  round the compass. No stored state changed.
+- **Q dropped you out of the build tool** when the held buildable did not rotate — the key fell
+  through to the tool shortcuts and closed the architect menu. The *tool* decides what Q means now,
+  not the tool plus which item is held, which was a third meaning nobody asked for.
+- **Several fires together blew out to white.** Additive glow was fine for the one campfire M6 had
+  and stops being fine for a camp: four of them summed past 1 over a wide area and flattened every
+  colour under them. Now `screen`, which approaches white without reaching it, with the peak down
+  from 0.72 to 0.35. Noted for Slice 5: additive blow-out *is* what an explosion should look like.
+- **The banner's cloth slid down its post** at two facings — the swing lesson above, found by eye
+  and confirmed as a four-and-a-half-pixel drop in the report.
+- **Instant build only worked in one direction.** Deconstruct still marked structures for a colonist
+  to walk over and undo, so clearing a mistake cost an in-game hour while making one cost nothing.
+  One checkbox now covers both, through the same `deconstruct` the driver calls.
+
 **The model-layer question, answered with numbers rather than taste.** Tones over the same ink area:
 
 | sprite | ink px | tones |

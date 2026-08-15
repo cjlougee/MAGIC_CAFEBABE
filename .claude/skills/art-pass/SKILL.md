@@ -59,6 +59,13 @@ Three rules it does not give you:
 - `rise / LEVEL_HEIGHT` is a **ceiling**. A solid above it projects off the top of its own frame. The
   harness fails on it rather than cropping silently.
 - A face thinner than a pixel is dropped. If a part vanishes, it was under 1px thick.
+- **A sideways offset is a downward offset too.** Screen y is `(x + y) × HALF_TILE_H`, so a part
+  hung to one side of a pivot does not merely swing left and right as the model rotates — it swings
+  *down* by `offset × TILE_H` pixels as well. A banner's cloth at an offset of 0.14 tiles dropped
+  four and a half pixels at two of its four facings, onto a hem only seven pixels off the ground,
+  and read as a sign lying against its own post. Any part offset in the ground plane needs clearance
+  for the swing, or a smaller offset.
+
 - **A horizontal surface hides everything under it, and by more than you expect.** A top face's
   diamond hangs `side × HALF_TILE_H` below its own plane — about twelve pixels for a chair seat,
   forty for a 2×1 shelf board — so anything shorter than that is inside its own top's silhouette.
