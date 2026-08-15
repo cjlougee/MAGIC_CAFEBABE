@@ -244,22 +244,32 @@ export function floodlightModel(): Solid[] {
 /**
  * A banner: a standard hung round a pole. Does nothing, and is the point.
  *
- * **Symmetric, and the projection decided that, not taste.** Under the four quarter turns a
- * point `(px, py)` takes the sums `px+py`, `1+px−py`, `2−px−py` and `1−px+py`, and those are
- * equal **only at (0.5, 0.5)**. Screen y is `(x + y) × HALF_TILE_H`, so any part far enough
- * off-centre to make the facings look different is, by exactly the same number, far enough
- * off-centre to slide down its own post as it turns. There is no offset that buys one
- * without the other.
+ * **Symmetric as a retreat, not as a conclusion — and it is the weakest sprite in the set.**
  *
- * Four one-sided versions proved it the slow way — raising the hem, shrinking the sheet,
- * moving it to the top of the post — and each fixed the drop by making the banner smaller
- * until it read as a signpost arm. The last of them also needed the depth sort in
- * `render.ts` before the pole stopped painting straight through it, which is a real fix and
- * a separate one.
+ * Rotation here is an ordinary quarter turn of the coordinates and always was. Two separate
+ * things went wrong with the one-sided version and conflating them cost four attempts:
  *
- * So the cloth wraps the pole. It reads the same from every side, which is what a hanging
- * standard does anyway, and the def is `orientable: false` — the game stops offering a turn
- * that could only ever make it worse.
+ *  1. **A real bug**: at two facings the cloth is in front of the pole, and the renderer drew
+ *     solids in author order, so the pole painted straight through it. Fixed properly — see
+ *     `paintOrder` in `render.ts`.
+ *  2. **Correct projection that read badly**: an off-centre part moves vertically on screen as
+ *     it turns, because screen y is `(x + y) × HALF_TILE_H`.
+ *
+ * The second is *not* a reason to give up symmetry, and the claim once written here — that
+ * the projection forbids an orientable one-sided thing — is **false**, refuted by two sprites
+ * in this very file. Measured: a desk's drawers move **12.9px** relative to its top and a
+ * chair's back **7.9px** relative to its seat, against this cloth's 4.5px, and both read as
+ * turning.
+ *
+ * What they have and this does not is a **reference that turns with the part**. A seat and a
+ * desk top are broad horizontal surfaces whose diamonds say where the ground plane is, so a
+ * back arriving at the near edge reads as the chair coming round. A pole is a thin vertical
+ * stick at dead centre — rotationally invariant, no surface — so the cloth had nothing to be
+ * moving against and read as slipping down it.
+ *
+ * **The fix, when this is picked up again, is a crossbar**: an arm across the top of the pole
+ * that the cloth hangs from, off-centre and rotating with it. Then the arm swings visibly and
+ * the cloth's drop is read as depth. Restore `orientable: true` and `rotationsDiffer` with it.
  */
 export function bannerModel(): Solid[] {
   return [

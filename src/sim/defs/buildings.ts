@@ -346,12 +346,13 @@ export const BUILDING_DEFS: readonly BuildingDef[] = [
     blocksRoom: false,
     lockable: false,
     /*
-     * The cloth wraps the pole, so it looks the same from every side.
+     * **Temporary, and a retreat.** The cloth currently wraps the pole, so it looks the
+     * same from every side and there is nothing for a turn to do.
      *
-     * Not a shrug — the projection forces it. A part off-centre enough for the facings to
-     * differ is off-centre enough to slide vertically as the model turns, by the very same
-     * offset. See `bannerModel`. Offering a turn that can only make it worse is the kind of
-     * control ADR 0009 exists to refuse.
+     * A one-sided banner is perfectly possible — a chair's back and a desk's drawers are
+     * off-centre and turn fine. What this sprite lacks is a crossbar for the cloth to hang
+     * from, so that something the player can *see* rotates with it. `bannerModel` has the
+     * measurements and the fix; this goes back to `true` with it.
      */
     orientable: false,
     ownable: false,

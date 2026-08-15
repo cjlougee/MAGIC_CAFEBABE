@@ -59,14 +59,21 @@ Three rules it does not give you:
 - `rise / LEVEL_HEIGHT` is a **ceiling**. A solid above it projects off the top of its own frame. The
   harness fails on it rather than cropping silently.
 - A face thinner than a pixel is dropped. If a part vanishes, it was under 1px thick.
-- **A sideways offset is a downward offset too, and you cannot buy one without the other.** Under
-  the four quarter turns a point `(px, py)` takes the sums `px+py`, `1+px−py`, `2−px−py` and
-  `1−px+py`, and those are equal **only at (0.5, 0.5)**. Screen y is `(x + y) × HALF_TILE_H`, so a
-  part far enough off-centre to make the facings look different is, by exactly the same number, far
-  enough off-centre to slide vertically as it turns. A banner's cloth hung to one side dropped four
-  and a half pixels at two facings and read as a sign lying against its own post — and no amount of
-  raising the hem or shrinking the sheet fixed it, because the two are the same quantity. **The
-  answer was to make the part symmetric and the def `orientable: false`**, not to keep tuning.
+- **A sideways offset is a downward offset too — and that is fine, as long as something *visibly*
+  turns with it.** Under the four quarter turns a point `(px, py)` takes the sums `px+py`,
+  `1+px−py`, `2−px−py` and `1−px+py`, equal only at `(0.5, 0.5)`, so any off-centre part moves
+  vertically on screen as the model rotates. That is correct projection, not a defect: measured, a
+  **desk's drawers move 12.9px** relative to its top and a **chair's back 7.9px** relative to its
+  seat, and both read as turning.
+
+  What decides whether it reads is whether the part moves against a **reference that turns with
+  it**. A seat and a desk top are large horizontal surfaces whose own diamonds say where the ground
+  plane is, so a back arriving at the near edge reads as the chair coming round. A banner's pole is
+  a thin vertical stick at dead centre — rotationally invariant, with no surface — so its cloth
+  moving 4.5px, *less than either of the others*, had nothing to be moving relative to and read as
+  sliding down the post. **The fix is to give the part something that visibly rotates with it** (a
+  crossbar at the top of the pole), not to centre it. Centring removes the slide by removing the
+  rotation, which is giving up.
 
 - **Measure parts against each other, don't look at the sprite.** The banner above was "fixed"
   twice by eye and was wrong both times, because the eye reported the symptom (*the sign is on the
