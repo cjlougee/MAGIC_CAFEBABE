@@ -552,15 +552,33 @@ accumulation* rather than about any single frame:
 - **Q dropped you out of the build tool** when the held buildable did not rotate — the key fell
   through to the tool shortcuts and closed the architect menu. The *tool* decides what Q means now,
   not the tool plus which item is held, which was a third meaning nobody asked for.
-- **Several fires together blew out to white.** Additive glow was fine for the one campfire M6 had
-  and stops being fine for a camp: four of them summed past 1 over a wide area and flattened every
-  colour under them. Now `screen`, which approaches white without reaching it, with the peak down
-  from 0.72 to 0.35. Noted for Slice 5: additive blow-out *is* what an explosion should look like.
-- **The banner's cloth slid down its post** at two facings — the swing lesson above, found by eye
-  and confirmed as a four-and-a-half-pixel drop in the report.
-- **Instant build only worked in one direction.** Deconstruct still marked structures for a colonist
-  to walk over and undo, so clearing a mistake cost an in-game hour while making one cost nothing.
-  One checkbox now covers both, through the same `deconstruct` the driver calls.
+- **Several fires together blew out to white**, and it took two passes because the first was a
+  tuning fix for a structural problem. Per-sprite blending composites each glow onto the world
+  separately, so N fires stack N times: `add` clips after three or four, and `screen` merely
+  approaches white — `1 - (1 - a)^N` is 0.96 by fifteen. No value of `peak` makes one fire visible
+  *and* sixteen not blinding. The glows now render **offscreen**, combining with each other by
+  `lighten` so overlapping light takes the brighter rather than the sum, and the finished light
+  field is screened onto the world once. Sixteen fires reach the brightness of one over a wider
+  area. Peak 0.72 → 0.26 on top of that. Noted for Slice 5: additive blow-out *is* what an
+  explosion should look like, and `add` is the mode to reach back for.
+- **The banner's cloth slid down its post** at two facings. A part offset from the tile centre
+  swings vertically as it rotates, and the four rotated sums are equal **only at (0.5, 0.5)** — so
+  sideways offset and vertical drop are the same number and one cannot be bought without the other.
+  Centring it would make the facings identical; raising the hem alone did not work either, because a
+  sheet wide enough to read as a banner has *depth*, and its near-bottom corner hangs far below its
+  own hem. The cloth is now shallower, shorter, and in the top fifth of the post: eleven to thirteen
+  pixels of bare post at every facing, against four before.
+- **Instant build only worked in one direction**, and then only on one of two routes. Deconstruct
+  marked structures for a colonist to walk over and undo, so clearing a mistake cost an in-game hour
+  while making one cost nothing; and once the tool honoured the flag, the structure panel's ✕ still
+  did not — instant *sometimes*, depending which of two identical-looking routes you took to the
+  same order. Both go through the same `deconstruct` the driver's complete toil calls.
+
+- **The architect menu lit up when you pressed a key.** Clicking a buildable focuses its button, and
+  the browser reveals `:focus-visible` the moment it sees a real keypress — so the first press of Q
+  or E put Chrome's orange ring around the last item clicked. The rotation was working; it just
+  looked as though the key had done something to the menu. Focus stays off the menu now, because
+  the gesture continues on the map.
 
 **The model-layer question, answered with numbers rather than taste.** Tones over the same ink area:
 

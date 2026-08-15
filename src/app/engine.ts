@@ -315,6 +315,11 @@ export class Engine {
       type: 'designate',
       action: 'deconstruct',
       area: { x0: x, y0: y, x1: x, y1: y, z: GROUND_LEVEL },
+      // The panel's ✕ is the same order as a one-cell drag of the Deconstruct tool, so it
+      // has to answer the debug flag the same way. It did not, and the result was the
+      // worst possible reading of a debug switch: instant *sometimes*, depending on which
+      // of two identical-looking routes you happened to take to the same order.
+      instant: this.store.getState().instantBuild,
     });
     this.sim.flushCommands();
     this.store.update({ snapshot: this.sim.snapshot() });

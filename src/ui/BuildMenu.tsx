@@ -54,6 +54,20 @@ interface BuildMenuProps {
   readonly onPickBuildable: (buildable: BuildableId) => void;
 }
 
+/**
+ * Clicking a menu button must not leave the keyboard focused on it.
+ *
+ * The player's *next* input after picking a buildable is Q, E, or a click on the map — the
+ * gesture continues on the world, not in the menu. But a click focuses the button, and the
+ * browser reveals `:focus-visible` the moment it sees a real key, so the first press of E
+ * put Chrome's orange ring around whichever item was last clicked. The rotation worked; it
+ * simply looked as though the key had done something to the menu.
+ *
+ * `preventDefault` on mousedown suppresses the focus without touching the click, so Tab
+ * still reaches these and *there* the ring is wanted and correct.
+ */
+const keepFocusOffTheMenu = (event: { preventDefault: () => void }) => event.preventDefault();
+
 export function BuildMenu({ buildable, onPickBuildable }: BuildMenuProps) {
   /*
    * Which tab is open is **this component's own state**, and it lives here rather than in
@@ -79,6 +93,7 @@ export function BuildMenu({ buildable, onPickBuildable }: BuildMenuProps) {
             key={tab.id}
             type="button"
             className={`build-menu__tab${category === tab.id ? ' is-active' : ''}`}
+            onMouseDown={keepFocusOffTheMenu}
             onClick={() => setCategory(tab.id)}
           >
             {tab.label}
@@ -93,6 +108,7 @@ export function BuildMenu({ buildable, onPickBuildable }: BuildMenuProps) {
             type="button"
             title={`${def.description} — costs ${costLabel(def.id)}`}
             className={`build-menu__item${buildable === def.id ? ' is-active' : ''}`}
+            onMouseDown={keepFocusOffTheMenu}
             onClick={() => onPickBuildable(def.id)}
           >
             <Thumbnail buildable={def.id} />

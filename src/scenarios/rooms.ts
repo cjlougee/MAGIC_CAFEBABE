@@ -108,19 +108,46 @@ export const rooms: Scenario[] = [
     frame: ROOM_FRAME,
   },
   {
-    name: 'crowded-fires',
+    name: 'banners-all-rotations',
     /*
-     * Five campfires shoulder to shoulder, which is the case that broke the lighting.
+     * Four banners in a square, one per facing, on paving.
      *
-     * One emitter told us nothing: additive glows summed past white only where several
-     * overlapped, so the failure needed a *crowd* to appear at all and looked like a
-     * nuclear flash when it did. A picture of one campfire would have passed at every
-     * stage of tuning it.
+     * On the contact sheet each sprite sits alone in its own frame, so "the sign is lower
+     * at two facings" is a comparison nobody can make — the frames are identical and the
+     * eye has nothing to measure against. Side by side on the same ground it is obvious,
+     * which is the whole argument for scenarios existing alongside the sheet.
      */
-    about: 'Five campfires in a row, close enough that their glows overlap. Night.',
+    about: 'Four banners, one per facing, on a paved square. Noon.',
     build: (s) => {
       s.flat(SIZE);
-      for (let i = 0; i < 5; i++) s.place(Building.Campfire, at(i * 2, 2 + (i % 2)));
+      for (let x = 0; x < 7; x++) {
+        for (let y = 0; y < 7; y++) s.floor(at(x, y), Buildable.Floor);
+      }
+      s.place(Building.Banner, at(1, 1), 0);
+      s.place(Building.Banner, at(5, 1), 1);
+      s.place(Building.Banner, at(1, 5), 2);
+      s.place(Building.Banner, at(5, 5), 3);
+      s.timeOfDay('noon');
+    },
+    frame: { fit: 'contents', zoom: 2.4 },
+  },
+  {
+    name: 'crowded-fires',
+    /*
+     * Sixteen campfires in a block, which is the case that broke the lighting twice.
+     *
+     * One emitter tells you nothing: glows only pile up where several overlap, so the
+     * failure needs a *crowd* to appear at all. It also needs a big enough one — five in a
+     * row looked fine after the first fix, and sixteen still washed the ground to cream,
+     * because `screen` only approaches white asymptotically rather than refusing to reach
+     * it. The number here is the number that was actually on screen when it was reported.
+     */
+    about: 'Sixteen campfires in a block, glows overlapping heavily. Night.',
+    build: (s) => {
+      s.flat(SIZE);
+      for (let x = 0; x < 4; x++) {
+        for (let y = 0; y < 4; y++) s.place(Building.Campfire, at(x * 2, y * 2));
+      }
       s.timeOfDay('night');
     },
     frame: { fit: 'contents', zoom: 2 },

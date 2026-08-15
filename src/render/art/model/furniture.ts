@@ -247,25 +247,31 @@ export function bannerModel(): Solid[] {
     // Top hidden: the pole stands in it.
     { x0: 0.42, y0: 0.42, z0: 0, x1: 0.58, y1: 0.58, z1: 0.06, material: 'stone', label: 'banner foot', hideTop: true },
     /*
-     * **Hung high, and close to the pole**, because in a 2:1 view a sideways offset is a
-     * *downward* one too.
+     * **Small, and hung right at the top**, because the swing cannot be designed away.
      *
-     * The sheet sits to one side of the pole in the ground plane — that is what makes the
-     * facings differ — and rotating it therefore swings it through `2 × offset` tiles of
-     * `x + y`, which the projection turns into `offset × TILE_H` pixels of screen drop.
-     * At an offset of 0.14 tiles and a hem 0.3 storeys up, the far two facings dropped the
-     * cloth four and a half pixels onto a hem seven pixels off the ground, and the banner
-     * read as a sign lying against its own post.
+     * A part offset from the tile centre swings vertically as the model rotates: under the
+     * four quarter turns a point `(px, py)` takes sums `px+py`, `1+px−py`, `2−px−py` and
+     * `1−px+py`, and those are all equal **only at (0.5, 0.5)**. So a banner that visibly
+     * hangs to one side necessarily drops by `offset × TILE_H` pixels at two of its four
+     * facings — sideways offset and vertical swing are the same number, and one cannot be
+     * bought without the other.
      *
-     * So the hem starts at nearly half a storey and the offset is smaller: the swing is
-     * three pixels against ten of clearance, and it reads as hanging at every facing.
+     * That kills the obvious fixes. Centring the cloth removes the swing and makes the
+     * facings identical; simply raising the hem does not work either, because the sheet has
+     * *depth* — a box wide enough to read as a banner reaches toward the camera, and its
+     * near-bottom corner hangs far below its own hem. The first attempt raised the hem to
+     * 0.44 storeys and still left four pixels of bare post at two facings.
+     *
+     * So the cloth is **shallower and shorter, and sits in the top fifth of the post**:
+     * three pixels of swing against nine of clearance at the worst facing, twelve at the
+     * best. Both read as hanging, which is the only thing the player is judging.
      *
      * Cloth before pole, which is the order the object is in at two of the four facings.
      * The model layer does not depth-sort — see `render.ts` — so a part offset in the
      * ground plane cannot be correctly ordered for all four, and a pole drawn across the
      * near face of its own banner is the reading that survives being wrong.
      */
-    { x0: 0.34, y0: 0.24, z0: 0.44, x1: 0.45, y1: 0.76, z1: 0.82, material: 'cloth', label: 'banner cloth' },
+    { x0: 0.36, y0: 0.34, z0: 0.6, x1: 0.46, y1: 0.66, z1: 0.83, material: 'cloth', label: 'banner cloth' },
     { x0: 0.46, y0: 0.46, z0: 0.04, x1: 0.54, y1: 0.54, z1: HEIGHT.standing, material: 'wood', label: 'banner pole' },
   ];
 }

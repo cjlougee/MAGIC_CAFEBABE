@@ -15,7 +15,7 @@
  * it stays a pure function of where the emitters are. See docs/design/07-production.md.
  */
 
-import { Container, Sprite, Texture } from 'pixi.js';
+import { AlphaFilter, Container, Sprite, Texture } from 'pixi.js';
 import { buildingDef } from '../../sim/defs/buildings';
 import { footprintOfBuilding, sizeOf } from '../../sim/world/footprint';
 import { BUILDING_LIGHT } from '../art/buildingArt';
@@ -44,6 +44,27 @@ export class LightingLayer {
     this.sprite.blendMode = 'multiply';
     this.sprite.eventMode = 'none';
     this.glow.eventMode = 'none';
+
+    /*
+     * **The glows are combined with each other before they touch the scene**, and this
+     * filter is what buys that.
+     *
+     * Per-sprite blending composites each glow straight onto the world, so N overlapping
+     * fires stack N times however they blend. Additive clips to white after three or four;
+     * `screen` merely approaches it — `1 - (1 - a)^N` is 0.96 by fifteen — so a yard full
+     * of campfires still washed out everything under it. Neither is a tuning problem: no
+     * value of `peak` makes one fire visible *and* fifteen not blinding.
+     *
+     * A filter forces the container to render offscreen first. Inside that buffer the
+     * glows use `lighten`, so overlapping light takes the **brighter** of the two rather
+     * than the sum — fifteen fires reach exactly the brightness of one, over a wider area,
+     * which is what a field of small fires actually looks like. The finished light field is
+     * then screened onto the world once.
+     *
+     * `AlphaFilter` at 1 is a no-op that exists only to trigger the offscreen pass.
+     */
+    this.glow.filters = [new AlphaFilter({ alpha: 1 })];
+    this.glow.blendMode = 'screen';
   }
 
   /** `daylight` is 0 at full night, 1 at midday. */
@@ -71,7 +92,7 @@ export class LightingLayer {
       radius: GLOW_TEXTURE_RADIUS,
       // Below 1: light at full strength saturates the core to white and hides the campfire
       // inside its own glow. Light should reveal its source, not erase it.
-      peak: 0.35,
+      peak: 0.26,
       falloff: 3,
     });
 
@@ -109,20 +130,15 @@ export class LightingLayer {
       sprite = new Sprite(this.glowTexture ?? Texture.WHITE);
       sprite.anchor.set(0.5);
       /*
-       * **Screen, not add.** Overlapping fires still pool their light instead of one
-       * hiding the other, but `1 - (1-a)(1-b)` approaches white without ever reaching it,
-       * where addition clips.
+       * **Lighten, inside the offscreen buffer** — see the constructor. Two glows that
+       * overlap take the brighter of the two rather than accumulating, so a crowd of
+       * fires lights a wider area and never a brighter one.
        *
-       * Addition was fine for the one campfire the game had in M6 and stops being fine the
-       * moment a colony has several: put four next to each other and their glows summed
-       * past 1 across a wide area, flattening every colour under them to white — a
-       * nuclear flash rather than a camp. Anything that saturates hides its own source,
-       * which is the same failure the glow's `peak` is held below 1 to avoid, one scale up.
-       *
-       * Worth keeping in mind for Slice 5: additive light blowing out *is* what an
-       * explosion looks like, and this is the blend mode to reach back for.
+       * Worth keeping in mind for Slice 5: light that *does* accumulate past white is
+       * exactly what an explosion should look like, and `add` is the mode to reach back
+       * for when there is something to blow up.
        */
-      sprite.blendMode = 'screen';
+      sprite.blendMode = 'lighten';
       sprite.eventMode = 'none';
       this.pool[index] = sprite;
       this.glow.addChild(sprite);
