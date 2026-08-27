@@ -608,13 +608,29 @@ back panel was invisible behind its own boards; a stool was a pancake. `HEIGHT.s
 and `HEIGHT.back` 0.45 → 0.58 **because of the camera, not because of anatomy**, and it is written
 down in `language.ts` where the next low thing will find it.
 
-### M14 — Buildings that look like buildings *(item 8, minus the storeys)*
+### M14 — Buildings that look like buildings *(item 8)* — **deferred behind Slice 4**
 
-*Split from what was one milestone.* Roughly 70% of "buildings that look like buildings" has nothing
-to do with levels — materials, ornament, silhouette — and exactly one part collides with
-`LEVEL_HEIGHT`: being genuinely taller than one storey. Building tall in a one-level world and then
-converting it when levels land is building it twice, which is the rework the verticality decision
-exists to refuse. So the tall half moves to Slice 4 and everything else ships here, on schedule.
+*Split once, then deferred whole.* The split was: roughly 70% of "buildings that look like buildings"
+has nothing to do with levels — materials, ornament, silhouette — and exactly one part collides with
+`LEVEL_HEIGHT`, being genuinely taller than one storey. So the tall half went to Slice 4 and the rest
+was going to ship here on schedule.
+
+**That was still the wrong order, and the argument against it is the one already written below.**
+M14 is what *scheduled* Slice 4: a wall draws 22px against a level's 24, so the first genuinely tall
+building makes a one-storey hut and a real second floor pixel-identical. Two of the four items here
+are shaped by that constraint rather than by the art — "silhouette variety **within the one-storey
+budget**" exists only because there is no second storey, and converting wall, door and hearth to the
+model layer at a 22px ceiling means picking their proportions twice once walls can be tall. That is
+precisely the rework ADR 0003 refuses, and refusing it is why the cheap cap was rejected in the first
+place.
+
+So **verticality goes first**, and what M14 should be gets decided with levels in hand rather than
+around their absence. The items below stand; their *numbers* do not, and neither does the third one's
+premise.
+
+The occlusion item may well move into Slice 4 wholesale — a cut plane and "which buildings fade
+behind a pawn" are the same question asked twice, and answering them separately is how two callers
+end up disagreeing about what hides what.
 
 - [ ] **Wall, door and hearth onto the model layer**, inherited from M13 with the numbers to justify
       it: 7, 5 and 14 tones against modelled furniture's 26–45, which makes them the three flattest
@@ -661,7 +677,15 @@ The cheap answer was to cap decorative relief below `LEVEL_HEIGHT` and write it 
 slices are already waiting on levels: multi-storey buildings here, high-ground and cover modifiers in
 Threat, caves and relic-tech dungeons in The world outside. Build it once, properly.
 
-Not designed in detail yet; it gets its own pass when we reach it. What it has to cover:
+**And then it moved in front of M14 entirely**, which is the same argument carried one step further.
+Deferring only the *tall* half of the buildings pass still left the other half choosing proportions,
+ornament and a model-layer conversion against a 22px ceiling that levels are about to lift. A
+milestone shaped by the absence of a feature scheduled immediately after it is a milestone that gets
+revisited. Build the levels; then decide what a building looks like.
+
+**Not designed in detail yet, and that design pass is the first thing to do** — this is the largest
+unscoped slice in the project and it wants decomposing into milestones before any of it is written.
+What it has to cover:
 
 - **Worldgen picking a surface level per column**, so terrain has relief that is *structural* rather
   than decorative
@@ -740,8 +764,11 @@ time. The loop was one command and a picture: `npm run art` named eighteen fault
 first bake — *"chair leg 0 right, under the 6px floor"* — and no sprite in the milestone needed a dev
 server to judge. The one thing that did need the running game was the menu, which is a DOM question.
 
-**Next is M14**, which inherits wall, door and hearth: measured at 7, 5 and 14 tones against modelled
-furniture's 26–45, and they are the three flattest things left on screen.
+**Next is Slice 4 — verticality**, not M14. M14 inherits wall, door and hearth (measured at 7, 5 and
+14 tones against modelled furniture's 26–45, the three flattest things left on screen) and it will
+still inherit them afterwards. What it cannot do is pick their proportions sensibly while a wall's
+22px and a storey's 24px are indistinguishable. **Build the levels, then decide what a building looks
+like** — which is the order the slice's own entry has argued for since it was scheduled.
 
 **Slice 4 is verticality**, scheduled at last rather than deferred a fifth time. See the section
 below for what finally triggered it and why capping decorative height was refused.
