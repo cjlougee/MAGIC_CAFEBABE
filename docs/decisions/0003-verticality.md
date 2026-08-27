@@ -32,7 +32,7 @@ it out on its own.
 **Decision: discrete z-levels.** One concept covers every case:
 
 - **High ground** is standing on level 1 while the target stands on level 0.
-- **A trench** is a floor at level −1 that a pawn drops into.
+- **A trench** is a floor a pawn drops into, one level below the ground around it.
 - **Cover** is a solid cell adjacent to the shooter's line of fire — already a z-level concept.
 - **A cave** is a level with solid rock above it.
 - **A second storey** is a constructed floor on level 1.
@@ -90,3 +90,24 @@ Following the principle that we don't build tooling for plans that haven't arriv
 - Cross-sections make picking ambiguous — one screen point sits over one tile *per level*. This is why
   `worldToTile` takes the level rather than inferring it: the cut plane decides which level the player
   is pointing at.
+
+## Amendment · 2026-08-26 · negative z was never representable
+
+**"Levels above are positive, underground is negative" was wrong from the day it was written**, and
+the reservation it described could not have been built. `TileMap.inBounds` has always required
+`z >= 0` — the grid runs `0 .. levels-1` — so there was no negative half to put a trench or a cave
+in, and every saved position sits at `z = 0`.
+
+Slice 4 does not add one. An offset between "logical level" and "grid index" would be an indirection
+at every index in the hottest code in the simulation, paid forever, to make one sign convention read
+nicely. Instead **level 0 is the bottom of the world**, underground is simply low z, and the surface
+is `map.surfaceLevelAt(x, y)`, which varies per column — which it has to anyway, the moment relief
+is structural rather than decorative.
+
+`GROUND_LEVEL` keeps its name and its value and stops meaning "the surface". The wording above is
+left as written rather than edited, because the interesting fact is that a reserved seam described
+in prose disagreed with the code for eight milestones and nothing noticed. **A reserved seam that
+was never tested is not reserved — it is a guess**, and this document already said so about the
+grid; the sign convention was the half it did not test.
+
+See [`superpowers/specs/2026-08-26-verticality-design.md`](../superpowers/specs/2026-08-26-verticality-design.md).

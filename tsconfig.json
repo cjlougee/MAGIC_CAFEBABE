@@ -28,5 +28,5 @@
       "@app/*": ["src/app/*"]
     }
   },
-  "include": ["src", "tests", "vite.config.ts", "vitest.config.ts", "eslint.config.js"]
+  "include": ["src", "tests", "tools", "vite.config.ts", "vitest.config.ts", "eslint.config.js"]
 }

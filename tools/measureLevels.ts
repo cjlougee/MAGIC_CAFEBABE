@@ -149,6 +149,36 @@ for (const row of rows) {
 }
 console.log('');
 
+/*
+ * The second table, and the one that actually answers the question.
+ *
+ * The first table holds `surfaceBands` at 3 and varies `levels`, which is the wrong knob:
+ * levels are nearly free and relief bands are not. Eight levels at three bands costs what
+ * five does; five levels at one band costs nothing at all. M18 is where "the existing
+ * thresholds become level bands" gets decided, so that is the number it needs.
+ *
+ * Three bands is also a local *minimum* — a quantisation coincidence in
+ * `Math.floor(e * bands)` — which is why the first table shows 5 levels coming out cheaper
+ * than 3. An anomaly in a measurement is a thing to chase, not to pass over.
+ */
+console.log('  what it actually costs: relief bands, not levels');
+console.log('  ' + '─'.repeat(72));
+console.log('  levels  bands        bytes    vs 1 level');
+{
+  const seed = SEEDS[0];
+  const flat = createWorld(seed, { width: SIZE, height: SIZE }).map;
+  const world = createWorld(seed, { width: SIZE, height: SIZE });
+  for (const [levels, bands] of [[5, 1], [5, 2], [5, 3], [5, 4], [5, 5], [3, 2], [8, 3], [8, 6]]) {
+    const row = measure({ ...world, map: layered(flat, seed, levels, bands, false) }, '');
+    const ratio = (row.bytes / meanBaseline).toFixed(2);
+    console.log(
+      `  ${String(levels).padStart(6)}  ${String(bands).padStart(5)} ${kb(row.bytes).padStart(12)}` +
+        ` ${(ratio + '×').padStart(13)}`,
+    );
+  }
+}
+console.log('');
+
 // A uniform level, for contrast: this is what "empty levels are genuinely empty" costs.
 const uniform = encodeRle(new Uint8Array(SIZE * SIZE).fill(OPEN));
 console.log(`  one uniform level RLEs to ${uniform.length / 2} runs (${uniform.length} numbers),`);

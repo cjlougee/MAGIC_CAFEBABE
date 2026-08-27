@@ -31,14 +31,27 @@ each map and forcing one full reachability rebuild:
 
 | Map | Cells | Worldgen | Reachability rebuild | Save (JSON) |
 |---|---|---|---|---|
-| 128² | 16K | 5.4 ms | 2.7 ms | 28 KB |
-| 256² | 65K | 10.8 ms | 12.0 ms | 114 KB |
-| 512² | 262K | 38.5 ms | 63.7 ms | 475 KB |
-| 1024² | 1.05M | 154 ms | 194.7 ms | 1.9 MB |
+| 128² | 16K | 5.4 ms | 2.7 ms | ~~28 KB~~ |
+| 256² | 65K | 10.8 ms | 12.0 ms | ~~114 KB~~ |
+| 512² | 262K | 38.5 ms | 63.7 ms | ~~475 KB~~ → **294 KB** |
+| 1024² | 1.05M | 154 ms | 194.7 ms | ~~1.9 MB~~ → **1,131 KB** |
 
 Worldgen and save size scale linearly and are both affordable — worldgen happens once behind a
-loading screen, and 475 KB sits comfortably inside a `localStorage` budget where 1.9 MB starts
-crowding a multi-slot save list.
+loading screen, and even the corrected figures sit comfortably inside a `localStorage` budget.
+
+> **The save column was invalidated by the very next commit, and nobody noticed for six
+> milestones.** These numbers were measured against *this* commit's worldgen —
+> `elevationScale: 1/26`, `moistureScale: 1/19`, no biome or wreckage fields. M7 (`bd46e95`)
+> lengthened those wavelengths to 1/70 and 1/40 in the same commit that copied this table into
+> `ROADMAP.md`, and that retune roughly **halved the terrain run count** (42,485 → 21,875 at
+> seed 1, 512²) — which is precisely what turned a mottled map into a regional one. RLE size is
+> a function of run count, so the figure fell with it. Re-measured in Slice 4's Task 0 with
+> `tools/measureLevels.ts`; the save format is byte-identical between then and now, so this is
+> the terrain change and nothing else. *Fourth* instance of the pattern this project is now
+> four-for-four on: a constant measured once, at a scale that then moved.
+>
+> **The reachability column is correctly historical** and is left alone — it is why chunking
+> exists, and it was measured against the same pre-retune world on purpose.
 
 The rebuild column is the problem, because it is not a one-off. `ReachabilityMap` re-floods **every
 component in the map** whenever `markDirty()` fires, and terrain changes constantly during ordinary

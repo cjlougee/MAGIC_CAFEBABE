@@ -835,19 +835,25 @@ search radius (28 tiles, unchanged) and `BUSH_DENSITY` are the next two to look 
   **Measured in M10** — 2×1 bedrolls need more room at the landing site than 1×1 ones did,
   so it is in that milestone's blast radius. Confirmed: 1.2% of the map's area, and the nearest
   rock from home runs to a median of 19 tiles and a max of 73 across 24 seeds. Fixed in M15.
-- **Save size is now the constraint on world size**, where reachability used to be. Worth
-  knowing before anyone raises `DEFAULT_MAP_SIZE` again — and **re-measured in Slice 4's
-  Task 0, where the recorded figures did not reproduce.** `tools/measureLevels.ts` gets
-  **294 KB at 512²** and **1,131 KB at 1024²**, against the 475 KB and 1.9 MB written down
-  here since M7. Both old figures are ~1.6–1.7× the measured ones *and are exactly 4× each
-  other*, as the measured pair also are — so this is a difference in **method**, not a stale
-  seed or a lucky world. Unresolved, and deliberately left visible rather than quietly
-  overwritten. A week of unattended play adds **1 KB and zero terrain runs**, so it is not
-  play either.
-  **Five levels costs 1.20–1.24×, and 1.52–1.60× once caves are carved** — 466 KB worst case
-  at 512², which is *below* the number this file already treated as today's cost. Note that
-  browsers count `localStorage` quota in UTF-16 code units, so a JSON save occupies roughly
-  double its character length; nobody had written that down, and it halves the slot count.
+- **Save size is now the constraint on world size**, where reachability used to be — and the
+  numbers this file carried were wrong by 1.6×. Re-measured in Slice 4's Task 0 with
+  `tools/measureLevels.ts`: **294 KB at 512²**, **1,131 KB at 1024²**, against the 475 KB and
+  1.9 MB recorded here since M7.
+  **The figure was invalidated by the same commit that wrote it down.** It came from ADR
+  0007's table, measured against the *pre-M7* worldgen (`elevationScale: 1/26`,
+  `moistureScale: 1/19`); M7 copied it into this file **and** lengthened those wavelengths to
+  1/70 and 1/40, halving the terrain run count and with it the RLE size. Checking that commit
+  out and measuring it reproduces 475 KB to within 2 KB on one of the same seeds. The save
+  format is byte-identical between then and now, so it is the terrain change and nothing else.
+  **Four-for-four on constants measured once at a scale that then moved** — and this one moved
+  under its own author.
+  **Five levels costs 1.20×, and 1.51–1.60× once caves are carved** — 466 KB worst case at
+  512². But the real driver is **relief bands, not levels**: 5 levels over 1 band is 1.00×,
+  8 levels over 3 bands is 1.20× (identical to 5 over 3), and 5 over 5 is 1.38×. Levels are
+  nearly free; how many of them carry surface is not, and that is M18's decision to make.
+  Note also that browsers count `localStorage` quota in UTF-16 code units, so a JSON save
+  occupies roughly double its character length; nobody had written that down, and it halves
+  the slot count.
 - ~~**A mine mark on rock is nearly invisible.**~~ *Fixed in M11* — raised rock is tinted,
   the same answer deconstruction reached for buildings a milestone earlier.
 - **`lookup.ts` scans linearly** over buildings and sites, and the work givers scan every item

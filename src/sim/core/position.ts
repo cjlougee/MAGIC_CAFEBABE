@@ -15,7 +15,16 @@
  * Until levels land, every z is GROUND_LEVEL and all of this costs one unused field.
  */
 
-/** The surface. Levels above are positive, underground is negative. */
+/**
+ * The bottom of the world, and the default level while the map is one deep.
+ *
+ * ADR 0003 said "levels above are positive, underground is negative", and that was
+ * **never representable**: `TileMap.inBounds` has always required `z >= 0`, so the grid
+ * runs `0 .. levels-1` and there is no negative half. Slice 4 keeps it that way rather
+ * than introducing an offset at every index — underground is simply *low* z, and the
+ * surface is `map.surfaceLevelAt(x, y)`, which varies per column. See the amendment on
+ * ADR 0003.
+ */
 export const GROUND_LEVEL = 0;
 
 export interface TilePos {
