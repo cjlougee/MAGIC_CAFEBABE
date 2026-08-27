@@ -683,8 +683,29 @@ ornament and a model-layer conversion against a 22px ceiling that levels are abo
 milestone shaped by the absence of a feature scheduled immediately after it is a milestone that gets
 revisited. Build the levels; then decide what a building looks like.
 
-**Not designed in detail yet, and that design pass is the first thing to do** — this is the largest
-unscoped slice in the project and it wants decomposing into milestones before any of it is written.
+**Designed**, and no longer the largest unscoped thing in the project. See
+[`superpowers/specs/2026-08-26-verticality-design.md`](superpowers/specs/2026-08-26-verticality-design.md)
+for the cell model, the movement rule, the seven things reading the code turned up, and the
+decomposition into **M16–M20**. Slice 3 keeps M14 and M15, both still deferred behind this
+slice, which is why Slice 4 starts at M16 rather than renumbering every reference to them.
+
+The four decisions the design pass had to make, so they are findable without opening the spec:
+
+- **A cell is `Open`, `Solid` or `Floor`.** `Open` is a new `TerrainId` and inherits
+  `IMPASSABLE` for free; `Solid` is the existing `TerrainDef.solid` flag. A pawn never stands
+  *on top of* a solid — they stand on the Floor cell above it, which is a different cell, and
+  that is what stops the model needing a second rule for "walk onto the rock".
+- **Vertical movement is stair columns**, one rule in `pathfind/neighbours.ts`, symmetric by
+  construction so "up works and down does not" is not expressible. That matters because the
+  220-edit oracle guards *chunking*, not `canStep` — nothing in the suite would catch a one-way
+  step. DF-style edge ramps are staged behind M18, where there is finally a picture of real
+  relief to judge them against.
+- **A solid *is* a level.** `terrainHeight` becomes `solid ? LEVEL_HEIGHT : 0` — rock 14 → 24px,
+  bulkhead 22 → 24px. That is the ADR 0003 reconciliation, and `language.ts` stating every
+  proportion as a fraction of `LEVEL_HEIGHT` in M12 is why no furniture number moves.
+- **Walls stay at 22px.** Slice 4 ships the machinery; M14 picks proportions with a real second
+  storey on screen to measure against.
+
 What it has to cover:
 
 - **Worldgen picking a surface level per column**, so terrain has relief that is *structural* rather
