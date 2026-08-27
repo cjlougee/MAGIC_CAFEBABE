@@ -835,9 +835,19 @@ search radius (28 tiles, unchanged) and `BUSH_DENSITY` are the next two to look 
   **Measured in M10** — 2×1 bedrolls need more room at the landing site than 1×1 ones did,
   so it is in that milestone's blast radius. Confirmed: 1.2% of the map's area, and the nearest
   rock from home runs to a median of 19 tiles and a max of 73 across 24 seeds. Fixed in M15.
-- **Save size is now the constraint on world size**, where reachability used to be.
-  475 KB at 512² against 1.9 MB at 1024², which starts crowding a multi-slot
-  `localStorage` budget. Worth knowing before anyone raises `DEFAULT_MAP_SIZE` again.
+- **Save size is now the constraint on world size**, where reachability used to be. Worth
+  knowing before anyone raises `DEFAULT_MAP_SIZE` again — and **re-measured in Slice 4's
+  Task 0, where the recorded figures did not reproduce.** `tools/measureLevels.ts` gets
+  **294 KB at 512²** and **1,131 KB at 1024²**, against the 475 KB and 1.9 MB written down
+  here since M7. Both old figures are ~1.6–1.7× the measured ones *and are exactly 4× each
+  other*, as the measured pair also are — so this is a difference in **method**, not a stale
+  seed or a lucky world. Unresolved, and deliberately left visible rather than quietly
+  overwritten. A week of unattended play adds **1 KB and zero terrain runs**, so it is not
+  play either.
+  **Five levels costs 1.20–1.24×, and 1.52–1.60× once caves are carved** — 466 KB worst case
+  at 512², which is *below* the number this file already treated as today's cost. Note that
+  browsers count `localStorage` quota in UTF-16 code units, so a JSON save occupies roughly
+  double its character length; nobody had written that down, and it halves the slot count.
 - ~~**A mine mark on rock is nearly invisible.**~~ *Fixed in M11* — raised rock is tinted,
   the same answer deconstruction reached for buildings a milestone earlier.
 - **`lookup.ts` scans linearly** over buildings and sites, and the work givers scan every item

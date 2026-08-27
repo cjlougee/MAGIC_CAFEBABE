@@ -241,13 +241,37 @@ cheaper than renumbering every commit message and roadmap paragraph that names t
 
 ### M16 — The third axis *(sim only)*
 
-**Task 0 — measure the save cost and report it.** Generate 512² at `levels` 1/3/5, serialize,
-compare bytes and RLE ratio. Five levels is decided; the number is still owed, because this
-project is two-for-two on constants nobody measured and a new axis is a new place for one.
-Baseline is 475 KB at 512²×1. Expectation is ~1.5–2× rather than 5×: the current grid's run
-count is dominated by the ruin field at wavelength 1/11, which upper levels do not have, and a
-pure-`Open` level is one run. **If it lands past ~1.2 MB, that is a finding to bring back, not
-a cap to apply quietly.**
+**Task 0 — measure the save cost. ✅ Done**, `tools/measureLevels.ts`, three seeds at 512² and
+confirmed at 1024². The terrain is modelled the way M18 will generate it — rock below the
+surface, real terrain at it, `Open` above — from the *existing* elevation field at the existing
+wavelength, because a uniform stack is the trivially cheap case and would have flattered the
+answer.
+
+| variant | 512² | vs 1 level |
+|---|---|---|
+| 1 level | 289–294 KB | 1.00× |
+| 1 level, played a week | 295 KB | 1.01× |
+| 3 levels | 358–366 KB | 1.23–1.25× |
+| **5 levels** | **352–363 KB** | **1.20–1.24×** |
+| **5 levels + caves** | **443–466 KB** | **1.52–1.60×** |
+
+**Five levels is comfortably affordable** — the worst case measured, 466 KB with caves carved,
+is *below* what the roadmap already recorded as the cost of a flat world. The prediction was
+1.5–2× and the answer is 1.2×, for the predicted reason: the flat grid's run count is dominated
+by the ruin field at wavelength 1/11, which upper levels do not carry, and **a uniform level
+RLEs to 5 runs** — `encodeRle` caps a run at `0xffff`, which is the only reason it is 5 rather
+than 1. Empty levels really are empty.
+
+Two findings that came out of it and were not the question asked:
+
+- **The recorded baseline does not reproduce.** 294 KB measured at 512² against the 475 KB in
+  the roadmap, and 1,131 KB at 1024² against 1.9 MB. Both old figures are ~1.6–1.7× the
+  measured ones *and are exactly 4× each other*, as the measured pair also are — so it is a
+  difference in method, not a stale seed. A week of unattended play adds 1 KB and **zero**
+  terrain runs, so it is not play. Left visible in the roadmap rather than overwritten.
+- **`localStorage` quota is counted in UTF-16 code units**, so a save occupies roughly double
+  its JSON character length. "A multi-slot `localStorage` budget" has been the stated
+  constraint since M7 and nobody had written the doubling down.
 
 - `Terrain.Open`, `Terrain.Stair`, `TerrainDef.connectsVertically`
 - `terrainHeight` derived from `solid`; the `TERRAIN_HEIGHT` table deleted
